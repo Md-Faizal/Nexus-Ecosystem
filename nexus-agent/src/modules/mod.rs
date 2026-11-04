@@ -2,6 +2,7 @@ pub mod ai_bridge;
 pub mod docker;
 pub mod gpu;
 pub mod telemetry;
+pub mod tray;
 
 use crate::config::AgentConfig;
 use crate::mesh::protocol::TelemetryPayload;

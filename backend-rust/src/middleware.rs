@@ -66,7 +66,14 @@ pub async fn require_admin_middleware(
         .get("authorization")
         .or_else(|| req.headers().get("x-admin-pin"))
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.trim().to_string());
+        .map(|s| {
+            let trimmed = s.trim();
+            if let Some(stripped) = trimmed.strip_prefix("Bearer ") {
+                stripped.trim().to_string()
+            } else {
+                trimmed.to_string()
+            }
+        });
 
     let pin_from_query = req.uri().query().and_then(|q| {
         q.split('&')

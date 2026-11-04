@@ -119,6 +119,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Config File:   {:?}", AgentConfig::config_path());
         }
         Some(Commands::Run) | None => {
+            // Hide background console window when running as daemon
+            modules::tray::hide_console_window();
+
+            // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
+            modules::tray::start_system_tray(config.node_id.clone());
+
             let mut client = MeshClient::new(config);
             client.run().await;
         }

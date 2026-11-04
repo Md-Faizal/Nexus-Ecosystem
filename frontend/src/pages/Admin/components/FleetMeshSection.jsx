@@ -33,13 +33,19 @@ export default function FleetMeshSection() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [featureModalNode, setFeatureModalNode] = useState(null);
 
+  const getAuthHeaders = () => {
+    const pin = localStorage.getItem('faizal_admin_pin') || localStorage.getItem('admin_token') || '2004';
+    return {
+      'Authorization': pin,
+      'X-Admin-Pin': pin,
+    };
+  };
+
   // Fetch nodes from central mesh hub
   const fetchNodes = async () => {
     try {
       const res = await fetch('/api/fleet/nodes', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('admin_token') || ''}`,
-        },
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -71,7 +77,7 @@ export default function FleetMeshSection() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('admin_token') || ''}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ action, args }),
       });
@@ -103,7 +109,7 @@ export default function FleetMeshSection() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('admin_token') || ''}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ features: updatedFeatures }),
       });
@@ -131,7 +137,7 @@ export default function FleetMeshSection() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('admin_token') || ''}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           model: aiModel || selectedAiNode.models[0] || 'llama3.2:3b',
