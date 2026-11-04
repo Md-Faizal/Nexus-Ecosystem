@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import PageHeader from '../../../components/common/PageHeader';
-import ThreeScene from './ThreeScene';
+import AmberVaultHeroCanvas from './AmberVaultHeroCanvas';
 
 const THEME_COLOR = '#A30033'; // Deep crimson red matching the logo
 
@@ -12,11 +12,6 @@ const MONOGRAM_PATHS = {
   centerWhite: "M128.13,20.73l-6.84,16.67-40.73,18.92-4,1.86,4.41.05,31.28.34-4.57,10.78-62.4-.05,6.16-15.86,40.77-18.88,3.96-1.83-4.36-.07-31.37-.53,4.64-10.68,63.06-.71M129.63,19.71l-65.22.74-5.49,12.65,32.87.55-41.14,19.05-6.83,17.6,64.52.05,5.42-12.76-32.78-.36,41.09-19.08,7.56-18.43h0Z"
 };
 
-// Exact geometric calculation: SVG is 215vmin wide with viewBox 800.
-// Innermost circle has radius 148 in 800x800 coordinate system.
-// Exact radius in vmin = 148 * (215 / 800) = 39.775vmin.
-const INNER_PORTAL_RADIUS_VMIN = "39.775vmin";
-
 function ConcentricBackground({ 
   isRevealed = true, 
   isTransitioning = false,
@@ -24,7 +19,6 @@ function ConcentricBackground({
 }) {
   const isRadiating = isRevealed;
   const isStableView = isTransitioning;
-  // Strictly gate portal and fullscreen states so transitions never glitch or punch holes
   const isFullscreenVideo = !isTransitioning && heroStage === 'video-fullscreen';
   const isPortalActive = !isTransitioning && (heroStage === 'video-portal' || heroStage === 'video-fullscreen');
   
@@ -109,11 +103,11 @@ function ConcentricBackground({
 
           {/* DYNAMIC CONCENTRIC APERTURE MASK: 
               - White = visible porcelain canvas
-              - Black = cutout hole revealing video underneath
+              - Black = cutout hole revealing 3D scene underneath
               - Stage 1 (logo): 100% white porcelain canvas
-              - Stage 2 (video-portal): Center circle (r=148) turns black, opening the center video portal
-              - Stage 3 (video-fullscreen): Each ring band from i=0 to i=39 expands to black sequentially,
-                dissolving the porcelain band-by-band into the full video frame
+              - Stage 2 (video-portal): Center circle (r=148) turns black, opening the center portal
+              - Stage 3 (video-fullscreen): Each ring band expands to black sequentially,
+                dissolving the porcelain band-by-band into the full 3D frame
           */}
           <mask id="porcelain-aperture-mask">
             {/* Base White Canvas = 100% Opaque Porcelain Background */}
@@ -135,13 +129,9 @@ function ConcentricBackground({
               }}
             />
 
-            {/* Concentric Aperture Unmasking Bands:
-                Each band i unmasks the porcelain between ring i and ring i+1
-                starting from innermost ring (i=0) to outermost (i=39)
-            */}
+            {/* Concentric Aperture Unmasking Bands */}
             {rings.map((ring, i) => {
               const nextRadius = rings[i + 1] ? rings[i + 1].radius : 1600;
-              // Synchronized with ring collapse delay
               const bandUnmaskDelay = 0.05 + i * 0.028;
 
               return (
@@ -186,11 +176,8 @@ function ConcentricBackground({
           }}
         >
           {rings.map((ring) => {
-            // 1. Initial reveal wave: radiates from innermost ring (i=0) -> outermost ring (i=ringCount-1)
             const appearDelay = ring.index === 0 ? 0 : 0.05 + ring.index * 0.015;
-            // 2. Inverse dissolution wave: collapses into porcelain starting from innermost (i=0) -> outermost (i=ringCount-1)
             const collapseDelay = ring.index === 0 ? 0 : 0.05 + ring.index * 0.020;
-
             const shouldShowRing = (!isFullscreenVideo && ring.index === 0) || isStableView || (isRadiating && !isFullscreenVideo);
 
             return (
@@ -200,6 +187,7 @@ function ConcentricBackground({
                 cy={ring.cy}
                 r={ring.radius}
                 stroke={ring.stroke}
+                strokeWidth={ring.strokeWidth}
                 initial={isStableView ? false : {
                   opacity: ring.index === 0 ? ring.targetOpacity : 0,
                   strokeWidth: ring.index === 0 ? ring.strokeWidth : 0
@@ -240,77 +228,46 @@ export default function HeroSection({
   onOpenMenu, 
   isMenuOpen, 
   onNavigate, 
-  onLogoClick,
-  isTransitioning = false,
-  isPageReady = true,
-  isFreeCam: propFreeCam = false
+  onLogoClick, 
+  isTransitioning = false, 
+  isPageReady = true 
 }) {
-  const [isFreeCam, setIsFreeCam] = useState(propFreeCam);
-
-  useEffect(() => {
-    setIsFreeCam(propFreeCam);
-  }, [propFreeCam]);
-
-  useEffect(() => {
-    const handleToggle = (e) => {
-      setIsFreeCam(Boolean(e?.detail?.enabled));
-    };
-    window.addEventListener('toggle-dev-freecam', handleToggle);
-    return () => window.removeEventListener('toggle-dev-freecam', handleToggle);
-  }, []);
-  // Master Choreography Stages:
-  // 1. 'logo': (0s - 1.8s) Concentric rings radiate out + red logo in center
-  // 2. 'video-portal': (1.8s - 5.8s, 4.0s duration) Red logo fades out; stock video plays inside center circle portal for 4 seconds
-  // 3. 'video-fullscreen': (5.8s+) Concentric circles dissolve in reverse from innermost to outermost circle, revealing the full video frame
   const [heroStage, setHeroStage] = useState('logo');
   const [headerLogoStage, setHeaderLogoStage] = useState('hidden'); // 'hidden' | 'red' | 'lime'
-  const videoRef = useRef(null);
+  const sectionRef = useRef(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
-  // Guarantee continuous, muted, non-blocked video playback
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.muted = true;
-      video.defaultMuted = true;
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          const retryPlay = () => {
-            video.play().catch(() => {});
-            window.removeEventListener('click', retryPlay);
-            window.removeEventListener('touchstart', retryPlay);
-          };
-          window.addEventListener('click', retryPlay, { once: true });
-          window.addEventListener('touchstart', retryPlay, { once: true });
-        });
-      }
-    }
-  }, []);
+  // Dedicated progress reference for active scroll locking
+  const progressState = useRef({
+    current: 0,
+    target: 0,
+    isLocked: true,
+    lastTouchY: 0
+  });
 
+  // 1. Stage Timeline Sequence
   useEffect(() => {
-    // If mid-transition or not yet revealed, reset to initial logo stage
     if (!isRevealed || isTransitioning) {
       setHeroStage('logo');
       setHeaderLogoStage('hidden');
       return;
     }
 
-    // Timeline Sequence:
-    // T = 0.5s: Red logo disappears; 3D portal opens & top-left header logo emerges
+    // T = 0.5s: Center logo disappears, portal opens revealing photorealistic 3D vault
     const portalTimer = setTimeout(() => {
       setHeroStage('video-portal');
       setHeaderLogoStage('red');
     }, 500);
 
-    // T = 1.0s: Top-left header logo transitions from red to lime
+    // T = 1.0s: Header logo turns neon lime
     const limeLogoTimer = setTimeout(() => {
       setHeaderLogoStage('lime');
     }, 1000);
 
-    // T = 1.5s: Concentric circles dissolve outward, expanding full 3D studio frame!
+    // T = 1.75s: Concentric circles unmask outward into full photorealistic frame
     const fullscreenVideoTimer = setTimeout(() => {
       setHeroStage('video-fullscreen');
-    }, 1500);
+    }, 1750);
 
     return () => {
       clearTimeout(portalTimer);
@@ -319,36 +276,139 @@ export default function HeroSection({
     };
   }, [isRevealed, isTransitioning]);
 
+  // 2. Active Scroll-Lock Mechanism: Intercept wheel/touch until camera zoom completes
+  useEffect(() => {
+    const state = progressState.current;
+
+    const handleWheel = (e) => {
+      if (heroStage !== 'video-fullscreen') return;
+
+      const isAtTop = window.scrollY <= 15;
+
+      // Hero scrub zone (progress 0.0 to 0.985)
+      if (isAtTop && state.current < 0.985) {
+        if (e.deltaY > 0 || state.current > 0.01) {
+          e.preventDefault();
+          window.lenis?.stop();
+          state.isLocked = true;
+
+          const speed = 0.00085;
+          state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
+        }
+      } 
+      // Scrolling up while at the very top of Section 02 -> re-engage hero scrub
+      else if (isAtTop && state.current >= 0.985 && e.deltaY < 0) {
+        e.preventDefault();
+        window.lenis?.stop();
+        state.isLocked = true;
+
+        const speed = 0.00085;
+        state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
+      } 
+      // Zoom 100% complete and scrolling down -> unlock native page scroll
+      else if (state.current >= 0.985 && e.deltaY > 0) {
+        state.isLocked = false;
+        window.lenis?.start();
+      }
+    };
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length > 0) {
+        state.lastTouchY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (heroStage !== 'video-fullscreen') return;
+      if (e.touches.length === 0) return;
+
+      const curY = e.touches[0].clientY;
+      const deltaY = state.lastTouchY - curY;
+      state.lastTouchY = curY;
+
+      const isAtTop = window.scrollY <= 15;
+
+      if (isAtTop && state.current < 0.985) {
+        if (deltaY > 0 || state.current > 0.01) {
+          e.preventDefault();
+          window.lenis?.stop();
+          state.isLocked = true;
+          state.target = Math.min(1, Math.max(0, state.target + deltaY * 0.0022));
+        }
+      } else if (isAtTop && state.current >= 0.985 && deltaY < 0) {
+        e.preventDefault();
+        window.lenis?.stop();
+        state.isLocked = true;
+        state.target = Math.min(1, Math.max(0, state.target + deltaY * 0.0022));
+      } else if (state.current >= 0.985 && deltaY > 0) {
+        state.isLocked = false;
+        window.lenis?.start();
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.lenis?.start();
+    };
+  }, [heroStage]);
+
+  // 3. Smooth Damping Render Loop for Frame Scrubbing
+  useEffect(() => {
+    let animId;
+    const state = progressState.current;
+
+    const tick = () => {
+      animId = requestAnimationFrame(tick);
+
+      const diff = state.target - state.current;
+      if (Math.abs(diff) > 0.0001) {
+        state.current += diff * 0.12;
+        setScrollProgress(state.current);
+      }
+    };
+
+    tick();
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
   const isFullscreen = !isTransitioning && heroStage === 'video-fullscreen';
   const showCenterLogo = !isFullscreen && heroStage === 'logo';
   const showTopLeftLogo = isRevealed && !isTransitioning && (headerLogoStage === 'red' || headerLogoStage === 'lime');
-  const isVideoActive = (heroStage === 'video-portal' || heroStage === 'video-fullscreen');
 
   return (
     <section
+      ref={sectionRef}
       id="section-hero"
       className="relative w-screen h-svh md:h-screen flex items-center justify-center overflow-hidden bg-[#E5E8ED]"
       style={{
         position: 'relative',
         width: '100vw',
-        minHeight: '100vh',
-        backgroundColor: '#E5E8ED',
-        overflow: 'hidden'
+        height: '100vh',
+        backgroundColor: '#0a0a0e'
       }}
     >
-      {/* 1. MINIMALIST 3D STUDIO (Playing behind porcelain SVG aperture mask) */}
+      {/* 1. PHOTOREALISTIC 1080p CYCLES FRAME CANVAS (At z-0, visible behind aperture) */}
       <div
-        className="absolute inset-0 w-full h-full z-0 flex items-center justify-center overflow-hidden"
-        style={{
-          opacity: 1,
-          pointerEvents: isFreeCam ? 'auto' : 'none'
-        }}
+        className="absolute inset-0 w-full h-full z-0 flex items-center justify-center overflow-hidden pointer-events-none"
       >
-        <ThreeScene isFullscreen={isFullscreen} isActive={isVideoActive} isFreeCam={isFreeCam} />
+        <AmberVaultHeroCanvas 
+          isRevealed={isRevealed} 
+          heroStage={heroStage}
+          scrollProgress={scrollProgress}
+        />
       </div>
 
       {/* 2. CONCENTRIC PORCELAIN BACKGROUND & DEPTH CIRCLES WITH STEP-BY-STEP APERTURE MASK */}
-      <div className="absolute inset-0 w-full h-full z-10 pointer-events-none">
+      <div 
+        className="absolute inset-0 w-full h-full z-10 pointer-events-none transition-opacity duration-500"
+        style={{ opacity: isFullscreen ? (scrollProgress > 0.02 ? Math.max(0, 1 - scrollProgress * 4.0) : 1) : 1 }}
+      >
         <ConcentricBackground 
           isRevealed={isRevealed} 
           isTransitioning={isTransitioning}
@@ -387,8 +447,20 @@ export default function HeroSection({
         </div>
       </motion.div>
 
-      {/* 4. PAGE HEADER (Top-Left Brand Logo & Menu Button) */}
-      <div className="absolute top-0 left-0 w-full z-50 pointer-events-none">
+      {/* 4. SEAMLESS MONITOR PORTAL CROSSFADE OVERLAY (Transitions at the very edge of the monitor screen) */}
+      <div
+        className="absolute inset-0 pointer-events-none z-35 transition-opacity duration-300"
+        style={{
+          opacity: scrollProgress >= 0.94 ? Math.min(1, (scrollProgress - 0.94) / 0.055) : 0,
+          backgroundColor: '#0a0a0e'
+        }}
+      />
+
+      {/* 5. PAGE HEADER (Top-Left Brand Logo & Menu Button) */}
+      <div 
+        className="absolute top-0 left-0 w-full z-50 pointer-events-none transition-opacity duration-300"
+        style={{ opacity: scrollProgress > 0.88 ? Math.max(0, 1 - (scrollProgress - 0.88) / 0.10) : 1 }}
+      >
         <div className="pointer-events-auto">
           <PageHeader 
             isMenuOpen={isMenuOpen}
@@ -406,4 +478,3 @@ export default function HeroSection({
     </section>
   );
 }
-

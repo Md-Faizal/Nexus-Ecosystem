@@ -167,20 +167,20 @@ export default function LoaderBackground({ progress = 0, isTransitioning = false
         }}
       >
         <style>{`
-          /* Fast, energetic aerodynamic pulse sweep (1.2s cycle with 0.35s stagger) */
+          /* Continuous, energetic aerodynamic pulse sweep (0.85s cycle with 0.14s stagger) */
           @keyframes pulseMiddleToBottom {
             0% {
               stroke-dashoffset: 180;
               opacity: 0;
             }
-            5% {
+            8% {
               opacity: 1;
             }
-            38% {
+            58% {
               stroke-dashoffset: -880;
               opacity: 1;
             }
-            42% {
+            65% {
               opacity: 0;
               stroke-dashoffset: -880;
             }
@@ -193,32 +193,32 @@ export default function LoaderBackground({ progress = 0, isTransitioning = false
           /* Inward-to-Outward Loading Wave Glow for Facet Polygons */
           @keyframes loadingWaveFacet {
             0% {
-              opacity: 0.35;
+              opacity: 0.45;
             }
-            20% {
+            25% {
               opacity: 0.95;
             }
-            45% {
-              opacity: 0.35;
+            50% {
+              opacity: 0.45;
             }
             100% {
-              opacity: 0.35;
+              opacity: 0.45;
             }
           }
 
           /* Inward-to-Outward Loading Wave for Neon Baseline Lines */
           @keyframes loadingWaveLine {
             0% {
-              opacity: 0.55;
+              opacity: 0.75;
             }
-            20% {
+            25% {
               opacity: 1;
             }
-            45% {
-              opacity: 0.55;
+            50% {
+              opacity: 0.75;
             }
             100% {
-              opacity: 0.55;
+              opacity: 0.75;
             }
           }
 
@@ -236,42 +236,46 @@ export default function LoaderBackground({ progress = 0, isTransitioning = false
             stroke-dasharray: 28 950;
           }
 
-          /* Sequential Flow: Innermost (0s) -> Middle (0.35s) -> Outermost (0.70s) in 1.2s Cycle */
+          /* Sequential Flow: Innermost (0s) -> Middle (0.14s) -> Outermost (0.28s) in 0.85s Cycle */
           .pulse-wave-inner {
-            animation: pulseMiddleToBottom 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation: pulseMiddleToBottom 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
             animation-delay: 0s;
           }
           .pulse-wave-mid {
-            animation: pulseMiddleToBottom 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
-            animation-delay: 0.35s;
+            animation: pulseMiddleToBottom 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.14s;
           }
           .pulse-wave-outer {
-            animation: pulseMiddleToBottom 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
-            animation-delay: 0.70s;
+            animation: pulseMiddleToBottom 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.28s;
           }
 
           /* Linked Inward-to-Outward Facet Glow Wave */
           .facet-wave-inner {
-            animation: loadingWaveFacet 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation: loadingWaveFacet 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
             animation-delay: 0s;
           }
           .facet-wave-mid {
-            animation: loadingWaveFacet 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
-            animation-delay: 0.35s;
+            animation: loadingWaveFacet 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.14s;
           }
           .facet-wave-outer {
-            animation: loadingWaveFacet 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
-            animation-delay: 0.70s;
+            animation: loadingWaveFacet 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.28s;
           }
 
           /* Linked Inward-to-Outward Line Glow Wave */
           .line-wave-inner {
-            animation: loadingWaveLine 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation: loadingWaveLine 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
             animation-delay: 0s;
           }
           .line-wave-mid {
-            animation: loadingWaveLine 1.2s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
-            animation-delay: 0.35s;
+            animation: loadingWaveLine 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.14s;
+          }
+          .line-wave-outer {
+            animation: loadingWaveLine 0.85s cubic-bezier(0.22, 0.75, 0.3, 1) infinite;
+            animation-delay: 0.28s;
           }
           /* Responsive Dual-Mode SVG Display Engine */
           .loader-svg-desktop {
@@ -659,8 +663,7 @@ export default function LoaderBackground({ progress = 0, isTransitioning = false
               width: `${p}%`,
               background: 'linear-gradient(90deg, #39ff14 0%, #55ff00 100%)',
               borderRadius: '2px',
-              boxShadow: '0 0 10px #55ff00, 0 0 20px rgba(85, 255, 0, 0.6)',
-              transition: 'width 0.12s linear'
+              boxShadow: '0 0 10px #55ff00, 0 0 20px rgba(85, 255, 0, 0.6)'
             }}
           />
 
@@ -676,7 +679,6 @@ export default function LoaderBackground({ progress = 0, isTransitioning = false
                 alignItems: 'center',
                 justifyContent: 'center',
                 pointerEvents: 'none',
-                transition: 'left 0.12s linear',
                 willChange: 'left',
                 zIndex: 10
               }}

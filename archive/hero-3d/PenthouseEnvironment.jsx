@@ -2,37 +2,42 @@ import React, { useMemo } from 'react';
 import { MeshReflectorMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
+// Cached texture singletons
+let cachedMarbleTex = null;
+let cachedCityTex = null;
+
 // ============================================================
 // Helper: Procedural Nero Marquina Marble Floor Texture (Canvas 2D)
 // ============================================================
 function createMarbleTexture() {
   if (typeof document === 'undefined') return null;
+  if (cachedMarbleTex) return cachedMarbleTex;
+
   const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 2048;
+  canvas.width = 512;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d');
+  const scale = 512 / 2048; // Proportional 0.25 scale factor
 
-  // Dark Nero Marquina base
-  ctx.fillStyle = '#1a1918';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Subtle surface noise variation for depth
-  for (let i = 0; i < 15000; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const shade = Math.floor(22 + Math.random() * 10);
-    ctx.fillStyle = `rgb(${shade}, ${shade - 1}, ${shade - 2})`;
-    ctx.fillRect(x, y, 2 + Math.random() * 4, 2 + Math.random() * 4);
+  // Fast typed-array noise buffer for Nero Marquina marble surface
+  const imgData = ctx.createImageData(canvas.width, canvas.height);
+  const data = new Uint32Array(imgData.data.buffer);
+  const total = canvas.width * canvas.height;
+  for (let i = 0; i < total; i++) {
+    const n = (Math.random() * 8) | 0;
+    // Base #1a1918 with subtle micro-grain: R=24+n, G=23+n, B=22+n, A=255
+    data[i] = (255 << 24) | ((22 + n) << 16) | ((23 + n) << 8) | (24 + n);
   }
+  ctx.putImageData(imgData, 0, 0);
 
-  // Organic marble veins — bezier curves with branching
+  // Organic marble veins — bezier curves with branching (scaled proportionally)
   const drawVein = (sx, sy, ex, ey, width, opacity) => {
     ctx.beginPath();
     ctx.moveTo(sx, sy);
-    const cp1x = sx + (ex - sx) * 0.3 + (Math.random() - 0.5) * 300;
-    const cp1y = sy + (ey - sy) * 0.3 + (Math.random() - 0.5) * 300;
-    const cp2x = sx + (ex - sx) * 0.7 + (Math.random() - 0.5) * 300;
-    const cp2y = sy + (ey - sy) * 0.7 + (Math.random() - 0.5) * 300;
+    const cp1x = sx + (ex - sx) * 0.3 + (Math.random() - 0.5) * (300 * scale);
+    const cp1y = sy + (ey - sy) * 0.3 + (Math.random() - 0.5) * (300 * scale);
+    const cp2x = sx + (ex - sx) * 0.7 + (Math.random() - 0.5) * (300 * scale);
+    const cp2y = sy + (ey - sy) * 0.7 + (Math.random() - 0.5) * (300 * scale);
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, ex, ey);
     ctx.strokeStyle = `rgba(185, 180, 172, ${opacity})`;
     ctx.lineWidth = width;
@@ -44,10 +49,10 @@ function createMarbleTexture() {
     const sx = Math.random() * canvas.width;
     const sy = Math.random() * canvas.height;
     const angle = Math.random() * Math.PI;
-    const length = 600 + Math.random() * 1200;
+    const length = (600 + Math.random() * 1200) * scale;
     const ex = sx + Math.cos(angle) * length;
     const ey = sy + Math.sin(angle) * length;
-    drawVein(sx, sy, ex, ey, 1.5 + Math.random() * 2.5, 0.25 + Math.random() * 0.3);
+    drawVein(sx, sy, ex, ey, (1.5 + Math.random() * 2.5) * scale, 0.25 + Math.random() * 0.3);
 
     // Branch veins from main trunk
     for (let j = 0; j < 4; j++) {
@@ -55,8 +60,8 @@ function createMarbleTexture() {
       const bx = sx + (ex - sx) * t;
       const by = sy + (ey - sy) * t;
       const bAngle = angle + (Math.random() - 0.5) * 1.4;
-      const bLen = 150 + Math.random() * 350;
-      drawVein(bx, by, bx + Math.cos(bAngle) * bLen, by + Math.sin(bAngle) * bLen, 0.4 + Math.random() * 1.0, 0.12 + Math.random() * 0.18);
+      const bLen = (150 + Math.random() * 350) * scale;
+      drawVein(bx, by, bx + Math.cos(bAngle) * bLen, by + Math.sin(bAngle) * bLen, (0.4 + Math.random() * 1.0) * scale, 0.12 + Math.random() * 0.18);
     }
   }
 
@@ -65,8 +70,8 @@ function createMarbleTexture() {
     const sx = Math.random() * canvas.width;
     const sy = Math.random() * canvas.height;
     const angle = Math.random() * Math.PI * 2;
-    const length = 100 + Math.random() * 400;
-    drawVein(sx, sy, sx + Math.cos(angle) * length, sy + Math.sin(angle) * length, 0.3 + Math.random() * 0.5, 0.06 + Math.random() * 0.1);
+    const length = (100 + Math.random() * 400) * scale;
+    drawVein(sx, sy, sx + Math.cos(angle) * length, sy + Math.sin(angle) * length, (0.3 + Math.random() * 0.5) * scale, 0.06 + Math.random() * 0.1);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
@@ -74,6 +79,7 @@ function createMarbleTexture() {
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 4);
   tex.needsUpdate = true;
+  cachedMarbleTex = tex;
   return tex;
 }
 
@@ -82,9 +88,10 @@ function createMarbleTexture() {
 // ============================================================
 function createCitySkylineTexture() {
   if (typeof document === 'undefined') return null;
+  if (cachedCityTex) return cachedCityTex;
   const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 1024;
+  canvas.width = 1024;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d');
 
   // Night sky gradient
@@ -177,6 +184,7 @@ function createCitySkylineTexture() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
+  cachedCityTex = tex;
   return tex;
 }
 

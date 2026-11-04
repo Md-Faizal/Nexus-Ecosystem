@@ -1,0 +1,28 @@
+{
+  "version": "0.1.0",
+  "release_date": "2026-11-05",
+  "download_base": "https://faizal.uk/releases",
+  "artifacts": {
+    "linux-amd64": {
+      "filename": "nexus-agent-linux-amd64",
+      "url": "https://faizal.uk/releases/nexus-agent-linux-amd64",
+      "sha256": "placeholder_sha256"
+    },
+    "linux-arm64": {
+      "filename": "nexus-agent-linux-arm64",
+      "url": "https://faizal.uk/releases/nexus-agent-linux-arm64",
+      "sha256": "placeholder_sha256"
+    },
+    "windows-amd64": {
+      "filename": "nexus-agent-windows-amd64.exe",
+      "url": "https://faizal.uk/releases/nexus-agent-windows-amd64.exe",
+      "sha256": "placeholder_sha256"
+    },
+    "darwin-arm64": {
+      "filename": "nexus-agent-darwin-arm64",
+      "url": "https://faizal.uk/releases/nexus-agent-darwin-arm64",
+      "sha256": "placeholder_sha256"
+    }
+  }
+}
+

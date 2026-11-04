@@ -29,28 +29,33 @@ const services = [
 
 export default function ServicesSection({ onNavigate }) {
   return (
-    <section id="section-services" className="w-screen px-6 pb-28 text-[#434343] md:px-12 md:pb-44" aria-labelledby="services-heading">
-      <div className="flex items-end justify-between border-y border-black/20 py-3 text-sm tracking-tight">
-        <h2 id="services-heading">Services</h2>
-        <span>Capabilities with project context</span>
-      </div>
-      <div className="divide-y divide-black/15">
-        {services.map((service) => (
-          <div key={service.number} className="grid gap-4 py-7 md:grid-cols-[5rem_1fr_1fr] md:items-baseline">
-            <span className="text-sm text-[#5E5E5E]">{service.number}</span>
-            <div>
-              <h3 className="text-2xl tracking-tight md:text-4xl">{service.title}</h3>
-              <p className="mt-2 text-sm text-[#5E5E5E] md:text-base">{service.description}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('work')}
-              className="justify-self-start border-b border-[#434343] pb-1 text-left text-sm tracking-tight transition-transform duration-300 hover:translate-x-1 md:justify-self-end"
-            >
-              Preview: {service.preview} -&gt;
-            </button>
+    <section id="section-services" className="w-screen px-6 pb-28 text-white md:px-12 md:pb-44 bg-[#0a0a0e]" aria-labelledby="services-heading">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-end justify-between border-y border-white/15 py-4 text-sm tracking-tight">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#f59e0b]" />
+            <h2 id="services-heading" className="font-mono text-xs md:text-sm uppercase tracking-widest text-[#f59e0b]">Services</h2>
           </div>
-        ))}
+          <span className="font-mono text-xs md:text-sm text-white/50">CAPABILITIES &amp; ARCHITECTURE</span>
+        </div>
+        <div className="divide-y divide-white/10">
+          {services.map((service) => (
+            <div key={service.number} className="grid gap-4 py-8 md:grid-cols-[6rem_1fr_1fr] md:items-baseline group hover:bg-white/[0.02] transition-colors duration-300 px-4 -mx-4 rounded-xl">
+              <span className="font-mono text-sm text-[#f59e0b] font-semibold">{service.number}</span>
+              <div>
+                <h3 className="text-2xl tracking-tight text-white md:text-3xl font-light group-hover:text-[#f59e0b] transition-colors duration-300">{service.title}</h3>
+                <p className="mt-2 text-sm text-white/60 md:text-base leading-relaxed">{service.description}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('work')}
+                className="justify-self-start border-b border-white/30 hover:border-[#f59e0b] pb-1 text-left text-sm tracking-tight text-white/80 hover:text-[#f59e0b] transition-all duration-300 hover:translate-x-1.5 md:justify-self-end font-mono"
+              >
+                Preview: {service.preview} -&gt;
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

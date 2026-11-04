@@ -379,7 +379,7 @@ export default function LoaderSweep({
                 : { duration: 1.45 / spd, ease: [0.22, 1, 0.36, 1] }
             }
             style={{
-              filter: isCardSolid ? 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.7))' : 'none',
+              filter: (isCardSolid && phase !== 'EXPANDING') ? 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.7))' : 'none',
               transition: 'stroke 0.3s, filter 0.3s'
             }}
           />
@@ -413,7 +413,7 @@ export default function LoaderSweep({
                 : { duration: 1.45 / spd, ease: [0.22, 1, 0.36, 1] }
             }
             style={{
-              filter: isCardSolid ? 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.7))' : 'none',
+              filter: (isCardSolid && phase !== 'EXPANDING') ? 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.7))' : 'none',
               transition: 'stroke 0.3s, filter 0.3s'
             }}
           />
@@ -432,7 +432,7 @@ export default function LoaderSweep({
           inset: 0,
           borderRadius: 'clamp(20px, 2.5vw, 32px)',
           border: '3px solid rgba(255, 255, 255, 0.92)',
-          boxShadow: LOADER_THEME.cardGlow,
+          boxShadow: phase === 'EXPANDING' ? 'none' : LOADER_THEME.cardGlow,
           pointerEvents: 'none',
           zIndex: 26
         }}

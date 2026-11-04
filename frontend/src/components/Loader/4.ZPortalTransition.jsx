@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { m, useMotionValue, useTransform, animate } from 'framer-motion';
 import { LOADER_THEME, LOADER_CONFIG } from './loaderConfig';
 
@@ -79,11 +79,10 @@ export default function ZPortalTransition({
       return;
     }
     if (isExpanding) {
-      // 0.95s Snappy Cinematic Power Ease
-      const controls = animate(expScale, [1, 1, 9.5], {
-        duration: 0.95 / spd,
-        ease: ["linear", [0.76, 0, 0.24, 1]],
-        times: [0, 0.08, 1],
+      // 0.85s High-Performance Continuous Power Ease Zoom (Zero velocity discontinuity)
+      const controls = animate(expScale, 9.5, {
+        duration: 0.85 / spd,
+        ease: [0.72, 0, 0.28, 1],
         onComplete: () => {
           if (onComplete) onComplete();
         }
@@ -94,14 +93,16 @@ export default function ZPortalTransition({
     }
   }, [isExpanding, isScrubbingExp, spd, expScale, scrubCardScale, onComplete]);
 
-  // Smooth background opacity fade out near end of zoom (completely transparent by scale 8.0)
-  const loaderOverlayOpacity = useTransform(expScale, (s) => (s >= 5.5 ? Math.max(0, 1 - (s - 5.5) / 2.5) : 1));
+  // Smooth background opacity fade out near end of zoom (transparent by scale 8.0)
+  const loaderOverlayOpacity = useTransform(expScale, (s) => (s >= 5.0 ? Math.max(0, 1 - (s - 5.0) / 3.0) : 1));
 
-  // Logo emblem opacity (fades out as it flies past screen)
-  const logoEmblemOpacity = useTransform(expScale, (s) => (s >= 3.0 ? Math.max(0, 1 - (s - 3.0) / 2.5) : 1));
+  // Logo emblem opacity (fades out as camera punches through emblem)
+  const logoEmblemOpacity = useTransform(expScale, (s) => (s >= 2.5 ? Math.max(0, 1 - (s - 2.5) / 2.5) : 1));
 
-  // OPTIMIZED VECTOR CLIP-PATH: With +1.2px micro-dilation to prevent edge gradient leaking!
+  // OPTIMIZED VECTOR CLIP-PATH: Capped at scale 8.5 once the cutout hole completely clears the viewport
   const clipPathPolygon = useTransform(expScale, (s) => {
+    if (s >= 8.5) return 'none';
+
     const baseScale = logoWidth / 171.63;
     const finalScale = baseScale * s;
     const cx0 = windowSize.w / 2;
@@ -177,7 +178,8 @@ export default function ZPortalTransition({
             className={`absolute ${cardInsetClass} z-10 pointer-events-none origin-center`}
             style={{ 
               scale: expScale,
-              opacity: isExpanding ? loaderOverlayOpacity : 1
+              opacity: isExpanding ? loaderOverlayOpacity : 1,
+              willChange: isExpanding ? 'transform, opacity' : 'auto'
             }}
           >
             {sweepContent}
@@ -192,6 +194,7 @@ export default function ZPortalTransition({
           style={{ 
             scale: expScale,
             opacity: isExpanding ? logoEmblemOpacity : 1,
+            willChange: isExpanding ? 'transform, opacity' : 'auto',
             zIndex: 1000000
           }}
         >

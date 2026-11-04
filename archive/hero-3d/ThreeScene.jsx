@@ -5,12 +5,17 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import PenthouseShowroom, { MarbleFloor } from './PenthouseEnvironment';
 
-// Preload the GLTF Model
-useGLTF.preload('/models/2022_mclaren_765lt.glb');
+// Preload and cache module-level assets
+const texLoader = new THREE.TextureLoader();
+const taillightMask = texLoader.load('/models/taillight_emissive_mask.png');
+taillightMask.flipY = false;
+
+// Preload the GLTF Model with local Draco decoder
+useGLTF.preload('/models/2022_mclaren_765lt.glb', '/draco/gltf/');
 
 // 2. McLaren 765LT Component with Dynamic Drive-in Animation, Spinning Wheels, and Emissive Lights
 function McLaren({ isActive }) {
-  const { scene } = useGLTF('/models/2022_mclaren_765lt.glb');
+  const { scene } = useGLTF('/models/2022_mclaren_765lt.glb', '/draco/gltf/');
   const carRef = useRef();
   const hasAnimated = useRef(false);
   const isMovingRef = useRef(false);
@@ -24,6 +29,13 @@ function McLaren({ isActive }) {
     cloned.traverse((child) => {
       if (child.isMesh && child.material && child.material.name === 'McLaren_765LT_2021LightA_Material') {
         const geo = child.geometry;
+        
+        // Fast-path: If geometry was already split, simply re-attach the cached materials
+        if (geo._isSplitDone && geo._cachedMaterials) {
+          child.material = geo._cachedMaterials;
+          return;
+        }
+
         const pos = geo.attributes.position;
         const index = geo.index;
 
@@ -78,11 +90,8 @@ function McLaren({ isActive }) {
           ]);
           geo.setIndex(new THREE.BufferAttribute(reorderedIndices, 1));
 
-          // Preserve original high-res texture and load dedicated masks
+          // Preserve original high-res texture and use module-cached mask
           const origTexture = child.material.map || null;
-          const texLoader = new THREE.TextureLoader();
-          const taillightMask = texLoader.load('/models/taillight_emissive_mask.png');
-          taillightMask.flipY = false;
 
           // 1. FRONT HEADLIGHTS: Full Illumination of All Projectors, DRL & Lower Blade
           const frontLightMat = new THREE.MeshStandardMaterial({
@@ -225,7 +234,10 @@ function McLaren({ isActive }) {
             );
           };
 
-          child.material = [frontLightMat, rearLightMat, frontSideMarkerMat, rearSideMarkerMat];
+          const mats = [frontLightMat, rearLightMat, frontSideMarkerMat, rearSideMarkerMat];
+          geo._cachedMaterials = mats;
+          geo._isSplitDone = true;
+          child.material = mats;
         }
       } else if (child.isMesh && child.material && child.material.name === 'McLaren_765LT_2021Window_Material') {
         // Ensure transparent window/lens glass allows glowing light structures inside to shine through without z-fighting
@@ -235,7 +247,8 @@ function McLaren({ isActive }) {
     });
 
     // 2. Identify Wheel children for rotation
-    const wheelRoot = cloned.getObjectByName('Combined3DWheel_3DWheel_Front_L_Instance1_Src4');
+    const wheelRoot = cloned.getObjectByName('Combined3DWheel_3DWheel_Front_L Instance1_Src4') || 
+                      cloned.getObjectByName('Combined3DWheel_3DWheel_Front_L_Instance1_Src4');
     if (wheelRoot && wheelRoot.children) {
       wheelsRef.current = wheelRoot.children;
     }
@@ -340,12 +353,16 @@ function McLaren({ isActive }) {
   );
 }
 
-// Helper: FZ Logo Canvas Texture for the monitor screen
+// Cached canvas texture singleton
+let cachedFZLogoTex = null;
+
+// Helper: FZ Logo Canvas Texture for the monitor screen (Optimized 512x256)
 function createFZLogoTexture() {
   if (typeof document === 'undefined') return null;
+  if (cachedFZLogoTex) return cachedFZLogoTex;
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
+  canvas.width = 512;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
 
   // Deep dark background — VS Code-like IDE
@@ -354,31 +371,31 @@ function createFZLogoTexture() {
 
   // Titlebar
   ctx.fillStyle = '#161820';
-  ctx.fillRect(0, 0, canvas.width, 44);
+  ctx.fillRect(0, 0, canvas.width, 22);
   // Traffic light dots
   const dots = ['#ff5f56', '#ffbd2e', '#27c93f'];
   dots.forEach((c, i) => {
     ctx.fillStyle = c;
-    ctx.beginPath(); ctx.arc(22 + i * 22, 22, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(11 + i * 11, 11, 3, 0, Math.PI * 2); ctx.fill();
   });
   // Tab
   ctx.fillStyle = '#0d0f17';
-  ctx.fillRect(90, 6, 130, 32);
+  ctx.fillRect(45, 3, 65, 16);
   ctx.fillStyle = '#5c6374';
-  ctx.font = '14px monospace';
-  ctx.fillText('index.jsx', 100, 26);
+  ctx.font = '7px monospace';
+  ctx.fillText('index.jsx', 50, 13);
 
   // Sidebar
   ctx.fillStyle = '#11131c';
-  ctx.fillRect(0, 44, 55, canvas.height);
+  ctx.fillRect(0, 22, 28, canvas.height);
 
   // Line numbers gutter
   ctx.fillStyle = '#1a1d28';
-  ctx.fillRect(55, 44, 50, canvas.height);
+  ctx.fillRect(28, 22, 25, canvas.height);
 
   // Code lines with syntax highlighting
-  const lineHeight = 22;
-  const startY = 60;
+  const lineHeight = 11;
+  const startY = 32;
   const codeSnippet = [
     [['import ', '#c792ea'], ['React ', '#ffffff'], ['from ', '#c792ea'], ['"react"', '#c3e88d']],
     [['import ', '#c792ea'], ['{ ', '#ffffff'], ['motion ', '#89ddff'], ['} ', '#ffffff'], ['from ', '#c792ea'], ['"framer-motion"', '#c3e88d']],
@@ -395,27 +412,25 @@ function createFZLogoTexture() {
   ];
 
   codeSnippet.forEach((line, li) => {
-    let x = 120;
+    let x = 60;
     const y = startY + li * lineHeight;
     // Line number
     ctx.fillStyle = '#3d4257';
-    ctx.font = '13px monospace';
-    ctx.fillText(String(li + 1), 62, y);
+    ctx.font = '6.5px monospace';
+    ctx.fillText(String(li + 1), 31, y);
     // Code tokens
     line.forEach(([text, color]) => {
       ctx.fillStyle = color || '#ffffff';
-      ctx.font = '14px monospace';
+      ctx.font = '7px monospace';
       ctx.fillText(text, x, y);
       x += ctx.measureText(text).width;
     });
   });
 
-  // ============================================================
-  // BIG CENTERED FZ MONOGRAM on right panel area — glowing crimson
-  // ============================================================
-  const logoX = 720;
-  const logoY = 140;
-  const scale = 3.0;
+  // BIG CENTERED FZ MONOGRAM on right panel area
+  const logoX = 360;
+  const logoY = 70;
+  const scale = 1.5;
 
   ctx.save();
   ctx.translate(logoX, logoY);
@@ -423,34 +438,30 @@ function createFZLogoTexture() {
 
   // Glow pass
   ctx.shadowColor = '#A30033';
-  ctx.shadowBlur = 28;
+  ctx.shadowBlur = 14;
 
-  // Use proper SVG path rendering with Path2D
   const pathWingDown = new Path2D('M43.82,70.3l64.52.05,5.42-12.76-32.78-.36,41.09-19.08,7.56-18.43,27.69.85-25.84,61.15c-2.63,6.23-11.43,8.64-18.18,8.65l-111.12.13,41.64-20.2Z');
   const pathWingUp = new Path2D('M129.63,19.71l-65.22.74-5.49,12.65,32.87.55-41.14,19.05-6.83,17.6-28.38-.02L41.22,9.13C43.67,3.32,52.08.55,58.48.55l110.96-.05-39.82,19.21Z');
 
-  // translate to center the logo
   ctx.translate(-85, -45);
   ctx.fillStyle = '#A30033';
   ctx.fill(pathWingDown);
   ctx.fill(pathWingUp);
 
-  // White inner cutout
-  ctx.fillStyle = '#ffffff';
   const whiteInner = new Path2D('M128.13,20.73l-6.84,16.67-40.73,18.92-4,1.86,4.41.05,31.28.34-4.57,10.78-62.4-.05,6.16-15.86,40.77-18.88,3.96-1.83-4.36-.07-31.37-.53,4.64-10.68,63.06-.71M129.63,19.71l-65.22.74-5.49,12.65,32.87.55-41.14,19.05-6.83,17.6,64.52.05,5.42-12.76-32.78-.36,41.09-19.08,7.56-18.43h0Z');
   ctx.fill(whiteInner);
 
   ctx.restore();
 
-  // Label under logo
   ctx.fillStyle = 'rgba(163,0,51,0.55)';
-  ctx.font = 'bold 16px Inter, sans-serif';
+  ctx.font = 'bold 8px Inter, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('FZ STUDIO', logoX, logoY + 130);
+  ctx.fillText('FZ STUDIO', logoX, logoY + 65);
   ctx.textAlign = 'left';
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
+  cachedFZLogoTex = tex;
   return tex;
 }
 

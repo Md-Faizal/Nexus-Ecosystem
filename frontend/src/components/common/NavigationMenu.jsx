@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { monogramComplete, pastelFlowers } from '../../assets';
+import { AnimatePresence, m as motion } from 'framer-motion';
+import { monogramComplete } from '../../assets';
 
 // 2 Slanted Corners Geometry (top-left & bottom-right beveled)
 const CLIP_PATH_SLANTED_CARD = 'polygon(24px 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%, 0 24px)';
@@ -377,7 +377,7 @@ export default function NavigationMenu({ isOpen, activePage, onClose, onNavigate
                       {currentPage.previewType === 'home' && (
                         <div className="relative size-full">
                           <img 
-                            src={pastelFlowers} 
+                            src="/media/hero_poster.webp" 
                             alt="Visual Showcase" 
                             className="size-full object-cover opacity-60 mix-blend-luminosity scale-105"
                           />

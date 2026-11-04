@@ -65,22 +65,17 @@ function saveDevState(stage, progress = null, section = null, speed = 1) {
 function App() {
   const initialDev = useRef(getInitialDevState()).current;
 
-  // Dismiss instant HTML preloader shell once React has booted and mounted
+  // Dismiss instant HTML preloader shell immediately once React has mounted (zero ghosting)
   useEffect(() => {
-    // Preload Part 2 (Home Page) in the background while Part 1 (Loader) is running
-    import('./pages/Home/Home').then(() => {
-      // Chunk downloaded
-    }).catch(() => {});
+    // Preload Home page chunk in background so section-hero is immediately ready before Z-expansion
+    import('./pages/Home/Home').catch(() => {});
 
     const shell = document.getElementById('app-shell-preloader');
     if (shell) {
-      shell.classList.add('dismissed');
-      const timer = setTimeout(() => {
-        if (shell.parentNode) {
-          shell.parentNode.removeChild(shell);
-        }
-      }, 450);
-      return () => clearTimeout(timer);
+      shell.style.display = 'none';
+      if (shell.parentNode) {
+        shell.parentNode.removeChild(shell);
+      }
     }
   }, []);
 
@@ -90,7 +85,6 @@ function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(initialDev.speed || 1);
 
   // Intro Sequence Lifecycle
-  const isDevFrozen = Boolean(freezeStage);
   const [introDone, setIntroDone] = useState(initialDev.stage === 'home');
   const [heroRevealed, setHeroRevealed] = useState(initialDev.stage === 'home');
 
@@ -337,8 +331,6 @@ function App() {
   const timelineRef = useRef(0);
   const playRafRef = useRef(null);
   const lastTimeRef = useRef(null);
-
-  const isUserScrubbingRef = useRef(false);
 
   const handleMasterScrub = useCallback((percent, persist = false) => {
     const val = Math.min(100, Math.max(0, Number(percent) || 0));
@@ -587,7 +579,7 @@ function App() {
 
   return (
     <ThemeProvider>
-      <LazyMotion features={domAnimation} strict>
+      <LazyMotion features={domAnimation}>
         {/* 1. MAIN APPLICATION PAGE CONTENT */}
         <div style={{ position: 'relative', width: '100%', minHeight: '100vh' }}>
           <Suspense fallback={null}>

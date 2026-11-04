@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state: SharedState = Arc::new(AppStateInner {
         config: config.clone(),
         db: db.clone(),
+        fleet: Arc::new(routes::mesh_api::FleetHubState::new()),
     });
 
     // Spawn 24h health report background cron
@@ -76,6 +77,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health-report/config", post(routes::health_api::update_health_config))
         .route("/health-report/errors", get(routes::health_api::get_health_errors))
         .route("/oci-allocator/send-mail", post(routes::health_api::send_oci_digest))
+        .route("/fleet/nodes", get(routes::mesh_api::list_nodes))
+        .route("/fleet/nodes/:id/command", post(routes::mesh_api::dispatch_command))
+        .route("/fleet/nodes/:id/features", post(routes::mesh_api::update_node_features))
+        .route("/fleet/nodes/:id/ai/stream", post(routes::mesh_api::stream_ai_prompt))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::require_admin_middleware,
@@ -113,6 +118,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_file = config.public_dir.join("admin.html");
 
     let app = Router::new()
+        .route("/api/mesh/ws", get(routes::mesh_api::handle_mesh_ws))
+        .route("/install.sh", get(routes::mesh_api::serve_install_sh))
+        .route("/install.ps1", get(routes::mesh_api::serve_install_ps1))
         .route("/save-message", post(routes::contact::save_message))
         .route("/stats", get(routes::health_api::get_node_stats))
         .nest("/api", api_routes)

@@ -5,6 +5,7 @@ package-lock.json
 # Rust build artifacts
 target/
 backend-rust/target/
+nexus-agent/target/
 personal-site-rust
 
 # Production builds
@@ -28,6 +29,7 @@ frontend/dist-admin/
 .DS_Store
 Thumbs.db
 .vscode/
+*.blend1
 
 # Preview & Scratch artifacts
 preview_*.html

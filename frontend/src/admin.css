@@ -4,25 +4,11 @@
 @source "../**/*.{jsx,js,html}";
 @source "./**/*.{jsx,js,html}";
 
-/* Melodrama Font Family */
+/* Melodrama Variable Font */
 @font-face {
   font-family: 'Melodrama';
-  src: url('./assets/fonts/Melodrama-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Melodrama';
-  src: url('./assets/fonts/Melodrama-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Melodrama';
-  src: url('./assets/fonts/Melodrama-Bold.woff2') format('woff2');
-  font-weight: 700;
+  src: url('./assets/fonts/Melodrama-Variable.woff2') format('woff2');
+  font-weight: 300 700;
   font-display: swap;
   font-style: normal;
 }

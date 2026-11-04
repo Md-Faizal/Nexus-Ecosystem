@@ -4,6 +4,7 @@ import { Server, Cpu, HardDrive, Database, Activity, ExternalLink, ShieldCheck, 
 import MetricCard from '../components/MetricCard';
 import VmTelemetryChart from '../components/VmTelemetryChart';
 import OciProvisionerCard from '../components/OciProvisionerCard';
+import FleetMeshSection from '../components/FleetMeshSection';
 
 export default function ClusterTab({ cluster, onOpenReportPreview }) {
   const primary = cluster?.primary || cluster?.master || {};
@@ -90,6 +91,9 @@ export default function ClusterTab({ cluster, onOpenReportPreview }) {
 
       {/* Temporary OCI Stack Capacity Hunter Telemetry */}
       <OciProvisionerCard />
+
+      {/* Dynamic Edge & Workstation Fleet Mesh */}
+      <FleetMeshSection />
 
       {/* NODE 1: PRIMARY */}
       <section className="space-y-4">

@@ -115,7 +115,9 @@ jobs:
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "backend-rust -> target"
+          workspaces: |
+            backend-rust -> target
+            nexus-agent -> target
 
       - name: "🚀 Compile & Strip Release Binary"
         run: |
@@ -127,11 +129,21 @@ jobs:
           chmod +x ./personal-site-rust
           ls -lh ./personal-site-rust
 
-      - name: "📦 Upload Backend Binary Artifact"
+          cd nexus-agent
+          cargo build --release
+          strip target/release/nexus-agent
+          cd ..
+          cp nexus-agent/target/release/nexus-agent ./nexus-agent-linux-amd64
+          chmod +x ./nexus-agent-linux-amd64
+          ls -lh ./nexus-agent-linux-amd64
+
+      - name: "📦 Upload Backend & Agent Binary Artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: backend-binary
-          path: personal-site-rust
+          path: |
+            personal-site-rust
+            nexus-agent-linux-amd64
           retention-days: 1
 
   deploy-cluster:
@@ -164,6 +176,12 @@ jobs:
       - name: "🔧 Prepare Binary & Web Assets Permissions"
         run: |
           chmod +x ./personal-site-rust
+          if [ -f ./nexus-agent-linux-amd64 ]; then
+            mkdir -p public/releases
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64
+            chmod +x public/releases/nexus-agent-*
+          fi
           chmod -R a+rX public frontend/dist
           ls -lh ./personal-site-rust
 

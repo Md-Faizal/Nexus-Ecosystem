@@ -99,7 +99,7 @@ export default function Loader({
         setSolidMerged(true);
       }, 1450 / spd);
 
-      // At 2000ms (giving a full 550ms hero dwell pause to admire the artwork):
+      // At 1600ms (crisp 150ms hero dwell after solid card and logo completion):
       // Smoothly launch into Z-expansion punch ONLY when Part 2 (Home DOM) is 100% ready
       let pollTimer = null;
       const expandTimer = setTimeout(() => {
@@ -130,9 +130,9 @@ export default function Loader({
               clearInterval(pollTimer);
               launchExpansion();
             }
-          }, 50);
+          }, 20);
         }
-      }, 900 / spd);
+      }, 1500 / spd);
 
       return () => {
         clearTimeout(monogramTimer);
