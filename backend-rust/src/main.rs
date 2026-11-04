@@ -98,7 +98,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/verify-pin", post(routes::security::verify_pin))
         .route("/change-pin", post(routes::security::change_pin))
         .route("/stats", get(routes::health_api::get_node_stats))
-        .route("/cluster/traffic", get(routes::services_api::get_cluster_traffic))
         .merge(admin_routes);
 
     // Dynamic uploads directory
