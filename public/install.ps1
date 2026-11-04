@@ -7,7 +7,8 @@ $TargetDir = "$env:ProgramFiles\NexusAgent"
 Write-Host "=== Installing Nexus Fleet Agent for Windows ===" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
 
-$BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe"
+$CacheBuster = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe?v=$CacheBuster"
 $DestExe = "$TargetDir\nexus-agent.exe"
 
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray

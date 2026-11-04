@@ -441,7 +441,7 @@ case "$ARCH" in
   *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-BIN_URL="$HUB_URL/releases/nexus-agent-${OS}-${ARCH_TAG}"
+BIN_URL="$HUB_URL/releases/nexus-agent-${OS}-${ARCH_TAG}?v=$(date +%s)"
 echo "Downloading Nexus Agent from $BIN_URL..."
 
 if [ "$(id -u)" -eq 0 ]; then
@@ -476,7 +476,8 @@ $TargetDir = "$env:ProgramFiles\NexusAgent"
 Write-Host "=== Installing Nexus Fleet Agent for Windows ===" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
 
-$BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe"
+$CacheBuster = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe?v=$CacheBuster"
 $DestExe = "$TargetDir\nexus-agent.exe"
 
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray

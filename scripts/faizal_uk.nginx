@@ -66,6 +66,15 @@ server {
         try_files /admin.html =404;
     }
 
+    # Fleet Agent Release Binaries & Installer
+    location /releases/ {
+        alias /home/ubuntu/stack/apps/personal-site/public/releases/;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+        autoindex off;
+    }
+
     # Personal Site Backend API with Tri-Node Failsafe Fallover
     location /save-message {
         proxy_pass http://personal_site_cluster/save-message;

@@ -125,6 +125,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api", api_routes)
         .nest_service("/uploads", ServeDir::new(&uploads_dir))
         .nest_service(
+            "/releases",
+            ServeDir::new(config.public_dir.join("releases")),
+        )
+        .nest_service(
             "/admin-assets",
             ServeDir::new(config.public_dir.join("admin-assets")),
         )

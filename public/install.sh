@@ -15,7 +15,7 @@ case "$ARCH" in
   *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-BIN_URL="$HUB_URL/releases/nexus-agent-${OS}-${ARCH_TAG}"
+BIN_URL="$HUB_URL/releases/nexus-agent-${OS}-${ARCH_TAG}?v=$(date +%s)"
 echo "Downloading Nexus Agent from $BIN_URL..."
 
 if [ "$(id -u)" -eq 0 ]; then
