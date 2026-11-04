@@ -146,9 +146,38 @@ jobs:
             nexus-agent-linux-amd64
           retention-days: 1
 
+  build-agent-windows:
+    name: "🪟 Swarm Worker: Windows Agent Compilation"
+    runs-on: windows-latest
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Setup Rust Toolchain"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "⚡ Cache Rust Dependencies & Build Artifacts"
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "nexus-agent -> target"
+
+      - name: "🚀 Compile Windows Agent Binary"
+        run: |
+          cd nexus-agent
+          cargo build --release
+          cd ..
+          cp nexus-agent/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
+
+      - name: "📦 Upload Windows Agent Binary Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-binary
+          path: nexus-agent-windows-amd64.exe
+          retention-days: 1
+
   deploy-cluster:
     name: "🚀 Swarm Deploy: Tri-Node Cluster (my-mac > cos > pro)"
-    needs: [preflight-check, build-frontend, build-backend]
+    needs: [preflight-check, build-frontend, build-backend, build-agent-windows]
     if: github.event.inputs.dry_run != 'true'
     runs-on: ubuntu-latest
     steps:
@@ -173,14 +202,23 @@ jobs:
           name: backend-binary
           path: .
 
+      - name: "📥 Download Windows Agent Binary"
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-agent-binary
+          path: .
+
       - name: "🔧 Prepare Binary & Web Assets Permissions"
         run: |
           chmod +x ./personal-site-rust
+          mkdir -p public/releases
           if [ -f ./nexus-agent-linux-amd64 ]; then
-            mkdir -p public/releases
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64
             chmod +x public/releases/nexus-agent-*
+          fi
+          if [ -f ./nexus-agent-windows-amd64.exe ]; then
+            cp ./nexus-agent-windows-amd64.exe public/releases/nexus-agent-windows-amd64.exe
           fi
           chmod -R a+rX public frontend/dist
           ls -lh ./personal-site-rust

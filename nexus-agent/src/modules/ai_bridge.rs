@@ -179,6 +179,7 @@ impl AiBridge {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn unload_model(&self, model: &str) -> Result<(), String> {
         let url = format!("{}/api/generate", self.endpoint);
         let body = json!({

@@ -480,7 +480,12 @@ $BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe"
 $DestExe = "$TargetDir\nexus-agent.exe"
 
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray
-Invoke-WebRequest -Uri $BinUrl -OutFile $DestExe
+Invoke-WebRequest -Uri $BinUrl -OutFile $DestExe -UseBasicParsing
+
+if (-not (Test-Path $DestExe) -or (Get-Item $DestExe).Length -lt 100000) {
+    Write-Error "Downloaded binary appears invalid or incomplete."
+    exit 1
+}
 
 Write-Host "Registering Nexus Agent as automatic background service..." -ForegroundColor Gray
 & $DestExe service install

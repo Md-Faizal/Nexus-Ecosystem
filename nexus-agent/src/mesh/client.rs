@@ -277,7 +277,7 @@ impl MeshClient {
             "restart_service" => {
                 let s_name = args.first().map(|s| s.as_str()).unwrap_or("");
                 #[cfg(target_os = "windows")]
-                { ("powershell", vec!["-Command", "Restart-Service"]) }
+                { ("powershell", vec!["-Command", "Restart-Service", s_name]) }
                 #[cfg(not(target_os = "windows"))]
                 { ("systemctl", vec!["restart", s_name]) }
             }

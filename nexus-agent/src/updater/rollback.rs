@@ -9,6 +9,7 @@ impl RollbackUpdater {
 
         let current_exe = std::env::current_exe()?;
         let temp_download = current_exe.with_extension("new");
+        #[cfg(not(target_os = "windows"))]
         let backup_exe = current_exe.with_extension("previous");
 
         // 1. Download payload
