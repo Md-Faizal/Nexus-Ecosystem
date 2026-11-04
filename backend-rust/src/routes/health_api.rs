@@ -68,7 +68,7 @@ pub async fn get_node_stats() -> impl IntoResponse {
         }
     });
 
-    let (node_role, node_ip, cloud_label) = if node_name == "prometheus" || host_name.contains("prometheus") {
+    let (node_role, node_ip, _cloud_label) = if node_name == "prometheus" || host_name.contains("prometheus") {
         ("Auxiliary Engine & Game Host", "35.208.86.56", "Google Cloud Platform")
     } else if node_name == "container-of-souls" || host_name.contains("container-of-souls") || std::env::var("NODE_ROLE").unwrap_or_default() == "failsafe" || std::env::var("NODE_ROLE").unwrap_or_default() == "standby" {
         ("High-Availability Failsafe & Compute", "10.0.0.195", "Oracle Cloud")

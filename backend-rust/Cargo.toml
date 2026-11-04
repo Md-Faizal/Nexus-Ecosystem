@@ -7,6 +7,7 @@ edition = "2021"
 axum = { version = "0.7", features = ["multipart", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
+futures-util = "0.3"
 uuid = { version = "1", features = ["v4"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }

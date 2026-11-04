@@ -932,7 +932,7 @@ pub async fn collect_system_health(db: &DbPool) -> SystemHealthData {
 
 pub fn generate_report_html(data: &SystemHealthData) -> String {
     let is_critical = data.overall_status == "CRITICAL";
-    let is_warning = data.overall_status == "WARNING";
+    let _is_warning = data.overall_status == "WARNING";
     let is_healthy = data.overall_status == "HEALTHY";
 
     // Dynamic Hero Status Banner

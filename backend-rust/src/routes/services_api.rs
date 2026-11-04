@@ -589,7 +589,6 @@ fn read_proc_net_dev() -> (u64, u64, u64, u64, String) {
                         ens_tx_bytes = tx_b;
                         ens_tx_pkts = tx_p;
                         matched_iface = iface.to_string();
-                        found_ens = true;
                         break;
                     } else if !found_ens && iface != "lo" && rx_p > ens_rx_pkts {
                         ens_rx_bytes = rx_b;
