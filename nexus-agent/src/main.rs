@@ -91,9 +91,21 @@ enum Commands {
         #[arg(short = 'c', long)]
         mode: Option<String>,
 
-        /// Optional model to use (default: first available)
+        /// Target a specific compute PC (e.g. potato-pro, rida-260-p020il, local)
+        #[arg(short = 'n', long)]
+        node: Option<String>,
+
+        /// Optional model to use (e.g. qwen2.5-coder:7b)
         #[arg(short = 'm', long)]
         model: Option<String>,
+
+        /// Force offline standalone local mode (direct to 127.0.0.1:11434)
+        #[arg(short = 'l', long)]
+        local: bool,
+
+        /// Instantly resume a saved conversation session by ID or index
+        #[arg(short = 'r', long)]
+        resume: Option<String>,
     },
 
     /// List models currently active in VRAM / RAM
@@ -444,7 +456,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("\x1b[1;32m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
         }
 
-        Some(Commands::Chat { mode, model }) => {
+        Some(Commands::Chat { mode, node, model, local, resume }) => {
             let effective_pin = admin_pin.or_else(|| {
                 config.token = Some("2004".into());
                 let _ = config.save();
@@ -458,7 +470,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &config.node_id,
                 &config.hostname,
             );
-            console.run(mode, model).await?;
+            console.run(mode, node, model, local, resume).await?;
         }
 
         Some(Commands::Ps) => {

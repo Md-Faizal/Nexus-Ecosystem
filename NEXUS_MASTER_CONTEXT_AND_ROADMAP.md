@@ -418,6 +418,31 @@ The updated agent features:
    - When `features.auto_update: true` is configured, the background daemon schedules an initial check 60 seconds post-boot and recurring checks every 4 hours.
    - Newer versions are downloaded silently, atomic file replacement is performed across all sibling aliases (`nx.exe`, `nexus.exe`, `nexus-agent.exe`), and the updated daemon is spawned detached with `CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB` before the current process exits cleanly.
 
+#### 3. Claude Code & Gemini CLI Level Interactive Chat Overhaul (v0.1.82)
+The Nexus Chat CLI (`nexus chat` / `nx chat`) has been completely overhauled with full parity to Claude Code and Gemini CLI:
+1. **Interactive Node & Model Picker**:
+   - Running `nx chat` presents an interactive numbered compute node selection menu showing online/offline status, RAM, GPU specs, and installed models.
+   - Automatically guides the operator to select or switch models per PC on startup or mid-flight.
+   - Supports CLI flags for zero-prompt launch: `--node <name>`, `--model <name>`, `--local`, `--resume <id|#>`.
+2. **GPU VRAM & Compute Lifecycle Management**:
+   - `/stop` or `/unload [model]`: Immediately evicts/unloads models from GPU/RAM on demand to free host VRAM, confirmed via `/ps`.
+   - `/ps`: Displays active resident models in VRAM, memory allocation, and keep-alive expiration timers.
+   - `/load <model> [duration]`: Warms up target models in VRAM before conversational turns.
+   - `/pull <model>`: Dispatches background model pulls to the selected node.
+3. **Session Persistence & Markdown Export**:
+   - Autosaves every turn locally to `%USERPROFILE%/.nexus/chats/` (Windows) and `~/.nexus/chats/` (Unix) and syncs with Central Hub SQLite.
+   - `/save [title]`: Names and saves conversational transcripts.
+   - `/history`: Displays formatted tables of saved conversations with turn counts and timestamps.
+   - `/load [id|#]` / `/resume [id|#]`: Replays past transcript into the terminal with context memory restored.
+   - `/delete [id|#]` / `/rm [id|#]`: Deletes saved conversations.
+   - `/export [file.md]`: Exports full conversation with metadata and execution metrics to Markdown.
+   - `/copy`: Copies last assistant answer directly to OS clipboard (`Set-Clipboard`, `pbcopy`, `xclip`).
+4. **Developer Terminal UX**:
+   - Retro TrueColor ASCII banner with `NEXUS CHAT`.
+   - Status header: active target node, model, GPU VRAM badge, estimated context token count, and session title.
+   - Streaming token renderer with syntax-highlighted code block borders and live performance metrics footer (`⚡ XX.X tok/s • N tokens • X.XXs`).
+   - Categorized slash commands manual via `/help`.
+
 ---
 
 ## 7. Strategic Goals & Roadmap for Next Conversation

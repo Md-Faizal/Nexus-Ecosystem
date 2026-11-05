@@ -1,5 +1,7 @@
 pub mod ai_bridge;
 pub mod banner;
+pub mod chat_renderer;
+pub mod chat_storage;
 pub mod cluster_ops;
 pub mod daemon_lock;
 pub mod docker;
