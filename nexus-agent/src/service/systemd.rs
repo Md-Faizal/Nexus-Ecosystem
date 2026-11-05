@@ -8,6 +8,13 @@ pub struct SystemdInstaller;
 impl SystemdInstaller {
     pub fn install(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
         let current_exe = std::env::current_exe()?;
+        let wanted_target = if user_mode { "default.target" } else { "multi-user.target" };
+        let env_home = if user_mode {
+            format!("Environment=\"HOME={}\"", std::env::var("HOME").unwrap_or_else(|_| "/root".into()))
+        } else {
+            "Environment=\"HOME=/root\"".to_string()
+        };
+
         let unit_content = format!(
             r#"[Unit]
 Description=Nexus Fleet Telemetry & Management Agent
@@ -18,13 +25,17 @@ Wants=network-online.target
 Type=simple
 ExecStart={} run
 Restart=always
-RestartSec=3s
+RestartSec=5s
 LimitNOFILE=65536
+{}
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 [Install]
-WantedBy=multi-user.target
+WantedBy={}
 "#,
-            current_exe.display()
+            current_exe.display(),
+            env_home,
+            wanted_target
         );
 
         let unit_path = if user_mode {
@@ -45,8 +56,17 @@ WantedBy=multi-user.target
         };
 
         let _ = Command::new(systemctl[0]).args(&systemctl[1..]).arg("daemon-reload").status();
-        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["enable", "nexus-agent"]).status();
-        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["start", "nexus-agent"]).status();
+        let enable_status = Command::new(systemctl[0]).args(&systemctl[1..]).args(["enable", "--now", "nexus-agent"]).status();
+        
+        match enable_status {
+            Ok(s) if s.success() => {
+                println!("\x1b[32m✓ Nexus Agent background service successfully enabled and started.\x1b[0m");
+            }
+            _ => {
+                println!("\x1b[33m[!] Notice: systemctl enable returned non-zero. Attempting explicit start...\x1b[0m");
+                let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["start", "nexus-agent"]).status();
+            }
+        }
 
         info!("Nexus Agent service installed and started via systemd");
         Ok(())
@@ -77,4 +97,3 @@ WantedBy=multi-user.target
         Ok(())
     }
 }
-

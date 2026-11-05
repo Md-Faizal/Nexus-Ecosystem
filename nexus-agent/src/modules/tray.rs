@@ -11,14 +11,16 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows_sys::Win32::System::Console::GetConsoleWindow;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
+    ExtractIconExW, Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
+    NOTIFYICONDATAW,
 };
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-    DispatchMessageW, GetCursorPos, GetMessageW, LoadIconW, PostQuitMessage, RegisterClassExW,
-    SetForegroundWindow, ShowWindow, TrackPopupMenuEx, TranslateMessage, HICON, HMENU,
-    IDI_APPLICATION, MF_DISABLED, MF_GRAYED, MF_SEPARATOR, MF_STRING, MSG, SW_HIDE,
+    DispatchMessageW, GetCursorPos, GetMessageW, GetSystemMetrics, LoadIconW, LoadImageW,
+    PostQuitMessage, RegisterClassExW, SetForegroundWindow, ShowWindow, TrackPopupMenuEx,
+    TranslateMessage, HICON, HMENU, IDI_APPLICATION, IMAGE_ICON, LR_DEFAULTCOLOR,
+    MF_DISABLED, MF_GRAYED, MF_SEPARATOR, MF_STRING, MSG, SM_CXSMICON, SM_CYSMICON, SW_HIDE,
     TPM_BOTTOMALIGN, TPM_RIGHTBUTTON, WM_COMMAND, WM_DESTROY, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
     WM_USER, WNDCLASSEXW,
 };
@@ -166,8 +168,35 @@ unsafe fn run_tray_loop(node_id: String) {
     let class_name = to_wide_str("NexusAgentTrayClass");
     let window_title = to_wide_str("NexusAgentTrayWindow");
 
-    let h_instance = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(null());
-    let mut h_icon: HICON = LoadIconW(h_instance, 1 as *const u16);
+    let mut h_icon: HICON = null_mut();
+
+    // 1. Primary: Extract small icon directly from the running executable
+    let mut exe_path = [0u16; 1024];
+    let len = windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(null_mut(), exe_path.as_mut_ptr(), 1024);
+    if len > 0 {
+        ExtractIconExW(exe_path.as_ptr(), 0, null_mut(), &mut h_icon, 1);
+    }
+
+    // 2. Secondary: LoadImageW for small icon resource
+    if h_icon == null_mut() {
+        let h_instance = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(null());
+        h_icon = LoadImageW(
+            h_instance,
+            1 as *const u16,
+            IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON),
+            GetSystemMetrics(SM_CYSMICON),
+            LR_DEFAULTCOLOR,
+        ) as HICON;
+    }
+
+    // 3. Tertiary: LoadIconW
+    if h_icon == null_mut() {
+        let h_instance = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(null());
+        h_icon = LoadIconW(h_instance, 1 as *const u16);
+    }
+
+    // 4. Fallback: IDI_APPLICATION
     if h_icon == null_mut() {
         h_icon = LoadIconW(null_mut(), IDI_APPLICATION);
     }

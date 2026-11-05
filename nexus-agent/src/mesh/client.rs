@@ -286,6 +286,18 @@ impl MeshClient {
             };
         }
 
+        if action == "ollama_pull" {
+            let model = args.first().cloned().unwrap_or_default();
+            let ai = {
+                let guard = self.modules.lock().await;
+                guard.ai_bridge().clone()
+            };
+            return match ai.pull_model(&model).await {
+                Ok(_) => (true, 0, format!("Model '{}' pulled successfully", model), "".into(), start.elapsed().as_millis() as u64),
+                Err(e) => (false, 1, "".into(), e, start.elapsed().as_millis() as u64),
+            };
+        }
+
         if action == "ollama_ps" {
             let ai = {
                 let guard = self.modules.lock().await;

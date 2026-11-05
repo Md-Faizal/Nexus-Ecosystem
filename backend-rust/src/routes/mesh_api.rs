@@ -2,7 +2,7 @@ use crate::SharedState;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        Path, Query, State,
     },
     http::StatusCode,
     response::{
@@ -144,6 +144,30 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                             let mut sessions = state.fleet.sessions.write().await;
                             sessions.insert(node_id.clone(), session);
 
+                            let db = state.db.clone();
+                            let nid_db = node_id.clone();
+                            let host_db = hostname.clone();
+                            let os_db = os.clone();
+                            let os_ver_db = os_ver.clone();
+                            let arch_db = arch.clone();
+                            let agent_ver_db = agent_ver.clone();
+                            tokio::spawn(async move {
+                                let conn = db.lock().await;
+                                let _ = conn.execute(
+                                    r#"INSERT INTO fleet_nodes_history (node_id, hostname, os, os_version, arch, agent_version, status, last_seen)
+                                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'online', CURRENT_TIMESTAMP)
+                                       ON CONFLICT(node_id) DO UPDATE SET
+                                           hostname = excluded.hostname,
+                                           os = excluded.os,
+                                           os_version = excluded.os_version,
+                                           arch = excluded.arch,
+                                           agent_version = excluded.agent_version,
+                                           status = 'online',
+                                           last_seen = CURRENT_TIMESTAMP"#,
+                                    rusqlite::params![nid_db, host_db, os_db, os_ver_db, arch_db, agent_ver_db],
+                                );
+                            });
+
                             let mut known = state.fleet.known_nodes.write().await;
                             known.insert(
                                 node_id.clone(),
@@ -186,6 +210,7 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                         }
 
                         "telemetry_report" => {
+                            let mut models_for_db = Vec::new();
                             let mut sessions = state.fleet.sessions.write().await;
                             if let Some(session) = sessions.get_mut(&node_id) {
                                 session.last_seen = Instant::now();
@@ -194,9 +219,22 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                                 if let Some(ai) = payload.get("ai_engine") {
                                     if let Some(models) = ai.get("models").and_then(|m| m.as_array()) {
                                         session.models = models.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
+                                        models_for_db = session.models.clone();
                                     }
                                 }
                             }
+
+                            let db = state.db.clone();
+                            let nid_db = node_id.clone();
+                            let tel_str = payload.to_string();
+                            let models_str = serde_json::to_string(&models_for_db).unwrap_or_default();
+                            tokio::spawn(async move {
+                                let conn = db.lock().await;
+                                let _ = conn.execute(
+                                    "UPDATE fleet_nodes_history SET last_telemetry = ?1, last_models = ?2, status = 'online', last_seen = CURRENT_TIMESTAMP WHERE node_id = ?3",
+                                    rusqlite::params![tel_str, models_str, nid_db],
+                                );
+                            });
 
                             let mut known = state.fleet.known_nodes.write().await;
                             if let Some(k) = known.get_mut(&node_id) {
@@ -249,6 +287,16 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
         if let Some(k) = known.get_mut(&node_id) {
             k.status = "offline".into();
         }
+
+        let db = state.db.clone();
+        let nid_db = node_id.clone();
+        tokio::spawn(async move {
+            let conn = db.lock().await;
+            let _ = conn.execute(
+                "UPDATE fleet_nodes_history SET status = 'offline', last_seen = CURRENT_TIMESTAMP WHERE node_id = ?1",
+                rusqlite::params![nid_db],
+            );
+        });
     }
 
     sink_task.abort();
@@ -257,11 +305,51 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
 // ─── REST Endpoints for Admin Panel ──────────────────────────────────────────
 
 pub async fn list_nodes(State(state): State<SharedState>) -> Json<Vec<NodeInfo>> {
-    let mut known = state.fleet.known_nodes.read().await.clone();
     let sessions = state.fleet.sessions.read().await;
+    let mut node_map: HashMap<String, NodeInfo> = HashMap::new();
 
-    let mut result = Vec::new();
-    for (id, mut node) in known.drain() {
+    // 1. Fetch persisted node history from SQLite
+    let conn = state.db.lock().await;
+    if let Ok(mut stmt) = conn.prepare("SELECT node_id, hostname, os, os_version, arch, agent_version, status, last_seen, last_telemetry, last_models FROM fleet_nodes_history") {
+        if let Ok(rows) = stmt.query_map([], |row| {
+            let nid: String = row.get(0)?;
+            let host: String = row.get(1)?;
+            let os: String = row.get(2)?;
+            let os_ver: String = row.get(3)?;
+            let arch: String = row.get(4)?;
+            let agent_ver: String = row.get(5)?;
+            let _status: String = row.get(6)?;
+            let _last_seen_str: String = row.get(7)?;
+            let last_tel_str: Option<String> = row.get(8)?;
+            let last_models_str: Option<String> = row.get(9)?;
+
+            let telemetry: Option<serde_json::Value> = last_tel_str.and_then(|s| serde_json::from_str(&s).ok());
+            let models: Vec<String> = last_models_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+
+            Ok(NodeInfo {
+                node_id: nid,
+                hostname: host,
+                os,
+                os_version: os_ver,
+                arch,
+                agent_version: agent_ver,
+                status: "offline".into(),
+                last_seen_secs: 999999,
+                features: HashMap::new(),
+                models,
+                telemetry,
+            })
+        }) {
+            for r in rows.flatten() {
+                node_map.insert(r.node_id.clone(), r);
+            }
+        }
+    }
+    drop(conn);
+
+    // 2. Overlay live sessions from in-memory mesh state
+    let known = state.fleet.known_nodes.read().await.clone();
+    for (id, mut node) in known {
         if let Some(sess) = sessions.get(&id) {
             node.status = "online".into();
             node.last_seen_secs = sess.last_seen.elapsed().as_secs();
@@ -270,8 +358,10 @@ pub async fn list_nodes(State(state): State<SharedState>) -> Json<Vec<NodeInfo>>
         } else {
             node.status = "offline".into();
         }
-        result.push(node);
+        node_map.insert(id, node);
     }
+
+    let mut result: Vec<NodeInfo> = node_map.into_values().collect();
 
     // Sort: online first, then by hostname
     result.sort_by(|a, b| {
@@ -461,6 +551,397 @@ pub async fn get_vram_processes(
         args: vec![],
     };
     dispatch_command(State(state), Path(node_id), Json(cmd)).await
+}
+
+// ─── Remote Model Pull ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ModelPullPayload {
+    pub model: String,
+}
+
+pub async fn pull_model(
+    State(state): State<SharedState>,
+    Path(node_id): Path<String>,
+    Json(payload): Json<ModelPullPayload>,
+) -> impl IntoResponse {
+    let cmd = CommandPayload {
+        action: "ollama_pull".into(),
+        args: vec![payload.model],
+    };
+    dispatch_command(State(state), Path(node_id), Json(cmd)).await
+}
+
+// ─── Fleet Chat Messages (Device-to-Device & Global) ──────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatMessageRecord {
+    pub id: i64,
+    pub chat_id: String,
+    pub sender_id: String,
+    pub sender_name: String,
+    pub recipient_id: Option<String>,
+    pub content: String,
+    pub message_type: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendChatMessagePayload {
+    pub chat_id: Option<String>,
+    pub sender_id: Option<String>,
+    pub sender_name: Option<String>,
+    pub recipient_id: Option<String>,
+    pub content: String,
+    pub message_type: Option<String>,
+}
+
+pub async fn list_chat_messages(
+    State(state): State<SharedState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<ChatMessageRecord>> {
+    let chat_id = params.get("chat_id").cloned().unwrap_or_else(|| "global".into());
+    let limit: i64 = params.get("limit").and_then(|v| v.parse().ok()).unwrap_or(50);
+
+    let conn = state.db.lock().await;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, chat_id, sender_id, sender_name, recipient_id, content, message_type, created_at 
+             FROM fleet_chat_messages 
+             WHERE chat_id = ?1 
+             ORDER BY id DESC LIMIT ?2",
+        )
+        .unwrap();
+
+    let rows = stmt
+        .query_map(rusqlite::params![chat_id, limit], |row| {
+            Ok(ChatMessageRecord {
+                id: row.get(0)?,
+                chat_id: row.get(1)?,
+                sender_id: row.get(2)?,
+                sender_name: row.get(3)?,
+                recipient_id: row.get(4)?,
+                content: row.get(5)?,
+                message_type: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })
+        .unwrap();
+
+    let mut list = Vec::new();
+    for r in rows.flatten() {
+        list.push(r);
+    }
+    list.reverse();
+    Json(list)
+}
+
+pub async fn send_chat_message(
+    State(state): State<SharedState>,
+    Json(payload): Json<SendChatMessagePayload>,
+) -> impl IntoResponse {
+    let chat_id = payload.chat_id.unwrap_or_else(|| "global".into());
+    let sender_id = payload.sender_id.unwrap_or_else(|| "operator".into());
+    let sender_name = payload.sender_name.unwrap_or_else(|| "Faizal (Operator)".into());
+    let msg_type = payload.message_type.unwrap_or_else(|| "text".into());
+
+    let conn = state.db.lock().await;
+    let res = conn.execute(
+        "INSERT INTO fleet_chat_messages (chat_id, sender_id, sender_name, recipient_id, content, message_type)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![chat_id, sender_id, sender_name, payload.recipient_id, payload.content, msg_type],
+    );
+    let msg_id = conn.last_insert_rowid();
+    drop(conn);
+
+    if res.is_ok() {
+        // Broadcast over WebSocket mesh to all active fleet nodes
+        let frame = serde_json::json!({
+            "frame_id": 10,
+            "node_id": "hub",
+            "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
+            "msg": {
+                "type": "fleet_chat_message",
+                "payload": {
+                    "id": msg_id,
+                    "chat_id": chat_id,
+                    "sender_id": sender_id,
+                    "sender_name": sender_name,
+                    "recipient_id": payload.recipient_id,
+                    "content": payload.content,
+                    "message_type": msg_type
+                }
+            }
+        });
+        let frame_str = frame.to_string();
+        let sessions = state.fleet.sessions.read().await;
+        for session in sessions.values() {
+            let _ = session.ws_tx.send(frame_str.clone()).await;
+        }
+
+        (StatusCode::CREATED, Json(serde_json::json!({ "success": true, "id": msg_id }))).into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to persist chat message").into_response()
+    }
+}
+
+// ─── Fleet AI Conversations (Persistent Sessions) ─────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiConversationRecord {
+    pub id: String,
+    pub title: String,
+    pub target_node_id: String,
+    pub model: String,
+    pub system_prompt: Option<String>,
+    pub temperature: f64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub message_count: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAiConversationPayload {
+    pub title: Option<String>,
+    pub target_node_id: String,
+    pub model: String,
+    pub system_prompt: Option<String>,
+    pub temperature: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiMessageRecord {
+    pub id: i64,
+    pub conversation_id: String,
+    pub role: String,
+    pub content: String,
+    pub node_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendAiMessagePayload {
+    pub content: String,
+    pub model: Option<String>,
+    pub system_prompt: Option<String>,
+    pub temperature: Option<f32>,
+}
+
+pub async fn list_ai_conversations(
+    State(state): State<SharedState>,
+) -> Json<Vec<AiConversationRecord>> {
+    let conn = state.db.lock().await;
+    let mut stmt = conn
+        .prepare(
+            "SELECT c.id, c.title, c.target_node_id, c.model, c.system_prompt, c.temperature, c.created_at, c.updated_at,
+                    (SELECT COUNT(*) FROM fleet_ai_messages m WHERE m.conversation_id = c.id) as msg_count
+             FROM fleet_ai_conversations c 
+             ORDER BY c.updated_at DESC",
+        )
+        .unwrap();
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(AiConversationRecord {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                target_node_id: row.get(2)?,
+                model: row.get(3)?,
+                system_prompt: row.get(4)?,
+                temperature: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+                message_count: row.get(8)?,
+            })
+        })
+        .unwrap();
+
+    let mut list = Vec::new();
+    for r in rows.flatten() {
+        list.push(r);
+    }
+    Json(list)
+}
+
+pub async fn create_ai_conversation(
+    State(state): State<SharedState>,
+    Json(payload): Json<CreateAiConversationPayload>,
+) -> impl IntoResponse {
+    let id = uuid::Uuid::new_v4().to_string();
+    let title = payload.title.unwrap_or_else(|| "New Conversation".into());
+    let temp = payload.temperature.unwrap_or(0.7);
+
+    let conn = state.db.lock().await;
+    let res = conn.execute(
+        "INSERT INTO fleet_ai_conversations (id, title, target_node_id, model, system_prompt, temperature)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![id, title, payload.target_node_id, payload.model, payload.system_prompt, temp],
+    );
+
+    if res.is_ok() {
+        (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "id": id,
+                "title": title,
+                "target_node_id": payload.target_node_id,
+                "model": payload.model
+            })),
+        )
+            .into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create conversation").into_response()
+    }
+}
+
+pub async fn get_ai_conversation_messages(
+    State(state): State<SharedState>,
+    Path(id): Path<String>,
+) -> Json<Vec<AiMessageRecord>> {
+    let conn = state.db.lock().await;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, conversation_id, role, content, node_id, created_at 
+             FROM fleet_ai_messages 
+             WHERE conversation_id = ?1 
+             ORDER BY id ASC",
+        )
+        .unwrap();
+
+    let rows = stmt
+        .query_map(rusqlite::params![id], |row| {
+            Ok(AiMessageRecord {
+                id: row.get(0)?,
+                conversation_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                node_id: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .unwrap();
+
+    let mut list = Vec::new();
+    for r in rows.flatten() {
+        list.push(r);
+    }
+    Json(list)
+}
+
+pub async fn send_ai_conversation_message(
+    State(state): State<SharedState>,
+    Path(id): Path<String>,
+    Json(payload): Json<SendAiMessagePayload>,
+) -> Response {
+    let conn = state.db.lock().await;
+    let conv_info: Option<(String, String, Option<String>, f64)> = conn
+        .query_row(
+            "SELECT target_node_id, model, system_prompt, temperature FROM fleet_ai_conversations WHERE id = ?1",
+            rusqlite::params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .ok();
+
+    if conv_info.is_none() {
+        return (StatusCode::NOT_FOUND, "Conversation not found").into_response();
+    }
+    let (target_node_id, default_model, default_system, default_temp) = conv_info.unwrap();
+
+    // 1. Insert user message into SQLite
+    let _ = conn.execute(
+        "INSERT INTO fleet_ai_messages (conversation_id, role, content, node_id) VALUES (?1, 'user', ?2, ?3)",
+        rusqlite::params![id, payload.content, target_node_id],
+    );
+    let _ = conn.execute(
+        "UPDATE fleet_ai_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+        rusqlite::params![id],
+    );
+    drop(conn);
+
+    let model = payload.model.unwrap_or(default_model);
+    let sys_prompt = payload.system_prompt.or(default_system);
+    let temp = payload.temperature.unwrap_or(default_temp as f32);
+
+    let sessions = state.fleet.sessions.read().await;
+    let session = match sessions.get(&target_node_id) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, "Target compute node is offline").into_response(),
+    };
+
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let (tx, mut rx) = mpsc::channel::<String>(100);
+
+    {
+        let mut streams = session.active_ai_streams.write().await;
+        streams.insert(request_id.clone(), tx);
+    }
+
+    let frame = serde_json::json!({
+        "frame_id": 3,
+        "node_id": "hub",
+        "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
+        "msg": {
+            "type": "ai_prompt",
+            "payload": {
+                "request_id": request_id,
+                "model": model,
+                "prompt": payload.content,
+                "system_prompt": sys_prompt,
+                "temperature": temp,
+            }
+        }
+    });
+
+    if session.ws_tx.send(frame.to_string()).await.is_err() {
+        return (StatusCode::BAD_GATEWAY, "Failed to send prompt to target node").into_response();
+    }
+
+    // Spawn stream collector that accumulates tokens and writes assistant response to SQLite
+    let db = state.db.clone();
+    let conv_id = id.clone();
+    let node_id_for_db = target_node_id.clone();
+    let (sse_tx, sse_rx) = mpsc::channel::<String>(100);
+
+    tokio::spawn(async move {
+        let mut full_response = String::new();
+        while let Some(chunk) = rx.recv().await {
+            full_response.push_str(&chunk);
+            let _ = sse_tx.send(chunk).await;
+        }
+
+        // When stream terminates, persist accumulated assistant response
+        if !full_response.is_empty() {
+            let conn = db.lock().await;
+            let _ = conn.execute(
+                "INSERT INTO fleet_ai_messages (conversation_id, role, content, node_id) VALUES (?1, 'assistant', ?2, ?3)",
+                rusqlite::params![conv_id, full_response, node_id_for_db],
+            );
+            let _ = conn.execute(
+                "UPDATE fleet_ai_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+                rusqlite::params![conv_id],
+            );
+        }
+    });
+
+    let stream = tokio_stream::wrappers::ReceiverStream::new(sse_rx)
+        .map(|chunk| Ok::<_, Infallible>(Event::default().data(chunk)));
+
+    Sse::new(stream).keep_alive(KeepAlive::default()).into_response()
+}
+
+pub async fn delete_ai_conversation(
+    State(state): State<SharedState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let conn = state.db.lock().await;
+    let _ = conn.execute("DELETE FROM fleet_ai_messages WHERE conversation_id = ?1", rusqlite::params![id]);
+    let res = conn.execute("DELETE FROM fleet_ai_conversations WHERE id = ?1", rusqlite::params![id]);
+
+    if res.is_ok() {
+        (StatusCode::OK, Json(serde_json::json!({ "success": true }))).into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete conversation").into_response()
+    }
 }
 
 // ─── Public 1-Command Installers ─────────────────────────────────────────────

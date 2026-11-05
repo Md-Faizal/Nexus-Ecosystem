@@ -187,6 +187,30 @@ impl AiBridge {
         }
     }
 
+    /// Pull a model from the Ollama library
+    pub async fn pull_model(&self, model: &str) -> Result<(), String> {
+        let url = format!("{}/api/pull", self.endpoint);
+        let body = json!({
+            "model": model,
+            "stream": false,
+        });
+
+        let res = self.client
+            .post(&url)
+            .json(&body)
+            .timeout(Duration::from_secs(1800))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if res.status().is_success() {
+            info!("Model '{}' pulled successfully", model);
+            Ok(())
+        } else {
+            Err(format!("Ollama pull returned status {}", res.status()))
+        }
+    }
+
     pub async fn stream_prompt(
         &self,
         request_id: String,

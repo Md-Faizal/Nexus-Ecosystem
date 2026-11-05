@@ -128,8 +128,54 @@ fn init_schema(conn: &Connection) -> Result<()> {
             ip TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS fleet_chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT NOT NULL DEFAULT 'global',
+            sender_id TEXT NOT NULL,
+            sender_name TEXT NOT NULL,
+            recipient_id TEXT,
+            content TEXT NOT NULL,
+            message_type TEXT NOT NULL DEFAULT 'text',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS fleet_ai_conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            target_node_id TEXT NOT NULL,
+            model TEXT NOT NULL,
+            system_prompt TEXT,
+            temperature REAL DEFAULT 0.7,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS fleet_ai_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            node_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS fleet_nodes_history (
+            node_id TEXT PRIMARY KEY,
+            hostname TEXT NOT NULL,
+            os TEXT NOT NULL,
+            os_version TEXT,
+            arch TEXT NOT NULL,
+            agent_version TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'offline',
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_telemetry TEXT,
+            last_models TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_metrics_hist_ts ON system_metrics_history(timestamp);
         CREATE INDEX IF NOT EXISTS idx_http_req_ts ON http_request_logs(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fleet_chat_id ON fleet_chat_messages(chat_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_fleet_ai_conv_id ON fleet_ai_messages(conversation_id);
         "#,
     )?;
 

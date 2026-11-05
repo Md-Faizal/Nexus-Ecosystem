@@ -5,6 +5,7 @@ pub mod daemon_lock;
 pub mod docker;
 pub mod gpu;
 pub mod helpbook;
+pub mod operator_console;
 pub mod telemetry;
 pub mod tray;
 

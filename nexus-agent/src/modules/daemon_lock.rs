@@ -32,8 +32,6 @@ impl Drop for DaemonLockGuard {
 }
 
 /// Attempts to acquire an exclusive single-instance lock for the background daemon.
-/// Returns Ok(guard) if this is the only active daemon instance.
-/// Returns Err(msg) if a daemon instance is already active and running.
 pub fn try_acquire_daemon_lock() -> Result<DaemonLockGuard, String> {
     #[cfg(target_os = "windows")]
     {
@@ -62,11 +60,20 @@ pub fn try_acquire_daemon_lock() -> Result<DaemonLockGuard, String> {
         use std::os::unix::fs::OpenOptionsExt;
         use std::os::unix::io::AsRawFd;
 
-        let lock_path = std::env::temp_dir().join("nexus-fleet-daemon.lock");
+        let uid = unsafe { libc::geteuid() };
+        let lock_path = if uid == 0 {
+            std::path::PathBuf::from("/run/nexus-fleet-daemon.lock")
+        } else {
+            let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| std::env::temp_dir());
+            runtime_dir.join(format!("nexus-daemon-{}.lock", uid))
+        };
+
         let file = OpenOptions::new()
             .write(true)
             .create(true)
-            .mode(0o644)
+            .mode(0o600)
             .open(&lock_path)
             .map_err(|e| format!("Could not open lock file {}: {}", lock_path.display(), e))?;
 
@@ -96,13 +103,44 @@ pub fn is_daemon_running() -> bool {
         }
     }
 
-    // Secondary process inspection
+    #[cfg(target_os = "linux")]
+    {
+        // 1. Direct systemd system query
+        if let Ok(status) = std::process::Command::new("systemctl")
+            .args(["is-active", "--quiet", "nexus-agent.service"])
+            .status()
+        {
+            if status.success() {
+                return true;
+            }
+        }
+        // 2. Direct systemd user query
+        if let Ok(status) = std::process::Command::new("systemctl")
+            .args(["--user", "is-active", "--quiet", "nexus-agent.service"])
+            .status()
+        {
+            if status.success() {
+                return true;
+            }
+        }
+    }
+
+    // 3. Process inspection: must have 'run' in its arguments
     let mut sys = sysinfo::System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let current_pid = sysinfo::get_current_pid().ok();
     sys.processes().values().any(|p| {
+        if Some(p.pid()) == current_pid {
+            return false;
+        }
         let name = p.name().to_string_lossy().to_lowercase();
-        (name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus")
-            && Some(p.pid()) != current_pid
+        let is_nexus = name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus";
+        if !is_nexus {
+            return false;
+        }
+        p.cmd().iter().any(|arg| {
+            let s = arg.to_string_lossy();
+            s == "run" || s == "--run"
+        })
     })
 }

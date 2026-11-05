@@ -81,9 +81,14 @@ enum Commands {
         action: ServiceCommands,
     },
 
-    /// Chat interactively with local AI model in terminal (Claude Code / Gemini CLI style)
+    /// Chat interactively in terminal (Fleet Chat & Distributed AI Studio)
     Chat {
-        /// Optional model to use (default: llama3.2:3b or first available)
+        /// Optional console mode: 'chat' (Fleet Chat) or 'ai' (Distributed AI Studio) or 'local'
+        #[arg(short = 'c', long)]
+        mode: Option<String>,
+
+        /// Optional model to use (default: first available)
+        #[arg(short = 'm', long)]
         model: Option<String>,
     },
 
@@ -345,9 +350,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("\x1b[1;32m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
         }
 
-        Some(Commands::Chat { model }) => {
-            let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
-            ai_bridge.run_interactive_repl(model, Some(primary_hub), admin_pin).await?;
+        Some(Commands::Chat { mode, model }) => {
+            let console = modules::operator_console::OperatorConsole::new(
+                &primary_hub,
+                admin_pin.as_deref(),
+                &config.ai_endpoint,
+                &config.node_id,
+                &config.hostname,
+            );
+            console.run(mode, model).await?;
         }
 
         Some(Commands::Ps) => {
