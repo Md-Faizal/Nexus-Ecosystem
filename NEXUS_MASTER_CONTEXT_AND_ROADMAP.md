@@ -10,30 +10,80 @@
 
 ## 1. Executive Summary & Context
 
-This document captures the **complete architectural state, diagnostic history, technical implementations, database schemas, and forward-looking roadmap** of the **Nexus Fleet & Distributed AI Ecosystem**.
+This document captures the **complete architectural state, foundational charter, diagnostic history, technical implementations, database schemas, and forward-looking roadmap** of the **Nexus Fleet & Distributed AI Ecosystem**.
 
 As the conversational context reached its capacity limit, this master document serves as the **single source of truth** to seamlessly bootstrap subsequent development conversations without loss of context, architectural intent, or operational knowledge.
 
+---
+
+### 1.1. The Cockroach Philosophy ("Cockrock" Autonomous Resilience Charter)
+
+From the project's inception, the core engineering principle for the Nexus Fleet has been **"The Cockroach Doctrine"**:
+> *"Build an ultra-lightweight, self-reliant, always-alive Stark network that can adapt itself, scale itself, and survive a metaphorical nuclear fallout — zero crashes, zero external dependencies, self-healing, self-starting, and invisible in the background."*
+
+Key pillars of this survival doctrine:
+1. **Zero-Token, Zero-Friction Bootstrap:** Any new node in the fleet connects via a single terminal one-liner (`curl -fsSL https://faizal.uk/install.sh | bash` on Linux/macOS or `irm https://faizal.uk/install.ps1 | iex` on Windows) without requiring manual token generation, API key configuration, or interactive prompts.
+2. **Crash-Proof Rust Binary:** Built entirely in native Rust with LTO (Link-Time Optimization) and stripped down to ~2 MB. Consumes <15 MB of RAM and zero measurable CPU during idle telemetry streaming.
+3. **Self-Healing & In-Place Self-Updating:** The binary updates itself in-place via `nexus update`, automatically handles Windows UAC elevation, terminates and restarts its background daemons to avoid file locks, keeps backups, and rolls back instantly if a downloaded binary fails validation.
+4. **Persistent Daemon Survivability:** Operates as a true background daemon that survives terminal closures, shell exit, SSH disconnects, and system reboots.
+5. **Unified Multi-Node Identity:** Whether running under systemd root or a normal interactive terminal user, all local processes share the exact same configuration and stable node ID.
+
+---
+
+### 1.2. The Automotive CAN-Bus Multiplexing Mesh Architecture
+
+The fleet's networking is modeled directly after **modern automotive Controller Area Network (CAN bus)** multiplexing:
+* In a high-performance vehicle, the CAN bus links Engine Control Units (ECUs), transmission, braking, infotainment, and telemetry sensors across a single shared, high-reliability message bus.
+* In the Nexus Fleet, the **Rust backend (`personal-site-rust`) acts as the central CAN-Bus Controller**, maintaining persistent bidirectional WebSocket connections (`wss://faizal.uk/api/mesh/ws`) to all fleet nodes.
+* Every connected device (cloud servers, desktop gaming rigs, mobile phones, in-car CarPlay adapters) acts as an independent ECU broadcasting structured CAN frames (`NodeHello`, `TelemetryReport`, `ServiceControl`, `AiStream`, `LiveTelemetryPill`).
+* Telemetry streams at regular cadence (15s idle, 2s active), while high-priority commands (1-click service restarts, model weight evictions, terminal chats) interrupt and dispatch with sub-millisecond latency.
+
+---
+
+### 1.3. Comprehensive Fleet Hardware & Node Topology
+
+The Nexus Fleet spans three distinct operational tiers:
+
 ```mermaid
 graph TD
-    subgraph "Core Infrastructure (Central Hub: faizal.uk)"
-        Hub["Rust High-Performance Hub (personal-site-rust)<br/>Axum • SQLite state.db • WebSocket Mesh"]
-        SQLite[("Unified SQLite Database<br/>• fleet_chat_messages<br/>• fleet_ai_conversations<br/>• fleet_ai_messages<br/>• fleet_nodes_history")]
-        WebAdmin["React 19 Admin Console (/admin.html)<br/>• 🤖 Distributed AI Studio<br/>• 💬 Fleet Chat (Global & DMs)<br/>• 📊 3-VM Cluster Cockpit"]
-        Hub <--> SQLite
-        Hub <--> WebAdmin
+    subgraph "Tier 1: Cloud Core & Failover Quorum"
+        Hub["Primary Hub (faizal.uk)<br/>Oracle Cloud Micro AMD 1 (my-mac)<br/>Rust Axum • SQLite • WebAdmin"]
+        COS["Secondary Standby Node<br/>Oracle Cloud Micro AMD 2 (cos.faizal.uk)<br/>Rust Slave Backend • Telemetry"]
+        PRO["Quorum & Failover Node<br/>GCP Micro Instance (pro.faizal.uk)<br/>Quorum • Warm Standby"]
     end
 
-    subgraph "Compute & Edge Workstations (Nexus Agents)"
-        Mac["🍏 my-mac (Priority 1 Edge)<br/>macOS • launchd / terminal<br/>Ollama Local Models"]
-        Win["🪟 potato-pro (Gaming & Compute Rig)<br/>Windows 11 • RTX 3060 (12GB VRAM)<br/>Tray Daemon • Ollama (qwen2.5, llama3)"]
-        Linux["🐧 zorin-box / VM (Headless AI Box)<br/>Zorin OS / Ubuntu • systemd<br/>Ollama Server"]
+    subgraph "Tier 2: High-Performance Compute Grid"
+        PotatoPro["🎮 potato-pro (Primary AI Compute)<br/>Windows 11 • Intel i3-8100 • RTX 3060 (12GB VRAM)<br/>Ollama Engine (qwen2.5-coder:7b, llama3.2:3b)<br/>Native System Tray Daemon • Auto-Detached"]
+        LocalPC2["🖥️ Secondary Local PC<br/>Linux / Windows Development Workstation<br/>Warm Compute Node"]
     end
 
-    Mac <== "WebSocket CAN-Bus Mesh (Bidirectional)" ==> Hub
-    Win <== "WebSocket CAN-Bus Mesh (Bidirectional)" ==> Hub
-    Linux <== "WebSocket CAN-Bus Mesh (Bidirectional)" ==> Hub
+    subgraph "Tier 3: Mobile, Ambient & In-Vehicle Edge (Roadmap)"
+        AndroidApp["📱 Personal Android App<br/>Universal Fleet Telemetry & Remote Control"]
+        AndroidTV["📺 Android TV Dashboard<br/>Living Room Ambient Fleet Monitor"]
+        CarPlay["🚗 Smart AI Apple CarPlay Box<br/>In-Vehicle CAN-Bus Terminal & Voice AI"]
+    end
+
+    PotatoPro <== "CAN-Bus WebSocket Mesh" ==> Hub
+    LocalPC2 <== "CAN-Bus WebSocket Mesh" ==> Hub
+    COS <== "Failover Sync" ==> Hub
+    PRO <== "Quorum Sync" ==> Hub
+    AndroidApp -.-> Hub
+    AndroidTV -.-> Hub
+    CarPlay -.-> Hub
 ```
+
+#### Detailed Node Specifications:
+1. **Cloud Core (3 Instances):**
+   * **`my-mac` (Oracle Cloud Micro AMD, `ssh my-mac` / `faizal.uk`):** Primary production hub. Hosts the active Rust Axum web backend, unified SQLite database, Docker container swarm, and the React 19 Admin Console.
+   * **`cos` (Oracle Cloud Micro AMD, `ssh cos` / `cos.faizal.uk`):** Secondary Oracle instance. Runs the Rust backend in hibernating standby mode; continuously streams telemetry and monitors primary health. Wakes up automatically for load balancing or automated disaster failover.
+   * **`pro` (Google Cloud Platform Micro, `ssh pro` / `pro.faizal.uk`):** Tertiary GCP instance. Maintains quorum and warm failover readiness across cloud providers.
+2. **Local Compute Grid (2 Workstations):**
+   * **`potato-pro` (`windows-potato-pro-0d64a4ab`):** The heavy compute engine of the fleet. Equipped with an **NVIDIA GeForce RTX 3060 (12 GB VRAM)** and Intel Core i3-8100 CPU. Runs local Ollama with `qwen2.5-coder:7b` and `llama3.2:3b`. Remotely orchestratable via the Nexus AI Studio for prompt streaming, model pre-loading (`nexus load`), and VRAM purging (`nexus unload`). Runs a native Windows Taskbar tray daemon with the official **`F•`** logo.
+   * **Secondary Local PC:** Secondary desktop workstation for development, load distribution, and fallback compute.
+3. **Mobile, Ambient & In-Vehicle Expansion Fleet (Roadmap):**
+   * **Personal Android App:** Currently existing custom app to be refactored and debloated into a universal, ultra-fast fleet control app for node inspection and 1-click restarts.
+   * **Android TV:** Ambient living-room dashboard displaying 24/7 cluster status, container states, and system health.
+   * **Smart AI Apple CarPlay Box:** In-dash automotive CAN-bus terminal that connects the car's head unit to the Nexus Fleet, displaying system metrics and enabling voice/text interaction with local AI models running on `potato-pro`.
 
 ---
 
@@ -106,6 +156,34 @@ During real-world deployment across Windows, macOS, and Linux (Zorin OS), severa
   * Automatically updates `latest.json` with the new version and rsyncs `public/releases/` straight to the server (`faizal.uk`).
   * Deploys CLI updates in **under 1.5 minutes with zero downtime**.
   * Configured `paths-ignore: ['nexus-agent/**']` in `deploy.yml` so full cluster deploys are reserved for backend/frontend changes.
+
+---
+
+### 2.7. Windows PowerShell Visual Breakdown (Virtual Terminal Processing)
+* **Symptom**: In standard Windows PowerShell (conhost.exe), running `nexus update` or `nexus status` showed raw escape characters like `←[1;36m` instead of colors.
+* **Root Cause**: Windows Console Host does not enable `ENABLE_VIRTUAL_TERMINAL_PROCESSING` (0x0004) by default for console applications. Standard ASCII 27 (ESC) was printed as a left arrow (`←`).
+* **Fix**: In `nexus-agent/src/main.rs`, added `enable_virtual_terminal_processing()` at application launch using `windows_sys::Win32::System::Console::SetConsoleMode`, turning on full 24-bit/ANSI color rendering across PowerShell and cmd.
+
+---
+
+### 2.8. Auto-Updater Download Timeout & Real-Time Streaming Chunks
+* **Symptom**: Running `nexus update --force` failed with `Error: reqwest::Error { kind: Decode, source: reqwest::Error { kind: Body, source: TimedOut } }`.
+* **Root Cause**: `reqwest::Client` had a hard 10-second total request/response timeout for the entire 2.5 MB binary download. On slower connections or modest latency, downloading 2.5 MB took slightly longer than 10 seconds, triggering an immediate timeout.
+* **Fix**: In `nexus-agent/src/updater/mod.rs`, increased total timeout to 180 seconds with 15s connect timeout. Replaced `dl_res.bytes().await` with a real-time chunk streaming loop using `futures_util::StreamExt`, displaying dynamic download progress (`⚡ Progress: 1.45/2.17 MB (66.8%)`).
+
+---
+
+### 2.9. Windows Tray & Executable Icon Re-Encoding (JFIF/JPEG to Compliant ICO)
+* **Symptom**: Taskbar notification tray showed Windows' generic white window dialog icon instead of the branded logo.
+* **Root Cause**: `resources/app.ico` was a JFIF/JPEG image wrapped in an `.ico` header. Windows GDI strictly forbids JPEG payloads in ICO files, silently falling back to `IDI_APPLICATION`.
+* **Fix**: Re-encoded `app.ico` into a 100% compliant multi-resolution ICO (16, 24, 32, 48, 64, 256px) of Faizal's **`F•`** logo. Added in-memory fallback in `tray.rs` via `CreateIconFromResourceEx` and fixed the relative path in `build.rs` to avoid spaces in `MacOS Project`.
+
+---
+
+### 2.10. Multi-User Linux Shared Node Identity
+* **Symptom**: Installing as root via `sudo` caused the admin panel to show a different node from `nexus status` run by a normal user.
+* **Root Cause**: Running under sudo created `/etc/nexus-agent/config.json`, while normal users looked in `~/.config/nexus-agent/config.json`, generating two separate node IDs.
+* **Fix**: `AgentConfig::config_path()` now prioritizes `/etc/nexus-agent/config.json` with permissions `0644` so all users and background services share the exact same node ID.
 
 ---
 

@@ -183,3 +183,4 @@ jobs:
           ssh production "chmod -R a+rX $TARGET_RELEASES_DIR"
 
           echo "✓ Fast Agent Release deployed successfully to https://faizal.uk/releases/latest.json"
+

@@ -31,7 +31,8 @@ impl AgentUpdater {
         println!("\x1b[1;36mChecking for Nexus Fleet updates from {}...\x1b[0m", manifest_url);
 
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(180))
             .build()?;
 
         let res = match client.get(manifest_url).send().await {
@@ -131,7 +132,30 @@ impl AgentUpdater {
             return Ok(());
         }
 
-        let new_bytes = dl_res.bytes().await?;
+        use futures_util::StreamExt;
+        use std::io::Write;
+
+        let total_size = dl_res.content_length().unwrap_or(0);
+        let mut stream = dl_res.bytes_stream();
+        let mut new_bytes = Vec::with_capacity(total_size as usize);
+        let mut downloaded: u64 = 0;
+
+        while let Some(chunk_res) = stream.next().await {
+            let chunk = chunk_res?;
+            downloaded += chunk.len() as u64;
+            new_bytes.extend_from_slice(&chunk);
+            if total_size > 0 {
+                let pct = (downloaded as f64 / total_size as f64) * 100.0;
+                let mb_down = downloaded as f64 / (1024.0 * 1024.0);
+                let mb_total = total_size as f64 / (1024.0 * 1024.0);
+                print!("\r\x1b[1;33m⚡ Progress:\x1b[0m {:.2}/{:.2} MB ({:.1}%)   ", mb_down, mb_total, pct);
+            } else {
+                let mb_down = downloaded as f64 / (1024.0 * 1024.0);
+                print!("\r\x1b[1;33m⚡ Progress:\x1b[0m {:.2} MB   ", mb_down);
+            }
+            let _ = std::io::stdout().flush();
+        }
+        println!();
         let temp_exe = current_exe.with_extension("tmp_update");
 
         // Write temp binary

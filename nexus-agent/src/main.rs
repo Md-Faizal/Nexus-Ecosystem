@@ -186,8 +186,35 @@ fn is_daemon_running() -> bool {
     modules::daemon_lock::is_daemon_running()
 }
 
+#[cfg(target_os = "windows")]
+fn enable_virtual_terminal_processing() {
+    use windows_sys::Win32::System::Console::{
+        GetConsoleMode, GetStdHandle, SetConsoleMode, ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+        STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    unsafe {
+        let h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+        if h_out != windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
+            let mut mode = 0u32;
+            if GetConsoleMode(h_out, &mut mode) != 0 {
+                let _ = SetConsoleMode(h_out, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            }
+        }
+        let h_err = GetStdHandle(STD_ERROR_HANDLE);
+        if h_err != windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
+            let mut mode = 0u32;
+            if GetConsoleMode(h_err, &mut mode) != 0 {
+                let _ = SetConsoleMode(h_err, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    enable_virtual_terminal_processing();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
