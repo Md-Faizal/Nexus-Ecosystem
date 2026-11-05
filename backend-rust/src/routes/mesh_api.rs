@@ -88,10 +88,10 @@ pub async fn handle_mesh_ws(
 
 async fn handle_node_connection(socket: WebSocket, state: SharedState) {
     let (mut sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<String>(100);
+    let (tx, rx) = mpsc::channel::<String>(100);
 
     // Forward outgoing messages over WebSocket
-    let mut sink_task = tokio::spawn(async move {
+    let sink_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if sink.send(Message::Text(msg.into())).await.is_err() {
                 break;
@@ -388,7 +388,7 @@ pub async fn stream_ai_prompt(
     };
 
     let request_id = uuid::Uuid::new_v4().to_string();
-    let (tx, mut rx) = mpsc::channel::<String>(100);
+    let (tx, rx) = mpsc::channel::<String>(100);
 
     {
         let mut streams = session.active_ai_streams.write().await;

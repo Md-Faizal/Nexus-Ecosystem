@@ -1,6 +1,7 @@
 pub mod ai_bridge;
 pub mod banner;
 pub mod cluster_ops;
+pub mod daemon_lock;
 pub mod docker;
 pub mod gpu;
 pub mod helpbook;

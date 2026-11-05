@@ -122,8 +122,17 @@ enum Commands {
     /// Display comprehensive manual & operator guide
     Manual,
 
-    /// Trigger silent self-update check
+    /// Check for updates and automatically upgrade the agent binary
     Update {
+        /// Only check for updates without installing
+        #[arg(long)]
+        check: bool,
+
+        /// Force re-download and re-install even if version matches
+        #[arg(long)]
+        force: bool,
+
+        /// Custom update manifest URL
         #[arg(long, default_value = "https://faizal.uk/releases/latest.json")]
         manifest_url: String,
     },
@@ -145,14 +154,7 @@ enum ServiceCommands {
 }
 
 fn is_daemon_running() -> bool {
-    let mut sys = sysinfo::System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    let current_pid = sysinfo::get_current_pid().ok();
-    sys.processes().values().any(|p| {
-        let name = p.name().to_string_lossy().to_lowercase();
-        (name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus")
-            && Some(p.pid()) != current_pid
-    })
+    modules::daemon_lock::is_daemon_running()
 }
 
 #[tokio::main]
@@ -192,6 +194,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Some(Commands::Run) => {
+            // Check & acquire exclusive single-instance lock to prevent duplicate daemons & tray icons
+            let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
+                Ok(guard) => guard,
+                Err(_) => {
+                    println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+                    println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
+                    println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+                    return Ok(());
+                }
+            };
+
             // Hide background console window when running as daemon
             modules::tray::hide_console_window();
 
@@ -399,13 +412,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             modules::helpbook::print_manual();
         }
 
-        Some(Commands::Update { manifest_url }) => {
-            info!("Checking for updates at: {}", manifest_url);
-            println!("Node is up to date (version: {}).", env!("CARGO_PKG_VERSION"));
+        Some(Commands::Update { check, force, manifest_url }) => {
+            updater::AgentUpdater::run_update(&manifest_url, check, force).await?;
         }
 
         None => {
             if cli.run {
+                let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+                        println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
+                        return Ok(());
+                    }
+                };
+
                 modules::tray::hide_console_window();
                 modules::tray::start_system_tray(config.node_id.clone());
                 let mut client = MeshClient::new(config);

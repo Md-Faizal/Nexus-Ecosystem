@@ -35,3 +35,7 @@ Thumbs.db
 preview_*.html
 __pycache__/
 *.pyc
+
+*.o
+*.res
+

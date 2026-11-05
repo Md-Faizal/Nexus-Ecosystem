@@ -11,6 +11,7 @@ pub fn print_manual() {
     println!("  \x1b[1;32mnexus services\x1b[0m                  View running containers, web engines, and games");
     println!("  \x1b[1;32mnexus restart <service>\x1b[0m         Trigger 1-click remote restart across the cluster");
     println!("  \x1b[1;32mnexus health\x1b[0m                    View 24h cluster error logs and allocator telemetry");
+    println!("  \x1b[1;32mnexus update\x1b[0m                    Check & automatically install latest agent binary");
     println!("  \x1b[1;32mnexus service install\x1b[0m           Register auto-start on system boot");
     println!("  \x1b[1;32mnexus service uninstall\x1b[0m         Remove auto-start service");
     println!();

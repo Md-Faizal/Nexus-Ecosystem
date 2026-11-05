@@ -570,7 +570,7 @@ fn read_proc_net_dev() -> (u64, u64, u64, u64, String) {
         let mut ens_tx_bytes = 0u64;
         let mut ens_tx_pkts = 0u64;
         let mut matched_iface = "ens3".to_string();
-        let mut found_ens = false;
+        let found_ens = false;
 
         for line in content.lines() {
             let line = line.trim();
