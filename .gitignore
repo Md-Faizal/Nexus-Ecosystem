@@ -39,3 +39,21 @@ __pycache__/
 *.o
 *.res
 
+# Android build artifacts & environment
+.gradle/
+build/
+android/**/build/
+android/**/.gradle/
+android/**/.kotlin/
+android/**/b/
+android/**/build_out/
+android/**/temp_mappls/
+android/**/local.properties
+android/**/.cxx/
+android/**/.idea/
+android/**/*.apk
+android/**/*.aab
+android/**/*.aar
+android/**/captures/
+
+

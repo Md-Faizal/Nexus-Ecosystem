@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NexusPortal</string>
+    <string name="device_admin_description">Nexus Device Security Administrator grants secure locking and configuration monitoring interfaces.</string>
+    <string name="accessibility_description">Nexus System gesture listener logs focus points and tap gestures for sandbox automation telemetry.</string>
+</resources>
