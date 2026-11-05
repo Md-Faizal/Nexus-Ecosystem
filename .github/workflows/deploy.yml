@@ -130,6 +130,9 @@ jobs:
           ls -lh ./personal-site-rust
 
           cd nexus-agent
+          VERSION="0.1.${{ github.run_number }}"
+          echo "Auto-incrementing Nexus Agent version to $VERSION"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
           cargo build --release
           if [ -f target/release/nexus ]; then
             strip target/release/nexus
@@ -172,6 +175,9 @@ jobs:
       - name: "🚀 Compile Windows Agent Binary"
         run: |
           cd nexus-agent
+          $Version = "0.1.${{ github.run_number }}"
+          Write-Host "Auto-incrementing Windows Nexus Agent version to $Version"
+          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content Cargo.toml
           cargo build --release
           if (Test-Path target/release/nexus.exe) {
             cp target/release/nexus.exe target/release/nexus-agent.exe
@@ -228,6 +234,12 @@ jobs:
         run: |
           chmod +x ./personal-site-rust
           mkdir -p public/releases
+          VERSION="0.1.${{ github.run_number }}"
+          if [ -f public/releases/latest.json ]; then
+            sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" public/releases/latest.json
+            sed -i "s/\"release_date\": \".*\"/\"release_date\": \"$(date +%Y-%m-%d)\"/" public/releases/latest.json
+            echo "Updated public/releases/latest.json to version $VERSION"
+          fi
           if [ -f ./nexus-agent-linux-amd64 ]; then
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64

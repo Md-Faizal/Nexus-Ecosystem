@@ -3,6 +3,7 @@ pub mod rollback;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
@@ -69,6 +70,26 @@ impl AgentUpdater {
             return Ok(());
         }
 
+        let current_exe = std::env::current_exe()?;
+        let exe_dir = current_exe.parent().unwrap_or_else(|| Path::new("."));
+
+        // Check if destination directory is writable before attempting update
+        if !Self::is_directory_writable(exe_dir) {
+            #[cfg(target_os = "windows")]
+            {
+                println!("\x1b[1;33m[!] Administrator privileges required to update files in '{}'.\x1b[0m", exe_dir.display());
+                println!("Requesting Windows UAC elevation...");
+                return Self::elevate_windows(force);
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                println!("\x1b[31m[Error] Write access denied to '{}'.\x1b[0m", exe_dir.display());
+                println!("Please run the update with elevated privileges: \x1b[1;32msudo nexus update\x1b[0m");
+                return Ok(());
+            }
+        }
+
         // Determine platform artifact key
         let target_arch = if cfg!(target_arch = "x86_64") {
             "amd64"
@@ -111,10 +132,17 @@ impl AgentUpdater {
         }
 
         let new_bytes = dl_res.bytes().await?;
-        let current_exe = std::env::current_exe()?;
         let temp_exe = current_exe.with_extension("tmp_update");
 
-        fs::write(&temp_exe, &new_bytes)?;
+        // Write temp binary
+        if let Err(e) = fs::write(&temp_exe, &new_bytes) {
+            #[cfg(target_os = "windows")]
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                println!("\x1b[1;33m[!] Permission denied writing update. Requesting UAC elevation...\x1b[0m");
+                return Self::elevate_windows(force);
+            }
+            return Err(Box::new(e));
+        }
 
         #[cfg(unix)]
         {
@@ -127,6 +155,20 @@ impl AgentUpdater {
         // Atomic swap
         #[cfg(target_os = "windows")]
         {
+            // Terminate background agent instances to release file locks on aliases
+            let current_pid = std::process::id();
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nexus-agent.exe"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nexus.exe"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            std::thread::sleep(Duration::from_millis(300));
+
             let old_exe = current_exe.with_extension("old");
             let _ = fs::remove_file(&old_exe);
             fs::rename(&current_exe, &old_exe)?;
@@ -142,6 +184,12 @@ impl AgentUpdater {
                     }
                 }
             }
+
+            // Clean up old binary
+            let _ = fs::remove_file(&old_exe);
+
+            // Restart background worker if it was active
+            let _ = std::process::Command::new(&current_exe).arg("run").spawn();
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -149,11 +197,51 @@ impl AgentUpdater {
             let backup_exe = current_exe.with_extension("bak");
             let _ = fs::copy(&current_exe, &backup_exe);
             fs::rename(&temp_exe, &current_exe)?;
+
+            // Restart systemd service if available
+            let _ = std::process::Command::new("systemctl")
+                .args(["try-restart", "nexus-agent"])
+                .status();
         }
 
         println!("\x1b[1;32m✓ Successfully updated Nexus Fleet Agent to version {}!\x1b[0m", remote_version);
         println!("Run '\x1b[1;36mnexus status\x1b[0m' or '\x1b[1;36mnx status\x1b[0m' to verify.");
 
+        Ok(())
+    }
+
+    fn is_directory_writable(dir: &Path) -> bool {
+        let test_file = dir.join(format!(".nexus_write_test_{}", std::process::id()));
+        match fs::File::create(&test_file) {
+            Ok(file) => {
+                drop(file);
+                let _ = fs::remove_file(&test_file);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn elevate_windows(force: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let current_exe = std::env::current_exe()?;
+        let exe_str = current_exe.to_string_lossy().to_string();
+        let args = if force { "update --force" } else { "update" };
+
+        let ps_cmd = format!(
+            "Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs",
+            exe_str, args
+        );
+
+        let status = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &ps_cmd])
+            .status()?;
+
+        if status.success() {
+            println!("\x1b[32mUpdate launched in elevated window.\x1b[0m");
+        } else {
+            println!("\x1b[31mUAC elevation was cancelled or failed.\x1b[0m");
+        }
         Ok(())
     }
 
