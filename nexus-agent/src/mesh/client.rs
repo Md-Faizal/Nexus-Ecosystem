@@ -94,6 +94,7 @@ impl MeshClient {
 
         // Send Initial Telemetry Report Immediately on Connect (Zero-Delay)
         {
+            crate::modules::daemon_lock::touch_daemon_heartbeat();
             let mut guard = self.modules.lock().await;
             let initial_telemetry = guard.gather_full_telemetry(&self.config).await;
             let _ = self.send_frame(&mut ws_sink, MeshMessage::TelemetryReport(Box::new(initial_telemetry))).await;
@@ -127,6 +128,7 @@ impl MeshClient {
                 if telemetry_tx.send(telemetry_msg).await.is_err() {
                     break;
                 }
+                crate::modules::daemon_lock::touch_daemon_heartbeat();
 
                 // Send Heartbeat every 10 seconds if idle
                 if last_heartbeat.elapsed() >= Duration::from_secs(10) {
@@ -137,6 +139,7 @@ impl MeshClient {
                     };
                     let _ = telemetry_tx.send(hb).await;
                     last_heartbeat = Instant::now();
+                    crate::modules::daemon_lock::touch_daemon_heartbeat();
                 }
             }
         });

@@ -14,7 +14,7 @@ use tracing::{error, info};
 #[command(name = "nexus")]
 #[command(bin_name = "nexus")]
 #[command(author = "Faizal")]
-#[command(version = "0.1.0")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Unified distributed fleet telemetry & remote cluster operations console", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -367,18 +367,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let gpus = modules::gpu::GpuCollector::collect();
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
             let ai_info = ai_bridge.check_models().await;
-            let is_online = ai_info.status.contains("ready");
+            let ai_online = ai_info.status.contains("ready");
             let daemon_live = is_daemon_running();
 
-            modules::banner::print_status_box(&config.node_id, &config.hostname, &config.ai_endpoint, is_online);
+            let (hub_online, hub_sub_status) = probe_hub_node_status(&config).await;
+            let hub_host = config.primary_hub_host();
+
+            modules::banner::print_status_box(
+                &config.node_id,
+                &config.hostname,
+                &hub_host,
+                hub_online,
+                &config.ai_endpoint,
+                ai_online,
+            );
 
             println!("\x1b[1;36m╭─ FLEET TELEMETRY & DAEMON STATUS ───────────────────────────────────────────╮\x1b[0m");
+            let daemon_state = modules::daemon_lock::read_daemon_state();
             let daemon_tag = if daemon_live {
-                "\x1b[1;32m● RUNNING (Telemetry Streaming Active)\x1b[0m"
+                if let Some(ds) = daemon_state {
+                    format!("\x1b[1;32m● RUNNING\x1b[0m \x1b[90m(PID: {}, v{})\x1b[0m", ds.pid, ds.agent_version)
+                } else {
+                    "\x1b[1;32m● RUNNING\x1b[0m \x1b[90m(Active)\x1b[0m".to_string()
+                }
             } else {
-                "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m"
+                "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m".to_string()
             };
+
+            let hub_tag = if hub_online {
+                format!("\x1b[1;32m● CONNECTED\x1b[0m \x1b[90m({} - {})\x1b[0m", hub_host, hub_sub_status)
+            } else {
+                format!("\x1b[1;31m○ DISCONNECTED\x1b[0m \x1b[90m({} - {})\x1b[0m", hub_host, hub_sub_status)
+            };
+
             println!("│  \x1b[1mDaemon State:\x1b[0m {}", daemon_tag);
+            println!("│  \x1b[1mHub Mesh:\x1b[0m     {}", hub_tag);
             println!("│  \x1b[1mCPU:\x1b[0m          {} ({} cores)", cpu_model, cpu_cores);
             println!("│  \x1b[1mRAM:\x1b[0m          {:.2} GB / {:.2} GB ({:.1}%)", used_ram_gb, total_ram_gb, ram_pct);
             if let Some(g) = gpus {
@@ -393,7 +416,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!();
 
             println!("\x1b[1;35m╭─ LOCAL AI ENGINE (OLLAMA) ──────────────────────────────────────────────────╮\x1b[0m");
-            println!("│  \x1b[1mEndpoint:\x1b[0m     {} [{}]", config.ai_endpoint, if is_online { "\x1b[32mONLINE\x1b[0m" } else { "\x1b[31mOFFLINE\x1b[0m" });
+            println!("│  \x1b[1mEndpoint:\x1b[0m     {} [{}]", config.ai_endpoint, if ai_online { "\x1b[32mONLINE\x1b[0m" } else { "\x1b[31mOFFLINE\x1b[0m" });
             if ai_info.models.is_empty() {
                 println!("│  \x1b[1mModels:\x1b[0m       \x1b[90m(No models loaded. Run 'ollama pull llama3.2:3b')\x1b[0m");
             } else {
@@ -520,17 +543,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
                 let ai_info = ai_bridge.check_models().await;
-                let is_online = ai_info.status.contains("ready");
+                let ai_online = ai_info.status.contains("ready");
                 let daemon_live = is_daemon_running();
 
-                modules::banner::print_status_box(&config.node_id, &config.hostname, &config.ai_endpoint, is_online);
+                let (hub_online, hub_sub_status) = probe_hub_node_status(&config).await;
+                let hub_host = config.primary_hub_host();
 
+                modules::banner::print_status_box(
+                    &config.node_id,
+                    &config.hostname,
+                    &hub_host,
+                    hub_online,
+                    &config.ai_endpoint,
+                    ai_online,
+                );
+
+                let daemon_state = modules::daemon_lock::read_daemon_state();
                 let daemon_tag = if daemon_live {
-                    "\x1b[1;32m● RUNNING (Telemetry Streaming Active)\x1b[0m"
+                    if let Some(ds) = daemon_state {
+                        format!("\x1b[1;32m● RUNNING\x1b[0m \x1b[90m(PID: {}, v{})\x1b[0m", ds.pid, ds.agent_version)
+                    } else {
+                        "\x1b[1;32m● RUNNING\x1b[0m \x1b[90m(Active)\x1b[0m".to_string()
+                    }
                 } else {
-                    "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m"
+                    "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m".to_string()
                 };
+
+                let hub_tag = if hub_online {
+                    format!("\x1b[1;32m● CONNECTED\x1b[0m \x1b[90m({} - {})\x1b[0m", hub_host, hub_sub_status)
+                } else {
+                    format!("\x1b[1;31m○ DISCONNECTED\x1b[0m \x1b[90m({} - {})\x1b[0m", hub_host, hub_sub_status)
+                };
+
                 println!("\x1b[1;37mDaemon State:\x1b[0m   {}", daemon_tag);
+                println!("\x1b[1;37mHub Mesh:\x1b[0m       {}", hub_tag);
                 println!("\x1b[1;37mSystem:\x1b[0m         {} ({}) | RAM: {:.1}/{:.1} GB ({:.0}%)", cpu_model, cpu_cores, used_ram_gb, total_ram_gb, ram_pct);
                 if !ai_info.models.is_empty() {
                     println!("\x1b[1;37mAI Models:\x1b[0m      \x1b[32m{}\x1b[0m", ai_info.models.join(", "));
@@ -552,6 +598,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+async fn probe_hub_node_status(config: &AgentConfig) -> (bool, String) {
+    let hub_host = config.primary_hub_host();
+    let probe_url = format!("https://{}/api/fleet/nodes", hub_host);
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(2500))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return (false, "UNREACHABLE".to_string()),
+    };
+
+    let mut req = client.get(&probe_url);
+    if let Some(token) = &config.token {
+        req = req.header("X-Admin-Pin", token).header("Authorization", token);
+    }
+
+    match req.send().await {
+        Ok(res) if res.status().is_success() => {
+            if let Ok(nodes) = res.json::<Vec<serde_json::Value>>().await {
+                for node in nodes {
+                    if let Some(id) = node.get("node_id").and_then(|v| v.as_str()) {
+                        if id == config.node_id {
+                            let status = node.get("status").and_then(|v| v.as_str()).unwrap_or("offline");
+                            if status == "online" {
+                                return (true, "SESSION ACTIVE".to_string());
+                            } else {
+                                return (false, "REGISTERED (OFFLINE)".to_string());
+                            }
+                        }
+                    }
+                }
+                (false, "NOT REGISTERED".to_string())
+            } else {
+                (false, "INVALID RESPONSE".to_string())
+            }
+        }
+        Ok(res) => (false, format!("HTTP {}", res.status())),
+        Err(_) => (false, "UNREACHABLE".to_string()),
+    }
 }
 
 async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -745,10 +832,32 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
         }
     };
 
+    // Record initial daemon state
+    modules::daemon_lock::write_daemon_state(std::process::id());
+
+    // Launch background auto-updater task if enabled
+    if config.is_feature_enabled("auto_update") {
+        tokio::spawn(async {
+            // First check 60 seconds after startup
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            updater::AgentUpdater::run_auto_update_cycle().await;
+
+            // Then check periodically every 4 hours
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(4 * 3600));
+            loop {
+                interval.tick().await;
+                updater::AgentUpdater::run_auto_update_cycle().await;
+            }
+        });
+    }
+
     // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
     modules::tray::start_system_tray(config.node_id.clone());
 
     let mut client = MeshClient::new(config);
     client.run().await;
+
+    // Clean up daemon state on shutdown
+    modules::daemon_lock::remove_daemon_state();
     Ok(())
 }

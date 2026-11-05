@@ -24,7 +24,8 @@ $NxAlias = "$TargetDir\nx.exe"
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray
 Stop-Process -Name "nexus-agent" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "nexus" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 250
+Stop-Process -Name "nx" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 300
 
 if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
     curl.exe -fsSL "$BinUrl" -o "$DestExe"

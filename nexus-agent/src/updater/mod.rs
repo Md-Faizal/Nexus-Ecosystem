@@ -191,6 +191,11 @@ impl AgentUpdater {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .status();
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nx.exe"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
             std::thread::sleep(Duration::from_millis(300));
 
             let old_exe = current_exe.with_extension("old");
@@ -198,12 +203,13 @@ impl AgentUpdater {
             fs::rename(&current_exe, &old_exe)?;
             fs::rename(&temp_exe, &current_exe)?;
 
-            // Also synchronize sibling aliases (nx.exe, nexus-agent.exe)
+            // Also synchronize sibling aliases (nx.exe, nexus.exe, nexus-agent.exe)
             if let Some(parent) = current_exe.parent() {
                 let aliases = ["nx.exe", "nexus.exe", "nexus-agent.exe"];
                 for alias in aliases {
                     let alias_path = parent.join(alias);
-                    if alias_path != current_exe && alias_path.exists() {
+                    if alias_path != current_exe {
+                        let _ = fs::remove_file(&alias_path);
                         let _ = fs::copy(&current_exe, &alias_path);
                     }
                 }
@@ -212,8 +218,19 @@ impl AgentUpdater {
             // Clean up old binary
             let _ = fs::remove_file(&old_exe);
 
-            // Restart background worker if it was active
-            let _ = std::process::Command::new(&current_exe).arg("run").spawn();
+            // Restart background worker cleanly
+            use std::os::windows::process::CommandExt;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
+
+            let _ = std::process::Command::new(&current_exe)
+                .args(["run", "--foreground"])
+                .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -285,7 +302,7 @@ impl AgentUpdater {
         Ok(())
     }
 
-    fn is_newer_version(remote: &str, current: &str) -> bool {
+    pub fn is_newer_version(remote: &str, current: &str) -> bool {
         let r_parts: Vec<u32> = remote.split('.').filter_map(|s| s.parse().ok()).collect();
         let c_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
 
@@ -297,5 +314,44 @@ impl AgentUpdater {
             }
         }
         r_parts.len() > c_parts.len()
+    }
+
+    /// Periodic background auto-update check executed silently by the running daemon
+    pub async fn run_auto_update_cycle() {
+        let manifest_url = "https://faizal.uk/releases/latest.json";
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+
+        let res = match client.get(manifest_url).send().await {
+            Ok(r) if r.status().is_success() => r,
+            _ => return,
+        };
+
+        let manifest = match res.json::<UpdateManifest>().await {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let remote_version = manifest.version.trim();
+        let current_version = env!("CARGO_PKG_VERSION").trim();
+
+        if Self::is_newer_version(remote_version, current_version) {
+            tracing::info!(
+                "[Auto-Update] Detected newer Nexus Agent release: v{} (current is v{}). Starting background upgrade...",
+                remote_version,
+                current_version
+            );
+            if let Err(e) = Self::run_update(manifest_url, false, false).await {
+                tracing::warn!("[Auto-Update] Silent background update failed: {}", e);
+            } else {
+                tracing::info!("[Auto-Update] Successfully upgraded to v{}. Exiting old daemon instance...", remote_version);
+                std::process::exit(0);
+            }
+        }
     }
 }

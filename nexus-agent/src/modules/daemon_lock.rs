@@ -96,8 +96,74 @@ pub fn try_acquire_daemon_lock() -> Result<DaemonLockGuard, String> {
     }
 }
 
+use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DaemonState {
+    pub pid: u32,
+    pub last_heartbeat: u64,
+    pub agent_version: String,
+}
+
+pub fn write_daemon_state(pid: u32) {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let state = DaemonState {
+        pid,
+        last_heartbeat: now,
+        agent_version: env!("CARGO_PKG_VERSION").to_string(),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&state) {
+        let _ = std::fs::write(crate::config::AgentConfig::state_path(), json);
+    }
+}
+
+pub fn touch_daemon_heartbeat() {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let path = crate::config::AgentConfig::state_path();
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(mut state) = serde_json::from_str::<DaemonState>(&content) {
+            state.last_heartbeat = now;
+            if let Ok(json) = serde_json::to_string_pretty(&state) {
+                let _ = std::fs::write(&path, json);
+            }
+            return;
+        }
+    }
+    write_daemon_state(std::process::id());
+}
+
+pub fn remove_daemon_state() {
+    let _ = std::fs::remove_file(crate::config::AgentConfig::state_path());
+}
+
+pub fn read_daemon_state() -> Option<DaemonState> {
+    let path = crate::config::AgentConfig::state_path();
+    if path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(state) = serde_json::from_str::<DaemonState>(&content) {
+                return Some(state);
+            }
+        }
+    }
+    None
+}
+
 /// Checks whether the daemon is actively running on this host
 pub fn is_daemon_running() -> bool {
+    // 0. Check daemon state file with freshness threshold (60 seconds)
+    if let Some(state) = read_daemon_state() {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        if now.saturating_sub(state.last_heartbeat) < 60 {
+            let mut sys = sysinfo::System::new();
+            sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+            let target_pid = sysinfo::Pid::from_u32(state.pid);
+            if sys.process(target_pid).is_some() {
+                return true;
+            }
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         let wide_name: Vec<u16> = "Local\\NexusFleetAgentDaemonMutex\0"
@@ -201,7 +267,7 @@ pub fn is_daemon_running() -> bool {
             return false;
         }
         let name = p.name().to_string_lossy().to_lowercase();
-        let is_nexus = name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus";
+        let is_nexus = name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus" || name == "nx.exe" || name == "nx";
         if !is_nexus {
             return false;
         }

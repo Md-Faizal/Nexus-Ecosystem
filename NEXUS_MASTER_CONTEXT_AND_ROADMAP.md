@@ -395,6 +395,31 @@ nexus update --force      # Force re-download and re-install latest release
 
 ---
 
+### 6.2. Fleet Telemetry Ground Truth & Background Auto-Updater Engine
+
+#### 1. Ground Truth Telemetry Probing
+Historically, `nexus status` inferred hub online status indirectly from local Ollama service readiness, leading to false `Hub: ● ONLINE` displays when local Ollama was ready but central mesh sessions had expired. Additionally, Windows process monitoring previously relied on mutex presence without timestamp verification.
+
+The updated agent features:
+1. **Decoupled Engine & Mesh Verification**:
+   - `banner::print_status_box` independently verifies and displays central Hub session connectivity and local Ollama engine readiness.
+   - `nexus status` issues an active probe (`probe_hub_node_status`) against `GET https://<hub>/api/fleet/nodes` with configured admin credentials, matching `config.node_id` to verify active WebSocket session status in the central database.
+2. **Freshness-Verified Daemon State File (`daemon.state`)**:
+   - Running daemons write and refresh `{ pid, last_heartbeat, agent_version }` on every telemetry/heartbeat tick to `daemon.state` in the application data folder.
+   - `is_daemon_running()` checks file freshness (<60s) before falling back to mutex and process table inspections, preventing stale background processes from masquerading as active daemons.
+
+#### 2. Self-Healing Multi-Alias Updater & Auto-Background Loop
+1. **Multi-Alias Process Termination**:
+   - `updater/mod.rs`, `service/windows.rs`, and `install.ps1` explicitly terminate all three binary alias names (`nexus-agent`, `nexus`, `nx`) prior to in-place file swaps, preventing Windows file-lock errors.
+2. **Dynamic Semver Alignment**:
+   - Clapped CLI commands dynamic-link to `env!("CARGO_PKG_VERSION")`, aligned with `public/releases/latest.json`.
+   - `is_newer_version` prevents redundant re-downloads when the local version matches the remote release manifest.
+3. **Scheduled Silent Auto-Updater**:
+   - When `features.auto_update: true` is configured, the background daemon schedules an initial check 60 seconds post-boot and recurring checks every 4 hours.
+   - Newer versions are downloaded silently, atomic file replacement is performed across all sibling aliases (`nx.exe`, `nexus.exe`, `nexus-agent.exe`), and the updated daemon is spawned detached with `CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB` before the current process exits cleanly.
+
+---
+
 ## 7. Strategic Goals & Roadmap for Next Conversation
 
 When starting the new conversation, the following objectives represent the immediate priorities:

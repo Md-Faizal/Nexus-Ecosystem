@@ -36,16 +36,29 @@ pub fn print_welcome_box() {
     println!();
 }
 
-pub fn print_status_box(node_id: &str, hostname: &str, ai_endpoint: &str, is_online: bool) {
-    let status_str = if is_online {
-        "\x1b[1;32m● ONLINE (faizal.uk)\x1b[0m"
+pub fn print_status_box(
+    node_id: &str,
+    hostname: &str,
+    hub_name: &str,
+    hub_online: bool,
+    ai_endpoint: &str,
+    ai_online: bool,
+) {
+    let hub_str = if hub_online {
+        format!("\x1b[1;32m● CONNECTED ({})\x1b[0m", hub_name)
+    } else {
+        format!("\x1b[1;31m○ DISCONNECTED ({})\x1b[0m", hub_name)
+    };
+
+    let ai_str = if ai_online {
+        "\x1b[1;32m● ONLINE\x1b[0m"
     } else {
         "\x1b[1;31m○ OFFLINE\x1b[0m"
     };
 
     println!("\x1b[38;2;250;200;80m╭─────────────────────────────────────────────────────────────────────────────╮\x1b[0m");
-    println!("\x1b[38;2;250;200;80m│\x1b[0m Nexus Fleet Agent v{} • Hub: {} ", env!("CARGO_PKG_VERSION"), status_str);
-    println!("\x1b[38;2;250;200;80m│\x1b[0m Node: \x1b[1;36m{}\x1b[0m ({}) • Ollama Engine: \x1b[1;33m{}\x1b[0m", node_id, hostname, ai_endpoint);
+    println!("\x1b[38;2;250;200;80m│\x1b[0m Nexus Fleet Agent v{} • Hub: {}", env!("CARGO_PKG_VERSION"), hub_str);
+    println!("\x1b[38;2;250;200;80m│\x1b[0m Node: \x1b[1;36m{}\x1b[0m ({}) • Ollama Engine: \x1b[1;33m{}\x1b[0m [{}]", node_id, hostname, ai_endpoint, ai_str);
     println!("\x1b[38;2;250;200;80m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
     println!();
 }

@@ -97,6 +97,7 @@ impl WindowsInstaller {
     pub fn stop() -> Result<(), Box<dyn std::error::Error>> {
         let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nexus-agent.exe"]).output();
         let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nexus.exe"]).output();
+        let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nx.exe"]).output();
         println!("\x1b[32m✓ Nexus Agent background service stopped.\x1b[0m");
         Ok(())
     }

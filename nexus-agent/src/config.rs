@@ -64,6 +64,23 @@ impl Default for AgentConfig {
 }
 
 impl AgentConfig {
+    pub fn state_path() -> PathBuf {
+        let cfg = Self::config_path();
+        let dir = cfg.parent().unwrap_or_else(|| std::path::Path::new("."));
+        dir.join("daemon.state")
+    }
+
+    pub fn primary_hub_host(&self) -> String {
+        if let Some(first) = self.hubs.first() {
+            if let Ok(url) = reqwest::Url::parse(first) {
+                if let Some(host) = url.host_str() {
+                    return host.to_string();
+                }
+            }
+        }
+        "faizal.uk".to_string()
+    }
+
     pub fn config_path() -> PathBuf {
         #[cfg(target_os = "windows")]
         {
