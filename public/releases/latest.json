@@ -1,4 +1,4 @@
-﻿{
+{
     "version":  "0.1.82",
     "release_date":  "2026-11-05",
     "download_base":  "https://faizal.uk/releases",
@@ -16,7 +16,7 @@
                       "windows-amd64":  {
                                             "filename":  "nexus-agent-windows-amd64.exe",
                                             "url":  "https://faizal.uk/releases/nexus-agent-windows-amd64.exe",
-                                            "sha256":  "8dd155fcf68503b6ecd8b5339628b569a2581cdd5a782c8e5e17cade7ff67c38"
+                                            "sha256":  "e3ad90f4556ed74fe75255bf7e2d14072441895381f76a18abcdff8c9b2302c2"
                                         },
                       "darwin-arm64":  {
                                            "filename":  "nexus-agent-darwin-arm64",

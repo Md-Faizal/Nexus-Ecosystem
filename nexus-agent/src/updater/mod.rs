@@ -47,7 +47,9 @@ impl AgentUpdater {
             }
         };
 
-        let manifest = res.json::<UpdateManifest>().await?;
+        let text = res.text().await?;
+        let clean_text = text.trim_start_matches('\u{feff}').trim();
+        let manifest: UpdateManifest = serde_json::from_str(clean_text)?;
         let remote_version = manifest.version.trim();
 
         let is_newer = Self::is_newer_version(remote_version, current_version);
@@ -344,7 +346,12 @@ impl AgentUpdater {
             _ => return,
         };
 
-        let manifest = match res.json::<UpdateManifest>().await {
+        let text = match res.text().await {
+            Ok(t) => t,
+            Err(_) => return,
+        };
+        let clean = text.trim_start_matches('\u{feff}').trim();
+        let manifest: UpdateManifest = match serde_json::from_str(clean) {
             Ok(m) => m,
             Err(_) => return,
         };

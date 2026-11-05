@@ -20,31 +20,33 @@ $BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe?v=$CacheBuster"
 $DestExe = "$TargetDir\nexus-agent.exe"
 $NexusAlias = "$TargetDir\nexus.exe"
 $NxAlias = "$TargetDir\nx.exe"
+$TempExe = "$TargetDir\nexus-agent.tmp.$CacheBuster.exe"
 
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray
-Stop-Process -Name "nexus-agent" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "nexus" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "nx" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 300
-
 if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-    curl.exe -fsSL "$BinUrl" -o "$DestExe"
+    curl.exe -fsSL "$BinUrl" -o "$TempExe"
 } else {
-    Invoke-WebRequest -Uri $BinUrl -OutFile $DestExe -UseBasicParsing
+    Invoke-WebRequest -Uri $BinUrl -OutFile $TempExe -UseBasicParsing
 }
 
 # Unblock downloaded binary from Windows Mark-of-the-Web / Application Control
-Unblock-File -Path $DestExe -ErrorAction SilentlyContinue
-if (Test-Path "$DestExe:Zone.Identifier") {
-    Remove-Item "$DestExe:Zone.Identifier" -ErrorAction SilentlyContinue
+Unblock-File -Path $TempExe -ErrorAction SilentlyContinue
+if (Test-Path "$TempExe:Zone.Identifier") {
+    Remove-Item "$TempExe:Zone.Identifier" -ErrorAction SilentlyContinue
 }
 
-if (-not (Test-Path $DestExe) -or (Get-Item $DestExe).Length -lt 100000) {
+if (-not (Test-Path $TempExe) -or (Get-Item $TempExe).Length -lt 100000) {
     Write-Error "Downloaded binary appears invalid or incomplete."
     exit 1
 }
 
-# Create ergonomic 'nexus.exe' and 'nx.exe' shims/copies
+# Terminate running instances before replacing files
+Stop-Process -Name "nexus-agent" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "nexus" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "nx" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 600
+
+Move-Item -Path $TempExe -Destination $DestExe -Force
 Copy-Item -Path $DestExe -Destination $NexusAlias -Force -ErrorAction SilentlyContinue
 Copy-Item -Path $DestExe -Destination $NxAlias -Force -ErrorAction SilentlyContinue
 Unblock-File -Path $NexusAlias -ErrorAction SilentlyContinue
