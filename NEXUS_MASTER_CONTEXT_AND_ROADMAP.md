@@ -183,7 +183,30 @@ During real-world deployment across Windows, macOS, and Linux (Zorin OS), severa
 ### 2.10. Multi-User Linux Shared Node Identity
 * **Symptom**: Installing as root via `sudo` caused the admin panel to show a different node from `nexus status` run by a normal user.
 * **Root Cause**: Running under sudo created `/etc/nexus-agent/config.json`, while normal users looked in `~/.config/nexus-agent/config.json`, generating two separate node IDs.
-* **Fix**: `AgentConfig::config_path()` now prioritizes `/etc/nexus-agent/config.json` with permissions `0644` so all users and background services share the exact same node ID.
+* **Fix**: `AgentConfig::config_path()` now prioritizes `/etc/nexus-agent/config.json` with permissions `0666` so all users and background services share the exact same node ID. If saving fails due to permissions, the agent gracefully falls back to saving in `~/.config/nexus-agent/config.json` without failing.
+
+---
+
+### 2.11. Linux Non-Root Daemonization & Resilient Path Resolution
+* **Symptom**: On Linux machines without an active systemd user DBus session (e.g. headless SSH logins or desktop environments like Zorin OS), running `nexus run` or `install.sh` failed to start the agent, and `nexus` was not found in PATH on new shells.
+* **Fixes**:
+  * **Verified Service Activation**: `handle_run_command` now checks whether `systemctl --user is-active --quiet nexus-agent` actually succeeded. If DBus is unavailable or systemctl fails, it automatically falls back to launching an independent detached background process with `setsid` and `SIGHUP` ignored.
+  * **Deterministic Lock Detection**: Rewrote `daemon_lock::is_daemon_running()` on Linux to test `libc::flock(LOCK_EX | LOCK_NB)` against active lock files (`/run`, `/var/run`, `/run/user/<uid>`, and `/tmp`). This eliminates false negatives caused by restricted `/proc/[pid]/cmdline` visibility.
+  * **PATH Auto-Configuration**: `install.sh` now appends `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc`, `~/.zshrc`, and `~/.profile` if missing, ensuring `nexus` and `nx` are recognized across all terminal sessions.
+
+---
+
+### 2.12. macOS Full Native Support (Launchd & Universal Binary)
+* **Status Before**: macOS lacked native launchd lifecycle controls (`start`, `stop`, `restart`, `status`), GPU telemetry was spawning heavy `system_profiler` processes on every poll, and no macOS binaries were built in CI/CD.
+* **Fixes**:
+  * **Launchd Service Management**: Implemented full `LaunchdInstaller` (`start`, `stop`, `restart`, `status`, `install`, `uninstall`). Configured `run --foreground` in the launchd plist (`uk.faizal.nexus-agent.plist`) to prevent launchd respawn loops.
+  * **Cached Apple Silicon Telemetry**: Cached GPU identification (`SPDisplaysDataType`) in a static `OnceLock`, eliminating repeated `system_profiler` executions and keeping idle CPU usage at ~0%.
+  * **macOS OS Control Commands**: Implemented macOS-native handlers for remote commands via WebSocket mesh:
+    * `reboot` → `shutdown -r +1`
+    * `shutdown` → `shutdown -h +1`
+    * `sleep` → `pmset sleepnow`
+    * `restart_service` → `launchctl kickstart -k <service>`
+  * **Universal Binary CI/CD**: Added `build-macos-agent` on `macos-latest` to `.github/workflows/deploy.yml` and `.github/workflows/fast-cli-release.yml`. Compiles both Apple Silicon (`aarch64-apple-darwin`) and Intel (`x86_64-apple-darwin`), merges them into a universal binary via `lipo`, and publishes `nexus-agent-darwin-arm64` and `nexus-agent-darwin-amd64` to `https://faizal.uk/releases/`.
 
 ---
 

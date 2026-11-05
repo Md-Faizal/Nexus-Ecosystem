@@ -62,7 +62,11 @@ pub fn try_acquire_daemon_lock() -> Result<DaemonLockGuard, String> {
 
         let uid = unsafe { libc::geteuid() };
         let lock_path = if uid == 0 {
-            std::path::PathBuf::from("/run/nexus-fleet-daemon.lock")
+            if std::path::Path::new("/run").exists() {
+                std::path::PathBuf::from("/run/nexus-fleet-daemon.lock")
+            } else {
+                std::path::PathBuf::from("/var/run/nexus-fleet-daemon.lock")
+            }
         } else {
             let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
                 .map(std::path::PathBuf::from)
@@ -70,7 +74,12 @@ pub fn try_acquire_daemon_lock() -> Result<DaemonLockGuard, String> {
             runtime_dir.join(format!("nexus-daemon-{}.lock", uid))
         };
 
+        if let Some(parent) = lock_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
         let file = OpenOptions::new()
+            .read(true)
             .write(true)
             .create(true)
             .mode(0o600)
@@ -114,18 +123,76 @@ pub fn is_daemon_running() -> bool {
                 return true;
             }
         }
-        // 2. Direct systemd user query
-        if let Ok(status) = std::process::Command::new("systemctl")
-            .args(["--user", "is-active", "--quiet", "nexus-agent.service"])
-            .status()
-        {
+        // 2. Direct systemd user query (with fallback XDG_RUNTIME_DIR)
+        let uid = unsafe { libc::geteuid() };
+        let user_run_dir = format!("/run/user/{}", uid);
+        let mut cmd = std::process::Command::new("systemctl");
+        cmd.args(["--user", "is-active", "--quiet", "nexus-agent.service"]);
+        if std::env::var("XDG_RUNTIME_DIR").is_err() && std::path::Path::new(&user_run_dir).exists() {
+            cmd.env("XDG_RUNTIME_DIR", &user_run_dir);
+        }
+        if let Ok(status) = cmd.status() {
             if status.success() {
                 return true;
             }
         }
     }
 
-    // 3. Process inspection: must have 'run' in its arguments
+    #[cfg(target_os = "macos")]
+    {
+        // Check if loaded and running in launchd
+        if let Ok(out) = std::process::Command::new("launchctl")
+            .args(["list", "uk.faizal.nexus-agent"])
+            .output()
+        {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                if text.lines().any(|l| {
+                    let mut parts = l.split_whitespace();
+                    if let Some(pid_str) = parts.next() {
+                        pid_str.parse::<u32>().is_ok()
+                    } else {
+                        false
+                    }
+                }) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 3. Check flock lock files
+        use std::fs::OpenOptions;
+        use std::os::unix::io::AsRawFd;
+
+        let uid = unsafe { libc::geteuid() };
+        let lock_candidates = [
+            std::path::PathBuf::from("/run/nexus-fleet-daemon.lock"),
+            std::path::PathBuf::from("/var/run/nexus-fleet-daemon.lock"),
+            std::path::PathBuf::from(format!("/run/user/{}/nexus-daemon-{}.lock", uid, uid)),
+            std::env::temp_dir().join(format!("nexus-daemon-{}.lock", uid)),
+        ];
+
+        for lock_path in &lock_candidates {
+            if lock_path.exists() {
+                if let Ok(file) = OpenOptions::new().read(true).write(true).open(lock_path) {
+                    let fd = file.as_raw_fd();
+                    let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+                    if ret != 0 {
+                        // File is currently held by an active daemon instance
+                        return true;
+                    } else {
+                        // Stale lock file, unlock immediately
+                        unsafe { libc::flock(fd, libc::LOCK_UN) };
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Process inspection fallback: must have 'run' in its arguments
     let mut sys = sysinfo::System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let current_pid = sysinfo::get_current_pid().ok();

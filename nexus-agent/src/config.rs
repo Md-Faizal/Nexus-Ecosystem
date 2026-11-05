@@ -140,11 +140,32 @@ impl AgentConfig {
     pub fn save(&self) -> Result<(), std::io::Error> {
         let path = Self::config_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            let _ = fs::create_dir_all(parent);
         }
         let serialized = serde_json::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-        fs::write(path, serialized)
+
+        if let Err(e) = fs::write(&path, &serialized) {
+            #[cfg(not(target_os = "windows"))]
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                // If system-wide config is not writable by current user, save in user config
+                if let Ok(home) = std::env::var("HOME") {
+                    let user_dir = PathBuf::from(home).join(".config").join("nexus-agent");
+                    let _ = fs::create_dir_all(&user_dir);
+                    let user_path = user_dir.join("config.json");
+                    return fs::write(user_path, serialized);
+                }
+            }
+            return Err(e);
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o666));
+        }
+
+        Ok(())
     }
 
     pub fn is_feature_enabled(&self, feature: &str) -> bool {

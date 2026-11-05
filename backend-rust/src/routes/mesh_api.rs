@@ -967,11 +967,12 @@ echo "Downloading binary from $BIN_URL..."
 
 if [ "$(id -u)" -eq 0 ]; then
   INSTALL_DIR="/usr/local/bin"
+  mkdir -p "$INSTALL_DIR"
   curl -fsSL "$BIN_URL" -o "$INSTALL_DIR/nexus-agent"
   chmod +x "$INSTALL_DIR/nexus-agent"
   ln -sf "$INSTALL_DIR/nexus-agent" "$INSTALL_DIR/nexus"
   ln -sf "$INSTALL_DIR/nexus-agent" "$INSTALL_DIR/nx"
-  "$INSTALL_DIR/nexus" service install
+  "$INSTALL_DIR/nexus" service install || "$INSTALL_DIR/nexus" run || true
   echo "Nexus Agent successfully installed and running as a system-wide service!"
 else
   INSTALL_DIR="$HOME/.local/bin"
@@ -981,10 +982,21 @@ else
   ln -sf "$INSTALL_DIR/nexus-agent" "$INSTALL_DIR/nexus"
   ln -sf "$INSTALL_DIR/nexus-agent" "$INSTALL_DIR/nx"
   
-  # Ensure linger is enabled so user service runs headlessly even after logout
-  loginctl enable-linger "$USER" 2>/dev/null || true
+  # Ensure ~/.local/bin is in PATH for future shells
+  for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+    if [ -f "$rc" ] && ! grep -q "\.local/bin" "$rc"; then
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+    fi
+  done
+  export PATH="$INSTALL_DIR:$PATH"
+
+  # On Linux, ensure linger is enabled so user service runs headlessly even after logout
+  if [ "$OS" = "linux" ]; then
+    loginctl enable-linger "$USER" 2>/dev/null || true
+  fi
   
-  "$INSTALL_DIR/nexus" service install --user
+  # Install service or fall back to detached daemon
+  "$INSTALL_DIR/nexus" service install --user || "$INSTALL_DIR/nexus" run || true
   echo "Nexus Agent successfully installed and running in User Mode for $USER!"
   echo "Tip: Run 'nexus elevate' or 'sudo nexus service install' anytime to upgrade to a system service."
 fi

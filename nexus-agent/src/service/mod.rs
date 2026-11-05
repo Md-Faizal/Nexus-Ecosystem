@@ -46,7 +46,12 @@ impl ServiceManager {
             systemd::SystemdInstaller::start(user_mode)
         }
 
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            launchd::LaunchdInstaller::start(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             let _ = user_mode;
             Err("Unsupported OS for native service manager".into())
@@ -65,7 +70,12 @@ impl ServiceManager {
             systemd::SystemdInstaller::stop(user_mode)
         }
 
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            launchd::LaunchdInstaller::stop(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             let _ = user_mode;
             Err("Unsupported OS for native service manager".into())
@@ -84,7 +94,12 @@ impl ServiceManager {
             systemd::SystemdInstaller::restart(user_mode)
         }
 
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            launchd::LaunchdInstaller::restart(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             let _ = user_mode;
             Err("Unsupported OS for native service manager".into())
@@ -103,7 +118,12 @@ impl ServiceManager {
             systemd::SystemdInstaller::status(user_mode)
         }
 
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            launchd::LaunchdInstaller::status(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
             let _ = user_mode;
             Err("Unsupported OS for native service manager".into())
@@ -134,4 +154,3 @@ impl ServiceManager {
         }
     }
 }
-

@@ -222,10 +222,26 @@ impl AgentUpdater {
             let _ = fs::copy(&current_exe, &backup_exe);
             fs::rename(&temp_exe, &current_exe)?;
 
-            // Restart systemd service if available
-            let _ = std::process::Command::new("systemctl")
-                .args(["try-restart", "nexus-agent"])
-                .status();
+            #[cfg(target_os = "linux")]
+            {
+                let _ = std::process::Command::new("systemctl")
+                    .args(["try-restart", "nexus-agent"])
+                    .status();
+                let _ = std::process::Command::new("systemctl")
+                    .args(["--user", "try-restart", "nexus-agent"])
+                    .status();
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                let _ = std::process::Command::new("launchctl")
+                    .args(["stop", "uk.faizal.nexus-agent"])
+                    .status();
+                std::thread::sleep(Duration::from_millis(300));
+                let _ = std::process::Command::new("launchctl")
+                    .args(["start", "uk.faizal.nexus-agent"])
+                    .status();
+            }
         }
 
         println!("\x1b[1;32m✓ Successfully updated Nexus Fleet Agent to version {}!\x1b[0m", remote_version);

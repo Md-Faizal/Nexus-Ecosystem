@@ -1,4 +1,4 @@
-name: "⚡ Fast Release: Nexus Agent CLI (Windows & Linux)"
+name: "⚡ Fast Release: Nexus Agent CLI (Windows, Linux & macOS)"
 
 on:
   workflow_dispatch:
@@ -97,9 +97,57 @@ jobs:
             nexus-windows-amd64.exe
           retention-days: 1
 
+  build-macos-agent:
+    name: "🍎 Compile macOS Agent Binary (Universal / ARM64 & Intel)"
+    runs-on: macos-latest
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Setup Rust Toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: "⚡ Cache Rust Dependencies"
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "nexus-agent -> target"
+
+      - name: "🚀 Compile & Build Universal macOS Binary"
+        run: |
+          cd nexus-agent
+          VERSION="0.1.${{ github.run_number }}"
+          echo "Bumping macOS Nexus Agent to version $VERSION"
+          sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create -output target/release/nexus-universal \
+            target/aarch64-apple-darwin/release/nexus \
+            target/x86_64-apple-darwin/release/nexus
+          strip target/release/nexus-universal
+          cd ..
+          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-arm64
+          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-amd64
+          chmod +x ./nexus*
+          ls -lh ./nexus*
+
+      - name: "📦 Upload macOS Agent Artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-agent-binaries
+          path: |
+            nexus-agent-darwin-arm64
+            nexus-agent-darwin-amd64
+            nexus-darwin-arm64
+            nexus-darwin-amd64
+          retention-days: 1
+
   deploy-cli-release:
     name: "🚀 Publish Agent Release to faizal.uk"
-    needs: [build-linux-agent, build-windows-agent]
+    needs: [build-linux-agent, build-windows-agent, build-macos-agent]
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Repository"
@@ -117,6 +165,12 @@ jobs:
           name: windows-agent-binaries
           path: .
 
+      - name: "📥 Download macOS Agent Artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-agent-binaries
+          path: .
+
       - name: "🔧 Prepare Release Binaries & Manifest"
         run: |
           VERSION="0.1.${{ github.run_number }}"
@@ -126,13 +180,21 @@ jobs:
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64
             cp ./nexus-agent-linux-amd64 public/releases/nexus-linux-amd64
-            chmod +x public/releases/nexus*
           fi
 
           if [ -f ./nexus-agent-windows-amd64.exe ]; then
             cp ./nexus-agent-windows-amd64.exe public/releases/nexus-agent-windows-amd64.exe
             cp ./nexus-agent-windows-amd64.exe public/releases/nexus-windows-amd64.exe
           fi
+
+          if [ -f ./nexus-agent-darwin-arm64 ]; then
+            cp ./nexus-agent-darwin-arm64 public/releases/nexus-agent-darwin-arm64
+            cp ./nexus-agent-darwin-amd64 public/releases/nexus-agent-darwin-amd64
+            cp ./nexus-agent-darwin-arm64 public/releases/nexus-darwin-arm64
+            cp ./nexus-agent-darwin-amd64 public/releases/nexus-darwin-amd64
+          fi
+
+          chmod +x public/releases/nexus*
 
           if [ -f public/releases/latest.json ]; then
             sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" public/releases/latest.json
@@ -183,4 +245,3 @@ jobs:
           ssh production "chmod -R a+rX $TARGET_RELEASES_DIR"
 
           echo "✓ Fast Agent Release deployed successfully to https://faizal.uk/releases/latest.json"
-

@@ -19,7 +19,7 @@ impl GpuCollector {
             }
         }
 
-        // 3. Fallback Linux sysfs AMD/Intel
+        // 3. Fallback Linux sysfs AMD/Intel/ROCm
         #[cfg(target_os = "linux")]
         {
             if let Some(gpu) = Self::collect_linux_drm() {
@@ -73,48 +73,65 @@ impl GpuCollector {
 
     #[cfg(target_os = "macos")]
     fn collect_apple_silicon() -> Option<GpuTelemetry> {
-        // macOS unified memory GPU probe
-        let output = Command::new("system_profiler")
-            .args(["SPDisplaysDataType"])
-            .output()
-            .ok()?;
+        static CACHED_GPU: std::sync::OnceLock<Option<GpuTelemetry>> = std::sync::OnceLock::new();
+        CACHED_GPU.get_or_init(|| {
+            let output = Command::new("system_profiler")
+                .args(["SPDisplaysDataType"])
+                .output()
+                .ok()?;
 
-        if output.status.success() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            for line in text.lines() {
-                if line.contains("Chipset Model:") || line.contains("Apple M") {
-                    let name = line.split(':').nth(1).unwrap_or("Apple Silicon GPU").trim().to_string();
-                    return Some(GpuTelemetry {
-                        vendor: "Apple".to_string(),
-                        name,
-                        utilization_pct: 0.0,
-                        vram_total_mb: 0, // Unified memory
-                        vram_used_mb: 0,
-                        temperature_c: None,
-                        power_watts: None,
-                    });
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines() {
+                    if line.contains("Chipset Model:") || line.contains("Apple M") {
+                        let name = line.split(':').nth(1).unwrap_or("Apple Silicon GPU").trim().to_string();
+                        return Some(GpuTelemetry {
+                            vendor: "Apple".to_string(),
+                            name,
+                            utilization_pct: 0.0,
+                            vram_total_mb: 0, // Unified memory
+                            vram_used_mb: 0,
+                            temperature_c: None,
+                            power_watts: None,
+                        });
+                    }
                 }
             }
-        }
-        None
+            None
+        }).clone()
     }
 
     #[cfg(target_os = "linux")]
     fn collect_linux_drm() -> Option<GpuTelemetry> {
-        // Check for AMD / Intel in sysfs
-        if std::path::Path::new("/sys/class/drm/card0/device/vendor").exists() {
-            if let Ok(vendor_hex) = std::fs::read_to_string("/sys/class/drm/card0/device/vendor") {
-                let vendor = if vendor_hex.trim() == "0x1002" {
-                    "AMD"
-                } else if vendor_hex.trim() == "0x8086" {
-                    "Intel"
-                } else {
-                    "Unknown"
+        // Try rocm-smi for AMD first
+        if let Ok(output) = Command::new("rocm-smi").args(["--showuse", "--csv"]).output() {
+            if output.status.success() {
+                return Some(GpuTelemetry {
+                    vendor: "AMD".to_string(),
+                    name: "AMD Radeon GPU (ROCm)".to_string(),
+                    utilization_pct: 0.0,
+                    vram_total_mb: 0,
+                    vram_used_mb: 0,
+                    temperature_c: None,
+                    power_watts: None,
+                });
+            }
+        }
+
+        // Check for AMD / Intel in sysfs (/sys/class/drm/card*/device/vendor)
+        for card_idx in 0..4 {
+            let vendor_path = format!("/sys/class/drm/card{}/device/vendor", card_idx);
+            if let Ok(vendor_hex) = std::fs::read_to_string(&vendor_path) {
+                let vendor = match vendor_hex.trim() {
+                    "0x1002" => "AMD",
+                    "0x8086" => "Intel",
+                    "0x10de" => "NVIDIA",
+                    _ => continue,
                 };
 
                 return Some(GpuTelemetry {
                     vendor: vendor.to_string(),
-                    name: format!("{} Integrated / Dedicated Accelerator", vendor),
+                    name: format!("{} Graphics Accelerator (card{})", vendor, card_idx),
                     utilization_pct: 0.0,
                     vram_total_mb: 0,
                     vram_used_mb: 0,
@@ -126,4 +143,3 @@ impl GpuCollector {
         None
     }
 }
-

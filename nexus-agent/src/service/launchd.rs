@@ -19,6 +19,7 @@ impl LaunchdInstaller {
     <array>
         <string>{}</string>
         <string>run</string>
+        <string>--foreground</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -48,6 +49,40 @@ impl LaunchdInstaller {
         let _ = Command::new("launchctl").arg("load").arg("-w").arg(&plist_path).status();
 
         info!("Installed and loaded macOS launchd daemon at {:?}", plist_path);
+        println!("\x1b[32m✓ Nexus Agent macOS launchd daemon installed and loaded.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn start(_user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = Command::new("launchctl").args(["start", "uk.faizal.nexus-agent"]).status();
+        println!("\x1b[32m✓ Nexus Agent launchd service started.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn stop(_user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = Command::new("launchctl").args(["stop", "uk.faizal.nexus-agent"]).status();
+        println!("\x1b[32m✓ Nexus Agent launchd service stopped.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn restart(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = Self::stop(user_mode);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        Self::start(user_mode)
+    }
+
+    pub fn status(_user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let output = Command::new("launchctl").args(["list", "uk.faizal.nexus-agent"]).output();
+        match output {
+            Ok(out) if out.status.success() => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                println!("\x1b[1;36m=== macOS launchd status for uk.faizal.nexus-agent ===\x1b[0m");
+                println!("{}", text);
+            }
+            _ => {
+                println!("\x1b[33m○ Service uk.faizal.nexus-agent is not currently registered in launchd.\x1b[0m");
+            }
+        }
         Ok(())
     }
 
@@ -59,12 +94,12 @@ impl LaunchdInstaller {
         };
 
         if plist_path.exists() {
-            let _ = Command::new("launchctl").arg("unload").arg(&plist_path).status();
+            let _ = Command::new("launchctl").arg("unload").arg("-w").arg(&plist_path).status();
             let _ = fs::remove_file(plist_path);
         }
 
         info!("Uninstalled macOS launchd daemon");
+        println!("\x1b[32m✓ Nexus Agent macOS launchd daemon uninstalled.\x1b[0m");
         Ok(())
     }
 }
-

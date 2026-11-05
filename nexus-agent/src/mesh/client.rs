@@ -312,14 +312,22 @@ impl MeshClient {
             "reboot" => {
                 #[cfg(target_os = "windows")]
                 { ("shutdown", vec!["/r", "/t", "5"]) }
-                #[cfg(not(target_os = "windows"))]
+                #[cfg(target_os = "macos")]
+                { ("shutdown", vec!["-r", "+1"]) }
+                #[cfg(target_os = "linux")]
                 { ("systemctl", vec!["reboot"]) }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                { ("reboot", vec![]) }
             }
             "shutdown" => {
                 #[cfg(target_os = "windows")]
                 { ("shutdown", vec!["/s", "/t", "5"]) }
-                #[cfg(not(target_os = "windows"))]
+                #[cfg(target_os = "macos")]
+                { ("shutdown", vec!["-h", "+1"]) }
+                #[cfg(target_os = "linux")]
                 { ("systemctl", vec!["poweroff"]) }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                { ("poweroff", vec![]) }
             }
             "sleep" => {
                 #[cfg(target_os = "windows")]
@@ -328,13 +336,19 @@ impl MeshClient {
                 { ("pmset", vec!["sleepnow"]) }
                 #[cfg(target_os = "linux")]
                 { ("systemctl", vec!["suspend"]) }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                { ("true", vec![]) }
             }
             "restart_service" => {
                 let s_name = args.first().map(|s| s.as_str()).unwrap_or("");
                 #[cfg(target_os = "windows")]
                 { ("powershell", vec!["-Command", "Restart-Service", s_name]) }
-                #[cfg(not(target_os = "windows"))]
+                #[cfg(target_os = "macos")]
+                { ("launchctl", vec!["kickstart", "-k", s_name]) }
+                #[cfg(target_os = "linux")]
                 { ("systemctl", vec!["restart", s_name]) }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                { ("true", vec![]) }
             }
             "docker_restart" => {
                 let c_name = args.first().map(|s| s.as_str()).unwrap_or("");

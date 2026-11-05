@@ -278,9 +278,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => eprintln!("\x1b[31mFailed to launch UAC elevation prompt.\x1b[0m"),
                 }
             }
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(target_os = "macos")]
             {
-                println!("Requesting sudo elevation for systemd service installation...");
+                println!("Requesting sudo elevation for macOS launchd daemon installation...");
+                let status = std::process::Command::new("sudo")
+                    .args(["sh", "-c", "curl -fsSL https://faizal.uk/install.sh | bash"])
+                    .status();
+                match status {
+                    Ok(s) if s.success() => println!("\x1b[32mSuccessfully elevated and installed root launchd daemon!\x1b[0m"),
+                    _ => eprintln!("\x1b[31mElevation failed or sudo cancelled.\x1b[0m"),
+                }
+            }
+            #[cfg(target_os = "linux")]
+            {
+                println!("Requesting sudo elevation for Linux systemd service installation...");
                 let status = std::process::Command::new("sudo")
                     .args(["sh", "-c", "curl -fsSL https://faizal.uk/install.sh | bash"])
                     .status();
@@ -288,6 +299,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(s) if s.success() => println!("\x1b[32mSuccessfully elevated and installed root systemd service!\x1b[0m"),
                     _ => eprintln!("\x1b[31mElevation failed or sudo cancelled.\x1b[0m"),
                 }
+            }
+            #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+            {
+                eprintln!("\x1b[31mElevate is not supported on this operating system.\x1b[0m");
             }
         }
 
@@ -588,29 +603,57 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
             }
         }
 
-        // 3. Linux / macOS: check systemd or detach with setsid
-        #[cfg(not(target_os = "windows"))]
+        // 3. Linux: check systemd (verifying is-active) or detach with setsid
+        #[cfg(target_os = "linux")]
         {
-            let user_s = std::process::Command::new("systemctl")
-                .args(["--user", "is-enabled", "--quiet", "nexus-agent"])
-                .status();
-            if user_s.map(|s| s.success()).unwrap_or(false) {
-                let _ = std::process::Command::new("systemctl").args(["--user", "start", "nexus-agent"]).status();
-                println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd (--user).\x1b[0m");
-                println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
-                return Ok(());
+            let uid = unsafe { libc::geteuid() };
+            let user_run_dir = format!("/run/user/{}", uid);
+
+            // Attempt systemd --user start if enabled
+            let mut check_user = std::process::Command::new("systemctl");
+            check_user.args(["--user", "is-enabled", "--quiet", "nexus-agent"]);
+            if std::env::var("XDG_RUNTIME_DIR").is_err() && std::path::Path::new(&user_run_dir).exists() {
+                check_user.env("XDG_RUNTIME_DIR", &user_run_dir);
+            }
+            if check_user.status().map(|s| s.success()).unwrap_or(false) {
+                let mut start_user = std::process::Command::new("systemctl");
+                start_user.args(["--user", "start", "nexus-agent"]);
+                if std::env::var("XDG_RUNTIME_DIR").is_err() && std::path::Path::new(&user_run_dir).exists() {
+                    start_user.env("XDG_RUNTIME_DIR", &user_run_dir);
+                }
+                let _ = start_user.status();
+
+                let mut active_user = std::process::Command::new("systemctl");
+                active_user.args(["--user", "is-active", "--quiet", "nexus-agent"]);
+                if std::env::var("XDG_RUNTIME_DIR").is_err() && std::path::Path::new(&user_run_dir).exists() {
+                    active_user.env("XDG_RUNTIME_DIR", &user_run_dir);
+                }
+                if active_user.status().map(|s| s.success()).unwrap_or(false) {
+                    println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd (--user).\x1b[0m");
+                    println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                    return Ok(());
+                }
             }
 
-            let root_s = std::process::Command::new("systemctl")
-                .args(["is-enabled", "--quiet", "nexus-agent"])
-                .status();
-            if root_s.map(|s| s.success()).unwrap_or(false) {
-                let _ = std::process::Command::new("systemctl").args(["start", "nexus-agent"]).status();
-                println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd.\x1b[0m");
-                println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
-                return Ok(());
+            // Attempt system-wide systemd start if root
+            if uid == 0 {
+                let root_s = std::process::Command::new("systemctl")
+                    .args(["is-enabled", "--quiet", "nexus-agent"])
+                    .status();
+                if root_s.map(|s| s.success()).unwrap_or(false) {
+                    let _ = std::process::Command::new("systemctl").args(["start", "nexus-agent"]).status();
+                    let active_root = std::process::Command::new("systemctl")
+                        .args(["is-active", "--quiet", "nexus-agent"])
+                        .status();
+                    if active_root.map(|s| s.success()).unwrap_or(false) {
+                        println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd.\x1b[0m");
+                        println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                        return Ok(());
+                    }
+                }
             }
 
+            // Fallback: Daemonize cleanly with setsid
             use std::os::unix::process::CommandExt;
             let current_exe = std::env::current_exe()?;
             let mut cmd = std::process::Command::new(&current_exe);
@@ -627,9 +670,54 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
                 });
             }
 
-            let child = cmd.spawn();
+            match cmd.spawn() {
+                Ok(p) => {
+                    println!("\x1b[1;32m✓ Nexus Fleet background daemon detached (PID: {}).\x1b[0m", p.id());
+                    println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprintln!("\x1b[31mFailed to detach: {}. Running in foreground...\x1b[0m", e);
+                }
+            }
+        }
 
-            match child {
+        // 4. macOS: check launchd or detach with setsid
+        #[cfg(target_os = "macos")]
+        {
+            let home_plist = std::env::var("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("Library/LaunchAgents/uk.faizal.nexus-agent.plist"))
+                .unwrap_or_default();
+            let root_plist = std::path::PathBuf::from("/Library/LaunchDaemons/uk.faizal.nexus-agent.plist");
+
+            if home_plist.exists() || root_plist.exists() {
+                let _ = std::process::Command::new("launchctl").args(["start", "uk.faizal.nexus-agent"]).status();
+                let list_s = std::process::Command::new("launchctl").args(["list", "uk.faizal.nexus-agent"]).output();
+                if list_s.map(|o| o.status.success()).unwrap_or(false) {
+                    println!("\x1b[1;32m✓ Nexus Fleet background service started via macOS launchd.\x1b[0m");
+                    println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                    return Ok(());
+                }
+            }
+
+            // Fallback: Detach with setsid
+            use std::os::unix::process::CommandExt;
+            let current_exe = std::env::current_exe()?;
+            let mut cmd = std::process::Command::new(&current_exe);
+            cmd.args(["run", "--foreground"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                    Ok(())
+                });
+            }
+
+            match cmd.spawn() {
                 Ok(p) => {
                     println!("\x1b[1;32m✓ Nexus Fleet background daemon detached (PID: {}).\x1b[0m", p.id());
                     println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");

@@ -198,9 +198,55 @@ jobs:
             nexus-windows-amd64.exe
           retention-days: 1
 
+  build-agent-macos:
+    name: "🍎 Swarm Worker: macOS Agent Compilation (Universal / ARM64 & Intel)"
+    runs-on: macos-latest
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Setup Rust Toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: "⚡ Cache Rust Dependencies & Build Artifacts"
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "nexus-agent -> target"
+
+      - name: "🚀 Compile & Build Universal macOS Binary"
+        run: |
+          cd nexus-agent
+          VERSION="0.1.${{ github.run_number }}"
+          echo "Auto-incrementing macOS Nexus Agent version to $VERSION"
+          sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create -output target/release/nexus-universal \
+            target/aarch64-apple-darwin/release/nexus \
+            target/x86_64-apple-darwin/release/nexus
+          strip target/release/nexus-universal
+          cd ..
+          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-arm64
+          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-amd64
+
+      - name: "📦 Upload macOS Agent Binary Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-agent-binary
+          path: |
+            nexus-agent-darwin-arm64
+            nexus-agent-darwin-amd64
+            nexus-darwin-arm64
+            nexus-darwin-amd64
+          retention-days: 1
+
   deploy-cluster:
     name: "🚀 Swarm Deploy: Tri-Node Cluster (my-mac > cos > pro)"
-    needs: [preflight-check, build-frontend, build-backend, build-agent-windows]
+    needs: [preflight-check, build-frontend, build-backend, build-agent-windows, build-agent-macos]
     if: github.event.inputs.dry_run != 'true'
     runs-on: ubuntu-latest
     steps:
@@ -231,6 +277,12 @@ jobs:
           name: windows-agent-binary
           path: .
 
+      - name: "📥 Download macOS Agent Binary"
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-agent-binary
+          path: .
+
       - name: "🔧 Prepare Binary & Web Assets Permissions"
         run: |
           chmod +x ./personal-site-rust
@@ -250,6 +302,12 @@ jobs:
           if [ -f ./nexus-agent-windows-amd64.exe ]; then
             cp ./nexus-agent-windows-amd64.exe public/releases/nexus-agent-windows-amd64.exe
             cp ./nexus-agent-windows-amd64.exe public/releases/nexus-windows-amd64.exe
+          fi
+          if [ -f ./nexus-agent-darwin-arm64 ]; then
+            cp ./nexus-agent-darwin-arm64 public/releases/nexus-agent-darwin-arm64
+            cp ./nexus-agent-darwin-amd64 public/releases/nexus-agent-darwin-amd64
+            cp ./nexus-agent-darwin-arm64 public/releases/nexus-darwin-arm64
+            cp ./nexus-agent-darwin-amd64 public/releases/nexus-darwin-amd64
           fi
           chmod -R a+rX public frontend/dist
           ls -lh ./personal-site-rust
