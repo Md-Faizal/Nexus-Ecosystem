@@ -92,8 +92,11 @@ unsafe extern "system" fn window_proc(
                         .spawn();
                 }
                 IDM_STATUS_CLI => {
+                    let exe_str = std::env::current_exe()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|_| "nexus-agent".to_string());
                     let _ = Command::new("cmd")
-                        .args(["/c", "start", "powershell", "-NoExit", "-Command", "nexus-agent status"])
+                        .args(["/c", "start", "powershell", "-NoExit", "-Command", &format!("& '{}' status", exe_str)])
                         .spawn();
                 }
                 IDM_EXIT => {

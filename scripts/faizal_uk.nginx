@@ -5,6 +5,11 @@ upstream personal_site_cluster {
     server 127.0.0.1:9101 weight=10 max_fails=2 fail_timeout=5s backup;
 }
 
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
 # ─── Stalwart Mail Server (Dedicated VHost) ───
 server {
     listen 80;
@@ -75,6 +80,20 @@ server {
         autoindex off;
     }
 
+    # WebSocket Mesh Gateway for Nexus Fleet Agents
+    location = /api/mesh/ws {
+        proxy_pass http://personal_site_cluster/api/mesh/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
     # Personal Site Backend API with Tri-Node Failsafe Fallover
     location /save-message {
         proxy_pass http://personal_site_cluster/save-message;
@@ -94,13 +113,15 @@ server {
     location /api/ {
         proxy_pass http://personal_site_cluster/api/;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
-        proxy_connect_timeout 2s;
-        proxy_send_timeout 5s;
-        proxy_read_timeout 10s;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
         proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
         proxy_next_upstream_tries 3;
         proxy_next_upstream_timeout 5s;

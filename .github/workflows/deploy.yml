@@ -303,6 +303,14 @@ jobs:
           chmod -R a+rX "$TARGET_DIR/public" "$TARGET_DIR/frontend/dist" 2>/dev/null || true
           chmod a+rx "$TARGET_DIR" /home/ubuntu /home/ubuntu/stack /home/ubuntu/stack/apps 2>/dev/null || true
 
+          # Update Nginx virtual host configuration with WebSocket mesh gateway support
+          if [ -f "$TARGET_DIR/scripts/faizal_uk.nginx" ]; then
+            echo "🔧 Updating Nginx configuration for faizal.uk..."
+            sudo cp "$TARGET_DIR/scripts/faizal_uk.nginx" /etc/nginx/sites-available/faizal.uk 2>/dev/null || true
+            sudo ln -sf /etc/nginx/sites-available/faizal.uk /etc/nginx/sites-enabled/ 2>/dev/null || true
+            sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || true
+          fi
+
           # Configure Docker daemon DNS resolvers for Oracle Cloud VCN if needed
           if [ ! -f /etc/docker/daemon.json ] || ! grep -q "169.254.169.254" /etc/docker/daemon.json 2>/dev/null; then
             echo "🔧 Configuring Docker daemon DNS for Oracle Cloud VCN..."

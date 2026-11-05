@@ -197,5 +197,106 @@ impl AiBridge {
         info!("Unloaded model '{}' from VRAM successfully", model);
         Ok(())
     }
+
+    pub async fn stream_to_stdout(
+        &self,
+        model: &str,
+        prompt: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use std::io::Write;
+        let url = format!("{}/api/chat", self.endpoint);
+        let body = json!({
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": true,
+        });
+
+        let res = self.client.post(&url).json(&body).send().await?;
+        if !res.status().is_success() {
+            eprintln!("\x1b[31m[Error]\x1b[0m Ollama returned HTTP {}", res.status());
+            return Ok(());
+        }
+
+        let mut stream = res.bytes_stream();
+        let mut stdout = std::io::stdout();
+
+        while let Some(chunk_res) = stream.next().await {
+            if let Ok(bytes) = chunk_res {
+                if let Ok(chunk) = serde_json::from_slice::<OllamaChatChunk>(&bytes) {
+                    if let Some(msg) = chunk.message {
+                        print!("{}", msg.content);
+                        let _ = stdout.flush();
+                    }
+                    if chunk.done.unwrap_or(false) {
+                        break;
+                    }
+                }
+            }
+        }
+        println!();
+        Ok(())
+    }
+
+    pub async fn run_interactive_repl(
+        &self,
+        model_override: Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use std::io::{self, BufRead, Write};
+
+        let telemetry = self.check_models().await;
+        let model = model_override
+            .or_else(|| telemetry.models.first().cloned())
+            .unwrap_or_else(|| "llama3.2:3b".to_string());
+
+        println!("\x1b[1;36m===============================================================\x1b[0m");
+        println!("\x1b[1;32m ⚡ Nexus Local AI Terminal (Claude / Gemini CLI Style) \x1b[0m");
+        println!("\x1b[90m Active Model:\x1b[0m \x1b[1;33m{}\x1b[0m \x1b[90m| Endpoint: {}\x1b[0m", model, self.endpoint);
+        println!("\x1b[90m Commands: '/models' to list, '/exit' or Ctrl+C to quit\x1b[0m");
+        println!("\x1b[1;36m===============================================================\x1b[0m\n");
+
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
+
+        loop {
+            print!("\x1b[1;35m>> \x1b[0m");
+            let _ = io::stdout().flush();
+
+            let mut input = String::new();
+            if handle.read_line(&mut input)? == 0 {
+                break;
+            }
+
+            let trimmed = input.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            if trimmed == "/exit" || trimmed == "exit" || trimmed == "quit" {
+                println!("\x1b[90mExiting Nexus AI Terminal. Goodbye!\x1b[0m");
+                break;
+            }
+
+            if trimmed == "/models" {
+                let latest = self.check_models().await;
+                println!("\x1b[1mInstalled Models:\x1b[0m");
+                if latest.models.is_empty() {
+                    println!("  \x1b[90m(No models found on Ollama at {})\x1b[0m", self.endpoint);
+                } else {
+                    for m in latest.models {
+                        println!("  - \x1b[32m{}\x1b[0m", m);
+                    }
+                }
+                println!();
+                continue;
+            }
+
+            print!("\x1b[36m");
+            let _ = io::stdout().flush();
+            let _ = self.stream_to_stdout(&model, trimmed).await;
+            print!("\x1b[0m\n");
+        }
+
+        Ok(())
+    }
 }
 
