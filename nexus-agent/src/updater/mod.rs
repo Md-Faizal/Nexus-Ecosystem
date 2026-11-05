@@ -196,7 +196,10 @@ impl AgentUpdater {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .status();
-            std::thread::sleep(Duration::from_millis(300));
+
+            // Wait for OS to fully release mutexes and file locks
+            std::thread::sleep(Duration::from_millis(800));
+            crate::modules::daemon_lock::remove_daemon_state();
 
             let old_exe = current_exe.with_extension("old");
             let _ = fs::remove_file(&old_exe);
@@ -218,7 +221,7 @@ impl AgentUpdater {
             // Clean up old binary
             let _ = fs::remove_file(&old_exe);
 
-            // Restart background worker cleanly
+            // Restart background worker cleanly with robust process detachment fallback
             use std::os::windows::process::CommandExt;
             const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -230,7 +233,16 @@ impl AgentUpdater {
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
-                .spawn();
+                .spawn()
+                .or_else(|_| {
+                    std::process::Command::new(&current_exe)
+                        .args(["run", "--foreground"])
+                        .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                });
         }
 
         #[cfg(not(target_os = "windows"))]

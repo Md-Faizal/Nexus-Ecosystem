@@ -257,7 +257,17 @@ unsafe fn run_tray_loop(node_id: String) {
         nid.szTip[i] = wide_tip[i];
     }
 
-    Shell_NotifyIconW(NIM_ADD, &nid);
+    let mut added = false;
+    for _ in 0..5 {
+        if Shell_NotifyIconW(NIM_ADD, &nid) != 0 {
+            added = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    if !added {
+        let _ = Shell_NotifyIconW(windows_sys::Win32::UI::Shell::NIM_MODIFY, &nid);
+    }
     info!("Windows Taskbar Tray Icon initialized successfully for node {}", node_id);
 
     // Standard Win32 Message Loop
