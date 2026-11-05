@@ -16,14 +16,17 @@ use windows_sys::Win32::UI::Shell::{
 };
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-    DispatchMessageW, GetCursorPos, GetMessageW, GetSystemMetrics, LoadIconW, LoadImageW,
-    PostQuitMessage, RegisterClassExW, SetForegroundWindow, ShowWindow, TrackPopupMenuEx,
-    TranslateMessage, HICON, HMENU, IDI_APPLICATION, IMAGE_ICON, LR_DEFAULTCOLOR,
-    MF_DISABLED, MF_GRAYED, MF_SEPARATOR, MF_STRING, MSG, SM_CXSMICON, SM_CYSMICON, SW_HIDE,
-    TPM_BOTTOMALIGN, TPM_RIGHTBUTTON, WM_COMMAND, WM_DESTROY, WM_LBUTTONDBLCLK, WM_RBUTTONUP,
-    WM_USER, WNDCLASSEXW,
+    AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
+    DestroyMenu, DispatchMessageW, GetCursorPos, GetMessageW, GetSystemMetrics, LoadIconW,
+    LoadImageW, PostQuitMessage, RegisterClassExW, SetForegroundWindow, ShowWindow,
+    TrackPopupMenuEx, TranslateMessage, HICON, HMENU, IDI_APPLICATION, IMAGE_ICON,
+    LR_DEFAULTCOLOR, MF_DISABLED, MF_GRAYED, MF_SEPARATOR, MF_STRING, MSG, SM_CXSMICON,
+    SM_CYSMICON, SW_HIDE, TPM_BOTTOMALIGN, TPM_RIGHTBUTTON, WM_COMMAND, WM_DESTROY,
+    WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_USER, WNDCLASSEXW,
 };
+
+#[cfg(target_os = "windows")]
+const EMBEDDED_ICO_BYTES: &[u8] = include_bytes!("../../resources/app.ico");
 
 #[cfg(target_os = "windows")]
 const WM_TRAYICON: u32 = WM_USER + 101;
@@ -197,7 +200,12 @@ unsafe fn run_tray_loop(node_id: String) {
         h_icon = LoadIconW(h_instance, 1 as *const u16);
     }
 
-    // 4. Fallback: IDI_APPLICATION
+    // 4. Memory Fallback: Create directly from embedded ICO bytes (100% resilient)
+    if h_icon == null_mut() {
+        h_icon = load_icon_from_memory(EMBEDDED_ICO_BYTES);
+    }
+
+    // 5. Ultimate Fallback: IDI_APPLICATION
     if h_icon == null_mut() {
         h_icon = LoadIconW(null_mut(), IDI_APPLICATION);
     }
@@ -267,4 +275,59 @@ fn to_wide_str(s: &str) -> Vec<u16> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect()
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn load_icon_from_memory(bytes: &[u8]) -> HICON {
+    if bytes.len() < 22 {
+        return null_mut();
+    }
+    let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
+    if count == 0 {
+        return null_mut();
+    }
+
+    let mut selected_offset = 0usize;
+    let mut selected_size = 0usize;
+
+    for i in 0..count {
+        let entry_offset = 6 + (i * 16);
+        if entry_offset + 16 > bytes.len() {
+            break;
+        }
+        let w = bytes[entry_offset] as u32;
+        let size = u32::from_le_bytes([
+            bytes[entry_offset + 8],
+            bytes[entry_offset + 9],
+            bytes[entry_offset + 10],
+            bytes[entry_offset + 11],
+        ]) as usize;
+        let data_offset = u32::from_le_bytes([
+            bytes[entry_offset + 12],
+            bytes[entry_offset + 13],
+            bytes[entry_offset + 14],
+            bytes[entry_offset + 15],
+        ]) as usize;
+
+        if (w == 16 || w == 24 || w == 32) && data_offset + size <= bytes.len() {
+            selected_offset = data_offset;
+            selected_size = size;
+            if w == 16 {
+                break;
+            }
+        }
+    }
+
+    if selected_offset > 0 && selected_size > 0 {
+        return CreateIconFromResourceEx(
+            bytes[selected_offset..].as_ptr(),
+            selected_size as u32,
+            1,
+            0x00030000,
+            GetSystemMetrics(SM_CXSMICON),
+            GetSystemMetrics(SM_CYSMICON),
+            LR_DEFAULTCOLOR,
+        );
+    }
+    null_mut()
 }

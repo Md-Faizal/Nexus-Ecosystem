@@ -69,8 +69,13 @@ impl AgentConfig {
         {
             if let Ok(progdata) = std::env::var("ProgramData") {
                 let dir = PathBuf::from(progdata).join("NexusAgent");
-                let _ = fs::create_dir_all(&dir);
-                return dir.join("config.json");
+                let p = dir.join("config.json");
+                if p.exists() {
+                    return p;
+                }
+                if fs::create_dir_all(&dir).is_ok() {
+                    return p;
+                }
             }
             if let Ok(appdata) = std::env::var("LOCALAPPDATA") {
                 let dir = PathBuf::from(appdata).join("NexusAgent");
@@ -82,6 +87,11 @@ impl AgentConfig {
 
         #[cfg(not(target_os = "windows"))]
         {
+            let system_cfg = PathBuf::from("/etc/nexus-agent/config.json");
+            if system_cfg.exists() {
+                return system_cfg;
+            }
+
             if unsafe { libc::geteuid() } == 0 {
                 let dir = PathBuf::from("/etc/nexus-agent");
                 let _ = fs::create_dir_all(&dir);
@@ -116,6 +126,11 @@ impl AgentConfig {
             if let Err(e) = fs::write(&path, serialized) {
                 warn!("Could not persist config to {:?}: {}", path, e);
             } else {
+                #[cfg(not(target_os = "windows"))]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o644));
+                }
                 info!("Initialized new node identity config at {:?}", path);
             }
         }

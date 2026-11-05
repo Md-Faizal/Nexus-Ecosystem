@@ -34,6 +34,82 @@ impl ServiceManager {
         }
     }
 
+    pub fn start(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = user_mode;
+            windows::WindowsInstaller::start()
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            systemd::SystemdInstaller::start(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        {
+            let _ = user_mode;
+            Err("Unsupported OS for native service manager".into())
+        }
+    }
+
+    pub fn stop(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = user_mode;
+            windows::WindowsInstaller::stop()
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            systemd::SystemdInstaller::stop(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        {
+            let _ = user_mode;
+            Err("Unsupported OS for native service manager".into())
+        }
+    }
+
+    pub fn restart(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = user_mode;
+            windows::WindowsInstaller::restart()
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            systemd::SystemdInstaller::restart(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        {
+            let _ = user_mode;
+            Err("Unsupported OS for native service manager".into())
+        }
+    }
+
+    pub fn status(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = user_mode;
+            windows::WindowsInstaller::status()
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            systemd::SystemdInstaller::status(user_mode)
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        {
+            let _ = user_mode;
+            Err("Unsupported OS for native service manager".into())
+        }
+    }
+
     pub fn uninstall(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(target_os = "windows")]
         {

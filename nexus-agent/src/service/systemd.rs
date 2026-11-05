@@ -72,6 +72,49 @@ WantedBy={}
         Ok(())
     }
 
+    pub fn start(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let systemctl = if user_mode {
+            vec!["systemctl", "--user"]
+        } else {
+            vec!["systemctl"]
+        };
+        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["start", "nexus-agent"]).status();
+        println!("\x1b[32m✓ Nexus Agent systemd service started.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn stop(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let systemctl = if user_mode {
+            vec!["systemctl", "--user"]
+        } else {
+            vec!["systemctl"]
+        };
+        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["stop", "nexus-agent"]).status();
+        println!("\x1b[32m✓ Nexus Agent systemd service stopped.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn restart(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let systemctl = if user_mode {
+            vec!["systemctl", "--user"]
+        } else {
+            vec!["systemctl"]
+        };
+        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["restart", "nexus-agent"]).status();
+        println!("\x1b[32m✓ Nexus Agent systemd service restarted.\x1b[0m");
+        Ok(())
+    }
+
+    pub fn status(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let systemctl = if user_mode {
+            vec!["systemctl", "--user"]
+        } else {
+            vec!["systemctl"]
+        };
+        let _ = Command::new(systemctl[0]).args(&systemctl[1..]).args(["status", "nexus-agent"]).status();
+        Ok(())
+    }
+
     pub fn uninstall(user_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
         let systemctl = if user_mode {
             vec!["systemctl", "--user"]

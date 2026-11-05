@@ -160,6 +160,26 @@ enum ServiceCommands {
         #[arg(long)]
         user: bool,
     },
+    /// Start the background service
+    Start {
+        #[arg(long)]
+        user: bool,
+    },
+    /// Stop the background service
+    Stop {
+        #[arg(long)]
+        user: bool,
+    },
+    /// Restart the background service
+    Restart {
+        #[arg(long)]
+        user: bool,
+    },
+    /// Check background service status
+    Status {
+        #[arg(long)]
+        user: bool,
+    },
 }
 
 fn is_daemon_running() -> bool {
@@ -180,7 +200,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         error!("Nexus Agent encountered panic: {:?}", panic_info);
     }));
 
-    let cli = Cli::parse();
+    // Ergonomic CLI translation: if user ran "nexus services install" (plural), map to "service"
+    let mut raw_args: Vec<String> = std::env::args().collect();
+    if raw_args.len() >= 2 && raw_args[1].eq_ignore_ascii_case("services") {
+        if raw_args.len() >= 3 {
+            let sub = raw_args[2].to_lowercase();
+            if matches!(sub.as_str(), "install" | "uninstall" | "start" | "stop" | "restart" | "status") {
+                raw_args[1] = "service".to_string();
+            }
+        }
+    }
+
+    let cli = Cli::parse_from(&raw_args);
     let mut config = AgentConfig::load_or_init();
 
     if let Some(hub) = cli.hub {
@@ -265,6 +296,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServiceCommands::Uninstall { user } => {
                 info!("Uninstalling Nexus Agent background service...");
                 ServiceManager::uninstall(user)?;
+            }
+            ServiceCommands::Start { user } => {
+                ServiceManager::start(user)?;
+            }
+            ServiceCommands::Stop { user } => {
+                ServiceManager::stop(user)?;
+            }
+            ServiceCommands::Restart { user } => {
+                ServiceManager::restart(user)?;
+            }
+            ServiceCommands::Status { user } => {
+                ServiceManager::status(user)?;
             }
         },
 
@@ -473,22 +516,31 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
             return Ok(());
         }
 
-        // 2. Windows: spawn 100% detached process with CREATE_NO_WINDOW and DETACHED_PROCESS
+        // 2. Windows: spawn 100% detached process with CREATE_NO_WINDOW and CREATE_BREAKAWAY_FROM_JOB
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
-            const DETACHED_PROCESS: u32 = 0x00000008;
             const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
+            const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
 
             let current_exe = std::env::current_exe()?;
             let child = std::process::Command::new(&current_exe)
                 .args(["run", "--foreground"])
-                .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+                .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB)
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
-                .spawn();
+                .spawn()
+                .or_else(|_| {
+                    std::process::Command::new(&current_exe)
+                        .args(["run", "--foreground"])
+                        .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                });
 
             match child {
                 Ok(p) => {
@@ -526,13 +578,23 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
                 return Ok(());
             }
 
+            use std::os::unix::process::CommandExt;
             let current_exe = std::env::current_exe()?;
-            let child = std::process::Command::new(&current_exe)
-                .args(["run", "--foreground"])
+            let mut cmd = std::process::Command::new(&current_exe);
+            cmd.args(["run", "--foreground"])
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn();
+                .stderr(std::process::Stdio::null());
+
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                    Ok(())
+                });
+            }
+
+            let child = cmd.spawn();
 
             match child {
                 Ok(p) => {
@@ -548,6 +610,10 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
     }
 
     // Foreground execution: acquire exclusive single-instance lock
+    #[cfg(not(target_os = "windows"))]
+    unsafe {
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
     let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
         Ok(guard) => guard,
         Err(_) => {
