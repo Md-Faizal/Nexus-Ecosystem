@@ -16,6 +16,7 @@ on:
       - '.vscode/**'
       - '.editorconfig'
       - 'nexus-agent/**'
+      - 'public/releases/**'
 
   workflow_dispatch:
     inputs:

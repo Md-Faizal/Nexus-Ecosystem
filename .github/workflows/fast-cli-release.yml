@@ -9,8 +9,8 @@ on:
       - '.github/workflows/fast-cli-release.yml'
 
 concurrency:
-  group: fast-cli-release
-  cancel-in-progress: true
+  group: deploy-personal-site
+  cancel-in-progress: false
 
 jobs:
   build-linux-agent:
@@ -241,7 +241,7 @@ jobs:
 
           echo "🚀 Fast-syncing Agent Release binaries to $TARGET_RELEASES_DIR..."
           ssh production "mkdir -p $TARGET_RELEASES_DIR"
-          rsync -avz public/releases/ production:"$TARGET_RELEASES_DIR/"
+          rsync -avz --temp-dir=/tmp public/releases/ production:"$TARGET_RELEASES_DIR/"
           ssh production "chmod -R a+rX $TARGET_RELEASES_DIR"
 
           echo "✓ Fast Agent Release deployed successfully to https://faizal.uk/releases/latest.json"
