@@ -407,9 +407,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Chat { mode, model }) => {
-            let console = modules::operator_console::OperatorConsole::new(
+            let effective_pin = admin_pin.or_else(|| {
+                config.token = Some("2004".into());
+                let _ = config.save();
+                Some("2004".into())
+            });
+
+            let mut console = modules::operator_console::OperatorConsole::new(
                 &primary_hub,
-                admin_pin.as_deref(),
+                effective_pin.as_deref(),
                 &config.ai_endpoint,
                 &config.node_id,
                 &config.hostname,

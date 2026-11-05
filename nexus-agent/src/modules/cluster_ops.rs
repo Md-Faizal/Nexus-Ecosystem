@@ -60,7 +60,8 @@ impl ClusterOps {
 
         let mut req = client.get(&url);
         if let Some(p) = pin {
-            req = req.header("Authorization", format!("Bearer {}", p));
+            req = req.header("Authorization", format!("Bearer {}", p))
+                     .header("x-admin-pin", p);
         }
 
         println!("\x1b[1;36mFetching fleet nodes from {}...\x1b[0m", base);
@@ -123,7 +124,7 @@ impl ClusterOps {
                 println!("\x1b[38;2;120;180;255m├────────────────────────────────────────────────────────────────────────────────────────┤\x1b[0m");
                 println!("│ \x1b[33mEdge Nodes: Locked (Authentication required: HTTP 403 Forbidden)\x1b[0m                      │");
                 println!("\x1b[38;2;120;180;255m╰────────────────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
-                println!("\x1b[90mHint: Run 'nexus --pin <PIN> cluster' or set $env:NEXUS_ADMIN_PIN=\"<PIN>\"\x1b[0m");
+                println!("\x1b[90mHint: Default cluster PIN is '2004'. Run 'nexus --pin 2004 cluster' or set $env:NEXUS_ADMIN_PIN=\"2004\"\x1b[0m");
             }
             Ok(res) => println!("\x1b[31mServer returned HTTP {}\x1b[0m", res.status()),
             Err(e) => println!("\x1b[31mFailed to connect to {}: {}\x1b[0m", base, e),
@@ -137,7 +138,8 @@ impl ClusterOps {
 
         let mut req = client.get(&url);
         if let Some(p) = pin {
-            req = req.header("Authorization", format!("Bearer {}", p));
+            req = req.header("Authorization", format!("Bearer {}", p))
+                     .header("x-admin-pin", p);
         }
 
         println!("\x1b[1;36mFetching cluster services and applications from {}...\x1b[0m", base);
@@ -176,7 +178,7 @@ impl ClusterOps {
             }
             Ok(res) if res.status().as_u16() == 403 => {
                 println!("\x1b[31mAuthentication required: HTTP 403 Forbidden\x1b[0m");
-                println!("\x1b[90mHint: Run 'nexus --pin <PIN> services' or set $env:NEXUS_ADMIN_PIN=\"<PIN>\"\x1b[0m");
+                println!("\x1b[90mHint: Default cluster PIN is '2004'. Run 'nexus --pin 2004 services' or set $env:NEXUS_ADMIN_PIN=\"2004\"\x1b[0m");
             }
             Ok(res) => println!("\x1b[31mServer returned HTTP {}\x1b[0m", res.status()),
             Err(e) => println!("\x1b[31mFailed to connect to {}: {}\x1b[0m", base, e),
@@ -190,7 +192,8 @@ impl ClusterOps {
 
         let mut req = client.post(&url).json(&serde_json::json!({ "action": action }));
         if let Some(p) = pin {
-            req = req.header("Authorization", format!("Bearer {}", p));
+            req = req.header("Authorization", format!("Bearer {}", p))
+                     .header("x-admin-pin", p);
         }
 
         print!("Dispatching '{}' to service '{}' on cluster... ", action, service_id);
@@ -200,7 +203,7 @@ impl ClusterOps {
             }
             Ok(res) if res.status().as_u16() == 403 => {
                 println!("\x1b[31m[FAILED: 403 Forbidden]\x1b[0m");
-                println!("\x1b[90mHint: Run 'nexus --pin <PIN> {} {}' or set $env:NEXUS_ADMIN_PIN=\"<PIN>\"\x1b[0m", action, service_id);
+                println!("\x1b[90mHint: Default cluster PIN is '2004'. Run 'nexus --pin 2004 {} {}' or set $env:NEXUS_ADMIN_PIN=\"2004\"\x1b[0m", action, service_id);
             }
             Ok(res) => println!("\x1b[31mFailed with HTTP {}\x1b[0m", res.status()),
             Err(e) => println!("\x1b[31mError: {}\x1b[0m", e),
@@ -214,7 +217,8 @@ impl ClusterOps {
 
         let mut req = client.get(&url);
         if let Some(p) = pin {
-            req = req.header("Authorization", format!("Bearer {}", p));
+            req = req.header("Authorization", format!("Bearer {}", p))
+                     .header("x-admin-pin", p);
         }
 
         println!("\x1b[1;36mFetching 24-hour health report from {}...\x1b[0m", base);

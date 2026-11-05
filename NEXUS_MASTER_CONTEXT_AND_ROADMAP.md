@@ -318,16 +318,24 @@ nexus run                 # Start background telemetry daemon and taskbar tray
 nexus status              # Display live identity, CPU/RAM/VRAM, and daemon state
 nexus elevate             # Upgrade to Administrator / Root background service
 
-# Cluster Operations (3-VM Swarm: my-mac, cos, pro)
-nexus cluster             # Live health and latency across the 3 nodes
-nexus services            # Inspect running Docker containers, web engines, and games
-nexus restart <service>   # 1-Click restart a cluster service (e.g. personal-site-rust)
+# Cluster Operations & Services (Requires 4-Digit Admin PIN, default: '2004')
+nexus --pin 2004 cluster            # Live health and latency across 3-VM cluster
+nexus --pin 2004 services           # Inspect running Docker containers, web engines, games
+nexus --pin 2004 restart <service>  # 1-Click restart a cluster service
+nexus --pin 2004 health             # 24-hour cluster health and uptime report
+# Or set environment variable once:
+#   Windows PowerShell: $env:NEXUS_ADMIN_PIN="2004"
+#   Linux / macOS Bash: export NEXUS_ADMIN_PIN="2004"
 
-# Operator Console & AI Studio
-nexus chat                # Interactive menu: [1] Fleet Chat, [2] Distributed AI Studio
-nexus chat -c chat        # Direct launch into Fleet Chat (#global & device DMs)
+# Operator Console & Nexus Chat (Retro ASCII Gradient: 'NEXUS CHAT')
+nexus chat                # Interactive menu: [1] Nexus Chat, [2] Distributed AI Studio
+nexus chat -c chat        # Direct launch into Nexus Chat (#global & device DMs)
 nexus chat -c ai          # Direct launch into Distributed AI Studio
 nexus chat -m qwen2.5-coder:7b  # Direct launch with model override
+# Inside Nexus Chat:
+#   /pin <PIN>            # Authenticate or update cluster PIN dynamically (e.g. /pin 2004)
+#   /join <channel>       # Switch active channel (#global, @node-id)
+#   /channels             # List all online workstations & edge nodes
 
 # Local & Remote Model Management
 nexus ps                  # Inspect models currently resident in VRAM / RAM
@@ -338,6 +346,29 @@ nexus unload <model>      # Evict model from VRAM immediately
 nexus update              # Check and auto-upgrade agent binary
 nexus update --force      # Force re-download and re-install latest release
 ```
+
+---
+
+## 7. Cluster Security, Authentication & Admin PIN
+
+### 7.1 Where does the Admin PIN come from?
+1. **Default Value**: The cluster-wide default admin PIN is **`2004`**.
+2. **Server-Side Definition**: Defined in the Rust backend (`backend-rust/src/config.rs`) as:
+   ```rust
+   admin_pin: std::env::var("ADMIN_PIN").unwrap_or_else(|_| "2004".into())
+   ```
+   and synchronized with the legacy Node backend (`backend/server.js`).
+3. **Database Override**: The central SQLite database (`cluster_hub.db` / `messages.db`) stores custom PIN overrides under:
+   ```sql
+   SELECT value FROM settings WHERE key = 'admin_pin' AND length(value) = 4
+   ```
+   Admins can change this PIN anytime from the Web Admin Settings or via `POST /api/change-pin`.
+4. **Client Agent Authentication**:
+   When invoking commands requiring elevated cluster rights (`cluster`, `services`, `restart`, and sending messages via `nexus chat`), the agent supplies the PIN through HTTP headers:
+   * `Authorization: Bearer <PIN>`
+   * `x-admin-pin: <PIN>`
+5. **Zero-Configuration Fallback**:
+   `nexus-agent` defaults missing PIN credentials to `"2004"` and persists it to `config.json` (`config.token`), preventing unauthorized `403 Forbidden` errors during interactive chat and cluster exploration. Operators can supply custom PINs via `--pin <PIN>`, `$env:NEXUS_ADMIN_PIN`, or the in-chat `/pin <PIN>` command.
 
 ---
 

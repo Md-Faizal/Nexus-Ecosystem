@@ -118,12 +118,28 @@ impl OperatorConsole {
         }
     }
 
+    pub fn set_pin(&mut self, pin: &str) {
+        self.pin = Some(pin.to_string());
+        let mut headers = HeaderMap::new();
+        if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", pin)) {
+            headers.insert(AUTHORIZATION, val);
+        }
+        if let Ok(val) = HeaderValue::from_str(pin) {
+            headers.insert("x-admin-pin", val);
+        }
+        self.client = Client::builder()
+            .default_headers(headers)
+            .timeout(Duration::from_secs(300))
+            .build()
+            .unwrap_or_default();
+    }
+
     pub async fn run(
-        &self,
+        &mut self,
         mode: Option<String>,
         model_override: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        banner::print_banner();
+        banner::print_chat_banner();
 
         let mut current_mode = match mode.as_deref() {
             Some("chat") | Some("1") => ConsoleMode::Chat,
@@ -176,14 +192,19 @@ impl OperatorConsole {
     }
 
     // ─── MODE 1: FLEET CHAT ────────────────────────────────────────────────────
-    pub async fn run_fleet_chat(&self) -> Result<Option<ConsoleMode>, Box<dyn std::error::Error>> {
+    pub async fn run_fleet_chat(&mut self) -> Result<Option<ConsoleMode>, Box<dyn std::error::Error>> {
         let mut active_channel = "global".to_string();
 
-        println!("\x1b[1;35m╭─ 💬 FLEET CHAT CONSOLE ───────────────────────────────────────────────────╮\x1b[0m");
+        println!("\x1b[1;35m╭─ 💬 NEXUS CHAT CONSOLE ───────────────────────────────────────────────────╮\x1b[0m");
         println!("│ Channel: \x1b[1;32m#{}\x1b[0m | Hub: \x1b[36m{}\x1b[0m", active_channel, self.http_hub);
+        if self.pin.is_none() {
+            println!("│ \x1b[1;33m⚠️  No Admin PIN provided. Hub access restricted (HTTP 403 Forbidden).     \x1b[0m│");
+            println!("│ \x1b[90mTip: Type '/pin 2004' (or run 'nexus --pin 2004 chat') to unlock.          \x1b[0m│");
+        }
         println!("│ Type a message and press Enter. Available commands:                      │");
         println!("│   \x1b[1;33m/join <#channel or @node>\x1b[0m  Switch active channel                         │");
         println!("│   \x1b[1;33m/channels\x1b[0m                  List #global & online fleet devices           │");
+        println!("│   \x1b[1;33m/pin <PIN>\x1b[0m                 Authenticate / unlock cluster chat (e.g. 2004)│");
         println!("│   \x1b[1;33m/refresh\x1b[0m                   Fetch latest message updates                  │");
         println!("│   \x1b[1;33m/mode ai\x1b[0m                   Switch to Distributed AI Studio               │");
         println!("│   \x1b[1;33m/clear\x1b[0m                     Clear terminal screen                         │");
@@ -239,6 +260,19 @@ impl OperatorConsole {
                 continue;
             }
 
+            if trimmed.starts_with("/pin ") || trimmed.starts_with("/auth ") {
+                let p = trimmed.split_whitespace().nth(1).unwrap_or("").trim();
+                if !p.is_empty() {
+                    self.set_pin(p);
+                    let mut cfg = crate::config::AgentConfig::load_or_init();
+                    cfg.token = Some(p.to_string());
+                    let _ = cfg.save();
+                    println!("\x1b[1;32m✓ Admin PIN authenticated and saved. Access granted!\x1b[0m\n");
+                    self.display_chat_history(&active_channel).await;
+                    continue;
+                }
+            }
+
             if trimmed.starts_with("/join ") {
                 let chan = trimmed.trim_start_matches("/join ").trim().trim_start_matches('#').trim_start_matches('@');
                 active_channel = chan.to_string();
@@ -270,6 +304,10 @@ impl OperatorConsole {
                 Ok(res) if res.status().is_success() => {
                     let now = chrono::Local::now().format("%H:%M:%S");
                     println!("\x1b[90m[{}] \x1b[1;32m<{}>\x1b[0m {}", now, self.local_hostname, trimmed);
+                }
+                Ok(res) if res.status() == reqwest::StatusCode::FORBIDDEN => {
+                    println!("\x1b[31m[Failed to send message: HTTP 403 Forbidden — Admin PIN required]\x1b[0m");
+                    println!("\x1b[1;33mTip: Type '/pin 2004' (or your cluster PIN) here to authenticate and retry.\x1b[0m");
                 }
                 Ok(res) => {
                     println!("\x1b[31m[Failed to send message: HTTP {}]\x1b[0m", res.status());
@@ -308,6 +346,9 @@ impl OperatorConsole {
                     }
                 }
             }
+            Ok(res) if res.status() == reqwest::StatusCode::FORBIDDEN => {
+                println!("\x1b[33m[Chat history locked (HTTP 403 Forbidden). Type '/pin 2004' to unlock]\x1b[0m\n");
+            }
             _ => {
                 println!("\x1b[90m(Unable to fetch message history from hub)\x1b[0m\n");
             }
@@ -331,7 +372,7 @@ impl OperatorConsole {
     }
 
     // ─── MODE 2: DISTRIBUTED NEXUS AI STUDIO ───────────────────────────────────
-    pub async fn run_ai_studio(&self, initial_model: Option<String>) -> Result<Option<ConsoleMode>, Box<dyn std::error::Error>> {
+    pub async fn run_ai_studio(&mut self, initial_model: Option<String>) -> Result<Option<ConsoleMode>, Box<dyn std::error::Error>> {
         println!("\x1b[1;35mConnecting to Nexus Central Hub:\x1b[0m {}\n", self.http_hub);
 
         let nodes = match self.fetch_nodes().await {
@@ -407,6 +448,18 @@ impl OperatorConsole {
 
             if trimmed == "/mode local" {
                 return Ok(Some(ConsoleMode::Local(Some(active_model))));
+            }
+
+            if trimmed.starts_with("/pin ") || trimmed.starts_with("/auth ") {
+                let p = trimmed.split_whitespace().nth(1).unwrap_or("").trim();
+                if !p.is_empty() {
+                    self.set_pin(p);
+                    let mut cfg = crate::config::AgentConfig::load_or_init();
+                    cfg.token = Some(p.to_string());
+                    let _ = cfg.save();
+                    println!("\x1b[1;32m✓ Admin PIN authenticated and saved. Access granted!\x1b[0m\n");
+                    continue;
+                }
             }
 
             if trimmed.starts_with("/system ") {
