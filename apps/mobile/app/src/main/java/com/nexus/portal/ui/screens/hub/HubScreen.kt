@@ -112,27 +112,6 @@ fun HubScreen(navController: NavController, context: Context) {
             description = "Advanced persistent background battery telemetry with charging graphs and history.",
             imageUrl = "https://images.unsplash.com/photo-1601524909162-ae8725290836?w=800&q=80", // Battery aesthetic
             route = "battery_monitor"
-        ),
-        SubAppItem(
-            id = "fee_calculator",
-            name = "Fee Calculator",
-            description = "Calculate exact convenience fee entries to zero out specific balances.",
-            imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&q=80", // Finance aesthetic
-            route = "fee_calculator"
-        ),
-        SubAppItem(
-            id = "electricity_bill",
-            name = "Electricity Bill",
-            description = "Calculate domestic consumer electricity bills in INR using TPCODL Tariff Slabs (FY 2026-27).",
-            imageUrl = "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=800&q=80", // Energy aesthetic
-            route = "electricity_bill"
-        ),
-        SubAppItem(
-            id = "mic_tester",
-            name = "Vocal Studio & Mic Test",
-            description = "Test microphone sources, perform low-latency realtime echo loopbacks, check RMS sound waves, and loop dynamic analog beats.",
-            imageUrl = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800&q=80", // Studio mic aesthetic
-            route = "mic_tester"
         )
     )
 

@@ -82,7 +82,6 @@ fun MainScreen(
 
     val prefs = activity.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
     var selectedTab by remember { mutableStateOf(prefs.getInt("default_tab", 0)) }
-    var showSecretSettings by remember { mutableStateOf(false) }
     var switchingProfileId by remember { mutableStateOf<String?>(null) }
     
     LaunchedEffect(Unit) {
@@ -92,7 +91,6 @@ fun MainScreen(
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home, "Home"),
         TabItem("Hub", Icons.Default.NetworkCheck, "Integration Hub"),
-        TabItem("Sandbox", Icons.Default.Code, "Web Sandbox"),
         TabItem("Settings", Icons.Default.Settings, "Settings")
     )
 
@@ -555,7 +553,7 @@ fun MainScreen(
             Scaffold(
             bottomBar = {
                 AnimatedVisibility(
-                    visible = isDockVisible && !showSecretSettings,
+                    visible = isDockVisible,
                     enter = slideInVertically(initialOffsetY = { it }) + expandVertically() + fadeIn(),
                     exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically() + fadeOut()
                 ) {
@@ -646,25 +644,10 @@ fun MainScreen(
                             navController = navController,
                             context = activity
                         )
-                        2 -> WebSandboxScreen(
-                            onBackClick = { selectedTab = 0 }
-                        )
-                        3 -> SettingsScreen(
-                            activity = activity,
-                            onSecretSettingsOpen = { showSecretSettings = true }
+                        2 -> SettingsScreen(
+                            activity = activity
                         )
                     }
-                }
-
-                AnimatedVisibility(
-                    visible = showSecretSettings,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 8 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 8 })
-                ) {
-                    SecretSettingsScreen(
-                        activity = activity,
-                        onBack = { showSecretSettings = false }
-                    )
                 }
             }
         }

@@ -32,8 +32,6 @@ import androidx.work.WorkManager
 import androidx.work.OneTimeWorkRequestBuilder
 import com.nexus.portal.services.BackgroundUpdateCheckWorker
 import com.nexus.portal.data.repository.UpdateHistoryRepository
-import com.nexus.portal.ui.screens.hub.apps.feecalculator.FeeHistoryRepository
-import com.nexus.portal.ui.screens.hub.apps.electricitybill.ElectricityBillRepository
 import java.util.concurrent.TimeUnit
 import java.io.File
 
@@ -142,8 +140,6 @@ class MainActivity : FragmentActivity() {
         try {
             ThemeRepository.init(applicationContext)
             ProfileRepository.init(applicationContext)
-            FeeHistoryRepository.init(applicationContext)
-            ElectricityBillRepository.init(applicationContext)
         } catch (t: Throwable) {
             t.printStackTrace()
         }
@@ -630,21 +626,7 @@ class MainActivity : FragmentActivity() {
                                         }
                                     )
                                 }
-                                composable("fee_calculator") {
-                                    com.nexus.portal.ui.screens.hub.apps.feecalculator.FeeCalculatorScreen(
-                                        onBackClick = { navController.popBackStack() }
-                                    )
-                                }
-                                composable("electricity_bill") {
-                                    com.nexus.portal.ui.screens.hub.apps.electricitybill.ElectricityBillScreen(
-                                        onBackClick = { navController.popBackStack() }
-                                    )
-                                }
-                                composable("mic_tester") {
-                                    com.nexus.portal.ui.screens.hub.apps.mictester.MicTesterScreen(
-                                        onBackClick = { navController.popBackStack() }
-                                    )
-                                }
+
                             }
                         }
                     }

@@ -47,8 +47,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    activity: FragmentActivity,
-    onSecretSettingsOpen: () -> Unit = {}
+    activity: FragmentActivity
 ) {
     val colors = PortalTheme.colors
     val primaryColor = colors.primary // Animated brand accent color
@@ -60,9 +59,7 @@ fun SettingsScreen(
     var pingStatus by remember { mutableStateOf("UNTESTED") } // UNTESTED, PINGING, SUCCESS, FAILED
     var caughtErrorsCount by remember { mutableStateOf(0) }
     
-    // Secret settings click counter
-    var nexusTitleClickCount by remember { mutableStateOf(0) }
-    var showSecretSettingsHint by remember { mutableStateOf(false) }
+
 
     // Toggle states
     var enforceBiometrics by remember { mutableStateOf(true) }
