@@ -76,10 +76,10 @@ if ($IsAdmin) {
 } else {
     # Non-admin startup registry registration
     try {
-        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run" -Force
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run --foreground" -Force
     } catch {}
-    # Launch hidden background worker immediately so telemetry is active
-    Start-Process "$NexusAlias" -ArgumentList "run" -WindowStyle Hidden
+    # Launch detached background worker immediately so telemetry is active
+    & "$NexusAlias" run
 }
 
 Write-Host "Nexus Agent successfully installed and running!" -ForegroundColor Green

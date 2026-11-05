@@ -1,0 +1,185 @@
+name: "⚡ Fast Release: Nexus Agent CLI (Windows & Linux)"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'nexus-agent/**'
+      - 'public/releases/**'
+      - '.github/workflows/fast-cli-release.yml'
+
+concurrency:
+  group: fast-cli-release
+  cancel-in-progress: true
+
+jobs:
+  build-linux-agent:
+    name: "🐧 Compile Linux Agent Binary"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Setup Rust Toolchain"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "⚡ Cache Rust Dependencies"
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "nexus-agent -> target"
+
+      - name: "🚀 Compile & Strip Linux Agent"
+        run: |
+          cd nexus-agent
+          VERSION="0.1.${{ github.run_number }}"
+          echo "Bumping Nexus Agent to version $VERSION"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          cargo build --release
+          if [ -f target/release/nexus ]; then
+            strip target/release/nexus
+            cp target/release/nexus target/release/nexus-agent
+          else
+            strip target/release/nexus-agent
+            cp target/release/nexus-agent target/release/nexus
+          fi
+          cd ..
+          cp nexus-agent/target/release/nexus-agent ./nexus-agent-linux-amd64
+          cp nexus-agent/target/release/nexus ./nexus-linux-amd64
+          chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
+          ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
+
+      - name: "📦 Upload Linux Agent Artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-agent-binaries
+          path: |
+            nexus-agent-linux-amd64
+            nexus-linux-amd64
+          retention-days: 1
+
+  build-windows-agent:
+    name: "🪟 Compile Windows Agent Binary"
+    runs-on: windows-latest
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Setup Rust Toolchain"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "⚡ Cache Rust Dependencies"
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "nexus-agent -> target"
+
+      - name: "🚀 Compile Windows Agent Binary"
+        run: |
+          cd nexus-agent
+          $Version = "0.1.${{ github.run_number }}"
+          Write-Host "Bumping Windows Nexus Agent to version $Version"
+          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content Cargo.toml
+          cargo build --release
+          if (Test-Path target/release/nexus.exe) {
+            cp target/release/nexus.exe target/release/nexus-agent.exe
+          } elseif (Test-Path target/release/nexus-agent.exe) {
+            cp target/release/nexus-agent.exe target/release/nexus.exe
+          }
+          cd ..
+          cp nexus-agent/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
+          cp nexus-agent/target/release/nexus.exe ./nexus-windows-amd64.exe
+
+      - name: "📦 Upload Windows Agent Artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-binaries
+          path: |
+            nexus-agent-windows-amd64.exe
+            nexus-windows-amd64.exe
+          retention-days: 1
+
+  deploy-cli-release:
+    name: "🚀 Publish Agent Release to faizal.uk"
+    needs: [build-linux-agent, build-windows-agent]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "📥 Download Linux Agent Artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-agent-binaries
+          path: .
+
+      - name: "📥 Download Windows Agent Artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-agent-binaries
+          path: .
+
+      - name: "🔧 Prepare Release Binaries & Manifest"
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          mkdir -p public/releases
+          
+          if [ -f ./nexus-agent-linux-amd64 ]; then
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-linux-amd64
+            chmod +x public/releases/nexus*
+          fi
+
+          if [ -f ./nexus-agent-windows-amd64.exe ]; then
+            cp ./nexus-agent-windows-amd64.exe public/releases/nexus-agent-windows-amd64.exe
+            cp ./nexus-agent-windows-amd64.exe public/releases/nexus-windows-amd64.exe
+          fi
+
+          if [ -f public/releases/latest.json ]; then
+            sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" public/releases/latest.json
+            sed -i "s/\"release_date\": \".*\"/\"release_date\": \"$(date +%Y-%m-%d)\"/" public/releases/latest.json
+            echo "Updated public/releases/latest.json to version $VERSION"
+          fi
+
+          ls -lh public/releases/
+
+      - name: "🔌 Fast Sync: Rsync Releases directly to faizal.uk"
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if echo "$SSH_KEY" | grep -q "^LS0t"; then
+            echo "$SSH_KEY" | base64 -d > ~/.ssh/deploy_key
+          elif echo "$SSH_KEY" | grep -q "BEGIN"; then
+            echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          else
+            echo "$SSH_KEY" | base64 -d > ~/.ssh/deploy_key 2>/dev/null || echo "$SSH_KEY" > ~/.ssh/deploy_key
+          fi
+          chmod 600 ~/.ssh/deploy_key
+
+          cat << 'EOF' > ~/.ssh/config
+          Host production
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            Port 22
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            PubkeyAcceptedKeyTypes +ssh-rsa,rsa-sha2-256,rsa-sha2-512
+            HostkeyAlgorithms +ssh-rsa,rsa-sha2-256,rsa-sha2-512
+          EOF
+          chmod 600 ~/.ssh/config
+
+          TARGET_RELEASES_DIR="/home/ubuntu/stack/apps/personal-site/public/releases"
+
+          echo "🚀 Fast-syncing Agent Release binaries to $TARGET_RELEASES_DIR..."
+          ssh production "mkdir -p $TARGET_RELEASES_DIR"
+          rsync -avz public/releases/ production:"$TARGET_RELEASES_DIR/"
+          ssh production "chmod -R a+rX $TARGET_RELEASES_DIR"
+
+          echo "✓ Fast Agent Release deployed successfully to https://faizal.uk/releases/latest.json"

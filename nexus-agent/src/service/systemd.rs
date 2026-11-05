@@ -23,7 +23,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart={} run
+ExecStart={} run --foreground
 Restart=always
 RestartSec=5s
 LimitNOFILE=65536

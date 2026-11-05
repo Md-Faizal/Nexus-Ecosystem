@@ -41,6 +41,7 @@ const IDM_EXIT: usize = 1005;
 #[cfg(target_os = "windows")]
 static mut G_HWND: HWND = null_mut();
 
+#[allow(dead_code)]
 pub fn hide_console_window() {
     #[cfg(target_os = "windows")]
     unsafe {

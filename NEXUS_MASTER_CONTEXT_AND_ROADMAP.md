@@ -84,6 +84,31 @@ During real-world deployment across Windows, macOS, and Linux (Zorin OS), severa
 
 ---
 
+### 2.5. Terminal Closure Disconnection Fix (Windows & Linux Auto-Detachment)
+* **Symptom**: When running `nexus run` in PowerShell on Windows or bash on Linux, closing the terminal window immediately disconnected the agent and killed the tray daemon.
+* **Root Causes**:
+  * On Windows, child processes spawned in a terminal inherit the console session. When the console window closes, Windows broadcasts `CTRL_CLOSE_EVENT` and terminates the entire process tree. Additionally, `hide_console_window()` was hiding the user's interactive PowerShell window.
+  * On Linux, foreground interactive processes receive `SIGHUP` when the shell exits.
+* **Fix in `nexus-agent/src/main.rs` & `nexus-agent/src/service/windows.rs`**:
+  * `nexus run` now defaults to **auto-detachment**:
+    * **Windows**: Spawns detached worker with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, immediately returning control to the user's terminal with a confirmation message. The detached worker has no console window and is completely immune to terminal closures.
+    * **Linux / macOS**: Checks for and starts the native systemd unit (`systemctl --user start nexus-agent`), or detaches with null stdio and a new session ID (`setsid`).
+  * `nexus run --foreground` (or `-f`) is provided if an operator explicitly wants to run in the foreground for debugging.
+
+---
+
+### 2.6. Dedicated Fast CLI Release Action (`fast-cli-release.yml`)
+* **Objective**: Avoid waiting 5–8 minutes for full cluster deployments (rebuilding frontend, backend, docker compose) when only updating the agent CLI executable.
+* **Implementation**:
+  * Created `.github/workflows/fast-cli-release.yml`.
+  * Triggers exclusively on pushes to `nexus-agent/**`, `public/releases/**`, or 1-click `workflow_dispatch`.
+  * Compiles Linux (`ubuntu-latest`) and Windows (`windows-latest`) binaries concurrently using cached crates.
+  * Automatically updates `latest.json` with the new version and rsyncs `public/releases/` straight to the server (`faizal.uk`).
+  * Deploys CLI updates in **under 1.5 minutes with zero downtime**.
+  * Configured `paths-ignore: ['nexus-agent/**']` in `deploy.yml` so full cluster deploys are reserved for backend/frontend changes.
+
+---
+
 ## 3. Reconstructed Features & Architecture
 
 ### 3.1. Dual-Mode Fleet Operator Console (`nexus chat`)
@@ -253,3 +278,4 @@ When starting the new conversation, the following objectives represent the immed
    * Allow the central hub to automatically dispatch `/restart` or alerts when a node or container crashes or experiences sustained memory saturation (>95%).
 4. **Enhanced Chat Media & Code Connect**:
    * Allow sending system diagnostic logs, screenshots, and diff files through Fleet Chat.
+

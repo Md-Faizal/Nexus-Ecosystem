@@ -40,7 +40,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// [CRITICAL] Start background telemetry agent, WebSocket mesh tunnel & taskbar tray
-    Run,
+    Run {
+        /// Run directly in foreground without detaching into a background worker
+        #[arg(short, long)]
+        foreground: bool,
+    },
 
     /// Show local node identity, live hardware telemetry, and daemon status
     Status,
@@ -198,26 +202,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| config.token.clone());
 
     match cli.command {
-        Some(Commands::Run) => {
-            // Check & acquire exclusive single-instance lock to prevent duplicate daemons & tray icons
-            let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
-                Ok(guard) => guard,
-                Err(_) => {
-                    println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
-                    println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
-                    println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
-                    return Ok(());
-                }
-            };
-
-            // Hide background console window when running as daemon
-            modules::tray::hide_console_window();
-
-            // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
-            modules::tray::start_system_tray(config.node_id.clone());
-
-            let mut client = MeshClient::new(config);
-            client.run().await;
+        Some(Commands::Run { foreground }) => {
+            handle_run_command(config, foreground).await?;
         }
 
         Some(Commands::Elevate) => {
@@ -429,19 +415,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         None => {
             if cli.run {
-                let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
-                    Ok(guard) => guard,
-                    Err(_) => {
-                        println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
-                        println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
-                        return Ok(());
-                    }
-                };
-
-                modules::tray::hide_console_window();
-                modules::tray::start_system_tray(config.node_id.clone());
-                let mut client = MeshClient::new(config);
-                client.run().await;
+                handle_run_command(config, false).await?;
             } else {
                 modules::banner::print_banner();
 
@@ -486,5 +460,108 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    Ok(())
+}
+
+async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if !foreground {
+        // 1. Check if daemon is already active
+        if modules::daemon_lock::is_daemon_running() {
+            println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+            println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are running.\x1b[0m");
+            println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+            return Ok(());
+        }
+
+        // 2. Windows: spawn 100% detached process with CREATE_NO_WINDOW and DETACHED_PROCESS
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            let current_exe = std::env::current_exe()?;
+            let child = std::process::Command::new(&current_exe)
+                .args(["run", "--foreground"])
+                .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+
+            match child {
+                Ok(p) => {
+                    println!("\x1b[1;32m✓ Nexus Fleet background daemon started successfully (PID: {}).\x1b[0m", p.id());
+                    println!("\x1b[90mTelemetry is streaming. Windows Taskbar Tray icon is active.\x1b[0m");
+                    println!("\x1b[90mYou can safely close this terminal.\x1b[0m");
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprintln!("\x1b[31mFailed to spawn detached daemon: {}. Falling back to foreground.\x1b[0m", e);
+                }
+            }
+        }
+
+        // 3. Linux / macOS: check systemd or detach with setsid
+        #[cfg(not(target_os = "windows"))]
+        {
+            let user_s = std::process::Command::new("systemctl")
+                .args(["--user", "is-enabled", "--quiet", "nexus-agent"])
+                .status();
+            if user_s.map(|s| s.success()).unwrap_or(false) {
+                let _ = std::process::Command::new("systemctl").args(["--user", "start", "nexus-agent"]).status();
+                println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd (--user).\x1b[0m");
+                println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                return Ok(());
+            }
+
+            let root_s = std::process::Command::new("systemctl")
+                .args(["is-enabled", "--quiet", "nexus-agent"])
+                .status();
+            if root_s.map(|s| s.success()).unwrap_or(false) {
+                let _ = std::process::Command::new("systemctl").args(["start", "nexus-agent"]).status();
+                println!("\x1b[1;32m✓ Nexus Fleet background service started via systemd.\x1b[0m");
+                println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                return Ok(());
+            }
+
+            let current_exe = std::env::current_exe()?;
+            let child = std::process::Command::new(&current_exe)
+                .args(["run", "--foreground"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+
+            match child {
+                Ok(p) => {
+                    println!("\x1b[1;32m✓ Nexus Fleet background daemon detached (PID: {}).\x1b[0m", p.id());
+                    println!("\x1b[90mTelemetry is streaming. You can safely close this terminal.\x1b[0m");
+                    return Ok(());
+                }
+                Err(e) => {
+                    eprintln!("\x1b[31mFailed to detach: {}. Running in foreground...\x1b[0m", e);
+                }
+            }
+        }
+    }
+
+    // Foreground execution: acquire exclusive single-instance lock
+    let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+            println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
+            println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+            return Ok(());
+        }
+    };
+
+    // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
+    modules::tray::start_system_tray(config.node_id.clone());
+
+    let mut client = MeshClient::new(config);
+    client.run().await;
     Ok(())
 }

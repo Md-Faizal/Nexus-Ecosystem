@@ -20,7 +20,7 @@ impl WindowsInstaller {
                 "/t",
                 "REG_SZ",
                 "/d",
-                &format!("\"{}\" run", exe_str),
+                &format!("\"{}\" run --foreground", exe_str),
                 "/f",
             ])
             .output();
@@ -34,16 +34,27 @@ impl WindowsInstaller {
                 "/tn",
                 "NexusAgent",
                 "/tr",
-                &format!("\"{}\" run", exe_str),
+                &format!("\"{}\" run --foreground", exe_str),
                 "/rl",
                 "HIGHEST",
                 "/f",
             ])
             .output();
 
-        // 3. Launch background worker immediately
-        let _ = Command::new(&current_exe).arg("run").spawn();
-        info!("Registered in Windows Startup and started Nexus Agent background worker with Taskbar Tray Icon");
+        // 3. Launch background worker immediately with detached process flags
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x00000008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let _ = Command::new(&current_exe)
+            .args(["run", "--foreground"])
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        info!("Registered in Windows Startup and started detached Nexus Agent daemon with Taskbar Tray Icon");
         Ok(())
     }
 
