@@ -215,10 +215,12 @@ jobs:
           if [ -f ./nexus-agent-linux-amd64 ]; then
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-amd64
             cp ./nexus-agent-linux-amd64 public/releases/nexus-agent-linux-x86_64
-            chmod +x public/releases/nexus-agent-*
+            cp ./nexus-agent-linux-amd64 public/releases/nexus-linux-amd64
+            chmod +x public/releases/nexus*
           fi
           if [ -f ./nexus-agent-windows-amd64.exe ]; then
             cp ./nexus-agent-windows-amd64.exe public/releases/nexus-agent-windows-amd64.exe
+            cp ./nexus-agent-windows-amd64.exe public/releases/nexus-windows-amd64.exe
           fi
           chmod -R a+rX public frontend/dist
           ls -lh ./personal-site-rust

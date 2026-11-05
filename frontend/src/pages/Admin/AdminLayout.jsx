@@ -56,7 +56,7 @@ export default function AdminLayout({
       {/* ─── STICKY GLASSMORPHIC HEADER ─── */}
       <header className="sticky top-0 z-40 bg-[#070709]/80 backdrop-blur-2xl border-b border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 h-20 flex items-center justify-between gap-4">
-          
+
           {/* Brand & Monogram */}
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <a
@@ -152,11 +152,10 @@ export default function AdminLayout({
               <button
                 key={tab.id}
                 onClick={() => handleTabSelect(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer relative ${
-                  active
-                    ? 'bg-[#89ff00]/15 text-[#89ff00] border border-[#89ff00]/30 shadow-[0_0_20px_rgba(137,255,0,0.15)] font-semibold'
-                    : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer relative ${active
+                  ? 'bg-[#89ff00]/15 text-[#89ff00] border border-[#89ff00]/30 shadow-[0_0_20px_rgba(137,255,0,0.15)] font-semibold'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
+                  }`}
               >
                 <span className={`text-[10px] ${active ? 'text-[#89ff00]' : 'text-neutral-500'}`}>
                   {tab.number}
@@ -165,9 +164,8 @@ export default function AdminLayout({
                 <span>{tab.label}</span>
                 {typeof tab.badge === 'number' && tab.badge > 0 && (
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      active ? 'bg-[#89ff00] text-black' : 'bg-white/10 text-white'
-                    }`}
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${active ? 'bg-[#89ff00] text-black' : 'bg-white/10 text-white'
+                      }`}
                   >
                     {tab.badge}
                   </span>
@@ -216,17 +214,15 @@ export default function AdminLayout({
                     <button
                       key={tab.id}
                       onClick={() => handleTabSelect(tab.id)}
-                      className={`flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                        active
-                          ? 'bg-[#89ff00]/15 border-[#89ff00]/40 text-[#89ff00]'
-                          : 'bg-white/5 border-white/5 text-neutral-300 hover:bg-white/10'
-                      }`}
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${active
+                        ? 'bg-[#89ff00]/15 border-[#89ff00]/40 text-[#89ff00]'
+                        : 'bg-white/5 border-white/5 text-neutral-300 hover:bg-white/10'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`p-2 rounded-xl ${
-                            active ? 'bg-[#89ff00]/20 text-[#89ff00]' : 'bg-white/5 text-neutral-400'
-                          }`}
+                          className={`p-2 rounded-xl ${active ? 'bg-[#89ff00]/20 text-[#89ff00]' : 'bg-white/5 text-neutral-400'
+                            }`}
                         >
                           <Icon className="w-4 h-4" />
                         </div>

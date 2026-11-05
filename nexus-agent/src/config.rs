@@ -133,7 +133,9 @@ impl AgentConfig {
     }
 
     pub fn is_feature_enabled(&self, feature: &str) -> bool {
-        self.features.get(feature).copied().unwrap_or(false)
+        // Telemetry, AI bridge, GPU monitor, and auto update are default-ON features
+        let default_val = matches!(feature, "telemetry" | "gpu" | "ai_bridge" | "auto_update");
+        self.features.get(feature).copied().unwrap_or(default_val)
     }
 }
 

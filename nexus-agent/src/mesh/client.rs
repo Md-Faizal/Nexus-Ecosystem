@@ -92,6 +92,13 @@ impl MeshClient {
             }
         }
 
+        // Send Initial Telemetry Report Immediately on Connect (Zero-Delay)
+        {
+            let mut guard = self.modules.lock().await;
+            let initial_telemetry = guard.gather_full_telemetry(&self.config).await;
+            let _ = self.send_frame(&mut ws_sink, MeshMessage::TelemetryReport(Box::new(initial_telemetry))).await;
+        }
+
         // Background Telemetry & Heartbeat loop
         let telemetry_tx = outbox_tx.clone();
         let modules_clone = self.modules.clone();

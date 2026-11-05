@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Ultra-lightweight, resilient distributed fleet telemetry & remote management agent"
 
+[[bin]]
+name = "nexus"
+path = "src/main.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }

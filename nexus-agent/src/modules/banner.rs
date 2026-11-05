@@ -1,24 +1,27 @@
 pub fn print_banner() {
-    // Stylized ASCII art inspired by Gemini and Claude Code
-    println!("\x1b[38;2;255;110;180m██████╗ \x1b[38;2;230;120;210m███╗   ██╗\x1b[38;2;190;140;240m███████╗\x1b[38;2;150;160;255m██╗   ██╗\x1b[38;2;100;190;255m███████╗    \x1b[38;2;70;220;255m███████╗\x1b[38;2;80;235;235m██╗     \x1b[38;2;100;245;210m███████╗\x1b[38;2;120;250;180m███████╗\x1b[38;2;140;255;150m████████╗\x1b[0m");
-    println!("\x1b[38;2;255;110;180m██╔══██╗\x1b[38;2;230;120;210m████╗  ██║\x1b[38;2;190;140;240m██╔════╝\x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m██╔════╝    \x1b[38;2;70;220;255m██╔════╝\x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m██╔════╝\x1b[38;2;120;250;180m██╔════╝\x1b[38;2;140;255;150m╚══██╔══╝\x1b[0m");
-    println!("\x1b[38;2;255;110;180m██║  ██║\x1b[38;2;230;120;210m██╔██╗ ██║\x1b[38;2;190;140;240m█████╗  \x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m███████╗    \x1b[38;2;70;220;255m█████╗  \x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m█████╗  \x1b[38;2;120;250;180m█████╗     \x1b[38;2;140;255;150m██║   \x1b[0m");
-    println!("\x1b[38;2;255;110;180m██║  ██║\x1b[38;2;230;120;210m██║╚██╗██║\x1b[38;2;190;140;240m██╔══╝  \x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m╚════██║    \x1b[38;2;70;220;255m██╔══╝  \x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m██╔══╝  \x1b[38;2;120;250;180m██╔══╝     \x1b[38;2;140;255;150m██║   \x1b[0m");
-    println!("\x1b[38;2;255;110;180m██████╔╝\x1b[38;2;230;120;210m██║ ╚████║\x1b[38;2;190;140;240m███████╗\x1b[38;2;150;160;255m╚██████╔╝\x1b[38;2;100;190;255m███████║    \x1b[38;2;70;220;255m██║     \x1b[38;2;80;235;235m███████╗\x1b[38;2;100;245;210m███████╗\x1b[38;2;120;250;180m███████╗   \x1b[38;2;140;255;150m██║   \x1b[0m");
-    println!("\x1b[38;2;255;110;180m╚═════╝ \x1b[38;2;230;120;210m╚═╝  ╚═══╝\x1b[38;2;190;140;240m╚══════╝ \x1b[38;2;150;160;255m╚═════╝ \x1b[38;2;100;190;255m╚══════╝    \x1b[38;2;70;220;255m╚═╝     \x1b[38;2;80;235;235m╚══════╝\x1b[38;2;100;245;210m╚══════╝\x1b[38;2;120;250;180m╚══════╝   \x1b[38;2;140;255;150m╚═╝   \x1b[0m");
+    // Stylized Retro ASCII Gradient: N E X U S   F L E E T
+    println!("\x1b[38;2;255;110;180m███╗   ██╗\x1b[38;2;230;120;210m███████╗\x1b[38;2;190;140;240m██╗  ██╗\x1b[38;2;150;160;255m██╗   ██╗\x1b[38;2;100;190;255m███████╗    \x1b[38;2;70;220;255m███████╗\x1b[38;2;80;235;235m██╗     \x1b[38;2;100;245;210m███████╗\x1b[38;2;120;250;180m███████╗\x1b[38;2;140;255;150m████████╗\x1b[0m");
+    println!("\x1b[38;2;255;110;180m████╗  ██║\x1b[38;2;230;120;210m██╔════╝\x1b[38;2;190;140;240m╚██╗██╔╝\x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m██╔════╝    \x1b[38;2;70;220;255m██╔════╝\x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m██╔════╝\x1b[38;2;120;250;180m██╔════╝\x1b[38;2;140;255;150m╚══██╔══╝\x1b[0m");
+    println!("\x1b[38;2;255;110;180m██╔██╗ ██║\x1b[38;2;230;120;210m█████╗  \x1b[38;2;190;140;240m ╚███╔╝ \x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m███████╗    \x1b[38;2;70;220;255m█████╗  \x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m█████╗  \x1b[38;2;120;250;180m█████╗     \x1b[38;2;140;255;150m██║   \x1b[0m");
+    println!("\x1b[38;2;255;110;180m██║╚██╗██║\x1b[38;2;230;120;210m██╔══╝  \x1b[38;2;190;140;240m ██╔██╗ \x1b[38;2;150;160;255m██║   ██║\x1b[38;2;100;190;255m╚════██║    \x1b[38;2;70;220;255m██╔══╝  \x1b[38;2;80;235;235m██║     \x1b[38;2;100;245;210m██╔══╝  \x1b[38;2;120;250;180m██╔══╝     \x1b[38;2;140;255;150m██║   \x1b[0m");
+    println!("\x1b[38;2;255;110;180m██║ ╚████║\x1b[38;2;230;120;210m███████╗\x1b[38;2;190;140;240m██╔╝ ██╗\x1b[38;2;150;160;255m╚██████╔╝\x1b[38;2;100;190;255m███████║    \x1b[38;2;70;220;255m██║     \x1b[38;2;80;235;235m███████╗\x1b[38;2;100;245;210m███████╗\x1b[38;2;120;250;180m███████╗   \x1b[38;2;140;255;150m██║   \x1b[0m");
+    println!("\x1b[38;2;255;110;180m╚═╝  ╚═══╝\x1b[38;2;230;120;210m╚══════╝\x1b[38;2;190;140;240m╚═╝  ╚═╝\x1b[38;2;150;160;255m ╚═════╝ \x1b[38;2;100;190;255m╚══════╝    \x1b[38;2;70;220;255m╚═╝     \x1b[38;2;80;235;235m╚══════╝\x1b[38;2;100;245;210m╚══════╝\x1b[38;2;120;250;180m╚══════╝   \x1b[38;2;140;255;150m╚═╝   \x1b[0m");
     println!();
 }
 
 pub fn print_welcome_box() {
     println!("\x1b[38;2;255;140;90m╭─────────────────────────────────────────────────────────────────────────────╮\x1b[0m");
-    println!("\x1b[38;2;255;140;90m│\x1b[0m \x1b[1;37m* Welcome to Nexus Fleet AI Terminal (Research & Remote Node Preview)        \x1b[0m\x1b[38;2;255;140;90m│\x1b[0m");
+    println!("\x1b[38;2;255;140;90m│\x1b[0m \x1b[1;37m* Nexus Fleet Console — Unified Cluster & Workstation Management             \x1b[0m\x1b[38;2;255;140;90m│\x1b[0m");
     println!("\x1b[38;2;255;140;90m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
     println!();
-    println!("\x1b[1;37mTips for getting started:\x1b[0m");
-    println!("  1. Ask questions, stream local inference, or inspect fleet compute nodes.");
-    println!("  2. Pre-load / unload AI model weights to directly control RAM and VRAM.");
-    println!("  3. Type \x1b[38;2;255;110;180m/help\x1b[0m or \x1b[38;2;255;110;180m/?\x1b[0m for interactive manual & full slash command catalog.");
-    println!("  4. Type \x1b[38;2;255;110;180m/bye\x1b[0m or \x1b[38;2;255;110;180m/exit\x1b[0m to quit the session.");
+    println!("\x1b[1;37mCore Operations & Commands:\x1b[0m");
+    println!("  1. \x1b[1;32mnexus run\x1b[0m                 Start telemetry daemon, WebSocket mesh & system tray");
+    println!("  2. \x1b[1;32mnexus status\x1b[0m              Live node health, CPU/RAM, and daemon status");
+    println!("  3. \x1b[1;32mnexus cluster\x1b[0m             Inspect 3-VM cluster (my-mac, cos, pro) & edge nodes");
+    println!("  4. \x1b[1;32mnexus services\x1b[0m            View running containers, web engines, and games");
+    println!("  5. \x1b[1;32mnexus elevate\x1b[0m             Upgrade to Administrator / Root background service");
+    println!("  6. \x1b[1;32mnexus chat\x1b[0m                Interactive local LLM chat and slash console");
+    println!("  7. \x1b[1;32mnexus manual\x1b[0m              Display comprehensive operator reference manual");
     println!();
 }
 
@@ -39,7 +42,6 @@ pub fn print_status_box(node_id: &str, hostname: &str, ai_endpoint: &str, is_onl
 pub fn print_prompt_box(active_model: &str, vram_info: &str) {
     println!("\x1b[90mActive Model: \x1b[1;36m{}\x1b[0m \x1b[90m| {}\x1b[0m", active_model, vram_info);
     println!("\x1b[38;2;80;200;220m╭─────────────────────────────────────────────────────────────────────────────╮\x1b[0m");
-    println!("\x1b[38;2;80;200;220m│\x1b[0m  \x1b[1;35m>\x1b[0m \x1b[90mType your prompt or /help, /models, /ps, /load, /unload, /bye...\x1b[0m       \x1b[38;2;80;200;220m│\x1b[0m");
+    println!("\x1b[38;2;80;200;220m│\x1b[0m  \x1b[1;35m>\x1b[0m \x1b[90mType your prompt or /cluster, /services, /ps, /load, /unload, /bye...\x1b[0m    \x1b[38;2;80;200;220m│\x1b[0m");
     println!("\x1b[38;2;80;200;220m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
 }
-

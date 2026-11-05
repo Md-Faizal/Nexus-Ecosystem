@@ -11,10 +11,11 @@ use service::ServiceManager;
 use tracing::{error, info};
 
 #[derive(Parser)]
-#[command(name = "nexus-agent")]
+#[command(name = "nexus")]
+#[command(bin_name = "nexus")]
 #[command(author = "Faizal")]
 #[command(version = "0.1.0")]
-#[command(about = "Ultra-lightweight, resilient fleet telemetry & remote management agent", long_about = None)]
+#[command(about = "Unified distributed fleet telemetry & remote cluster operations console", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -27,6 +28,10 @@ struct Cli {
     #[arg(long)]
     ai_endpoint: Option<String>,
 
+    /// Optional Admin PIN for cluster commands (or set NEXUS_ADMIN_PIN / FAIZAL_ADMIN_PIN env var)
+    #[arg(long)]
+    pin: Option<String>,
+
     /// Run in foreground directly (default when no command provided)
     #[arg(long)]
     run: bool,
@@ -34,43 +39,53 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the agent in the foreground or as a background worker
+    /// [CRITICAL] Start background telemetry agent, WebSocket mesh tunnel & taskbar tray
     Run,
 
-    /// Manage native OS background service (systemd, Windows Service, launchd)
+    /// Show local node identity, live hardware telemetry, and daemon status
+    Status,
+
+    /// Upgrade to Administrator / Root background service (triggers UAC / sudo)
+    Elevate,
+
+    /// Inspect 3-VM cluster (my-mac, cos, pro) and edge workstations
+    Cluster,
+
+    /// Inspect cluster services, docker containers, and game servers
+    Services,
+
+    /// 1-Click restart a service across the cluster (e.g. 'nexus restart personal-site-rust')
+    Restart {
+        /// Name or ID of service to restart
+        service: String,
+    },
+
+    /// Start a service across the cluster
+    Start {
+        /// Name or ID of service to start
+        service: String,
+    },
+
+    /// Stop a service across the cluster
+    Stop {
+        /// Name or ID of service to stop
+        service: String,
+    },
+
+    /// View 24h cluster error logs and system health digest
+    Health,
+
+    /// Manage native OS background service (systemd, Windows Startup, launchd)
     Service {
         #[command(subcommand)]
         action: ServiceCommands,
     },
-
-    /// Trigger silent self-update check
-    Update {
-        #[arg(long, default_value = "https://faizal.uk/releases/latest.json")]
-        manifest_url: String,
-    },
-
-    /// Show local node identity, status, and configured hubs
-    Status,
 
     /// Chat interactively with local AI model in terminal (Claude Code / Gemini CLI style)
     Chat {
         /// Optional model to use (default: llama3.2:3b or first available)
         model: Option<String>,
     },
-
-    /// Run single prompt through local AI model and stream output to terminal
-    Ai {
-        /// Prompt to execute
-        #[arg(required = true)]
-        prompt: Vec<String>,
-
-        /// Optional model override
-        #[arg(short, long)]
-        model: Option<String>,
-    },
-
-    /// List all local AI models available on Ollama
-    Models,
 
     /// List models currently active in VRAM / RAM
     Ps,
@@ -90,8 +105,28 @@ enum Commands {
         model: String,
     },
 
+    /// Run single prompt through local AI model and stream output to terminal
+    Ai {
+        /// Prompt to execute
+        #[arg(required = true)]
+        prompt: Vec<String>,
+
+        /// Optional model override
+        #[arg(short, long)]
+        model: Option<String>,
+    },
+
+    /// List all local AI models available on Ollama
+    Models,
+
     /// Display comprehensive manual & operator guide
     Manual,
+
+    /// Trigger silent self-update check
+    Update {
+        #[arg(long, default_value = "https://faizal.uk/releases/latest.json")]
+        manifest_url: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -107,6 +142,17 @@ enum ServiceCommands {
         #[arg(long)]
         user: bool,
     },
+}
+
+fn is_daemon_running() -> bool {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    let current_pid = sysinfo::get_current_pid().ok();
+    sys.processes().values().any(|p| {
+        let name = p.name().to_string_lossy().to_lowercase();
+        (name.contains("nexus-agent") || name == "nexus.exe" || name == "nexus")
+            && Some(p.pid()) != current_pid
+    })
 }
 
 #[tokio::main]
@@ -133,7 +179,80 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.ai_endpoint = ai;
     }
 
+    if let Some(ref p) = cli.pin {
+        config.token = Some(p.clone());
+        let _ = config.save();
+    }
+
+    let primary_hub = config.hubs.first().cloned().unwrap_or_else(|| "wss://faizal.uk/api/mesh/ws".into());
+    let admin_pin = cli.pin.clone()
+        .or_else(|| std::env::var("NEXUS_ADMIN_PIN").ok())
+        .or_else(|| std::env::var("FAIZAL_ADMIN_PIN").ok())
+        .or_else(|| config.token.clone());
+
     match cli.command {
+        Some(Commands::Run) => {
+            // Hide background console window when running as daemon
+            modules::tray::hide_console_window();
+
+            // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
+            modules::tray::start_system_tray(config.node_id.clone());
+
+            let mut client = MeshClient::new(config);
+            client.run().await;
+        }
+
+        Some(Commands::Elevate) => {
+            println!("\x1b[1;36m=== Nexus Elevation: Requesting Administrator / Root Privileges ===\x1b[0m");
+            #[cfg(target_os = "windows")]
+            {
+                println!("Triggering Windows User Account Control (UAC) elevation prompt...");
+                let script = "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"irm https://faizal.uk/install.ps1 | iex\"'";
+                let status = std::process::Command::new("powershell")
+                    .args(["-NoProfile", "-Command", script])
+                    .status();
+                match status {
+                    Ok(s) if s.success() => println!("\x1b[32mElevation prompt launched! Complete the prompt to register system service.\x1b[0m"),
+                    _ => eprintln!("\x1b[31mFailed to launch UAC elevation prompt.\x1b[0m"),
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                println!("Requesting sudo elevation for systemd service installation...");
+                let status = std::process::Command::new("sudo")
+                    .args(["sh", "-c", "curl -fsSL https://faizal.uk/install.sh | bash"])
+                    .status();
+                match status {
+                    Ok(s) if s.success() => println!("\x1b[32mSuccessfully elevated and installed root systemd service!\x1b[0m"),
+                    _ => eprintln!("\x1b[31mElevation failed or sudo cancelled.\x1b[0m"),
+                }
+            }
+        }
+
+        Some(Commands::Cluster) => {
+            modules::cluster_ops::ClusterOps::print_cluster_nodes(&primary_hub, admin_pin.as_deref()).await;
+        }
+
+        Some(Commands::Services) => {
+            modules::cluster_ops::ClusterOps::print_services(&primary_hub, admin_pin.as_deref()).await;
+        }
+
+        Some(Commands::Restart { service }) => {
+            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "restart").await;
+        }
+
+        Some(Commands::Start { service }) => {
+            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "start").await;
+        }
+
+        Some(Commands::Stop { service }) => {
+            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "stop").await;
+        }
+
+        Some(Commands::Health) => {
+            modules::cluster_ops::ClusterOps::print_health_report(&primary_hub, admin_pin.as_deref()).await;
+        }
+
         Some(Commands::Service { action }) => match action {
             ServiceCommands::Install { user } => {
                 info!("Installing Nexus Agent as an automatic background service...");
@@ -144,11 +263,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServiceManager::uninstall(user)?;
             }
         },
-        Some(Commands::Update { manifest_url }) => {
-            info!("Checking for updates at: {}", manifest_url);
-            // Quick CLI trigger for manual update check
-            println!("Node is up to date (version: {}).", env!("CARGO_PKG_VERSION"));
-        }
+
         Some(Commands::Status) => {
             modules::banner::print_banner();
 
@@ -164,10 +279,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
             let ai_info = ai_bridge.check_models().await;
             let is_online = ai_info.status.contains("ready");
+            let daemon_live = is_daemon_running();
 
             modules::banner::print_status_box(&config.node_id, &config.hostname, &config.ai_endpoint, is_online);
 
-            println!("\x1b[1;36m╭─ HARDWARE METRICS ──────────────────────────────────────────────────────────╮\x1b[0m");
+            println!("\x1b[1;36m╭─ FLEET TELEMETRY & DAEMON STATUS ───────────────────────────────────────────╮\x1b[0m");
+            let daemon_tag = if daemon_live {
+                "\x1b[1;32m● RUNNING (Telemetry Streaming Active)\x1b[0m"
+            } else {
+                "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m"
+            };
+            println!("│  \x1b[1mDaemon State:\x1b[0m {}", daemon_tag);
             println!("│  \x1b[1mCPU:\x1b[0m          {} ({} cores)", cpu_model, cpu_cores);
             println!("│  \x1b[1mRAM:\x1b[0m          {:.2} GB / {:.2} GB ({:.1}%)", used_ram_gb, total_ram_gb, ram_pct);
             if let Some(g) = gpus {
@@ -198,46 +320,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("\x1b[1;35m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
             println!();
 
-            println!("\x1b[1;33m╭─ MESH NETWORK & HUBS ───────────────────────────────────────────────────────╮\x1b[0m");
-            println!("│  \x1b[1mHubs:\x1b[0m         {:?}", config.hubs);
-            println!("│  \x1b[1mAdmin Panel:\x1b[0m  \x1b[4;36mhttps://faizal.uk/admin.html\x1b[0m");
-            println!("\x1b[1;33m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
-            println!();
-
-            println!("\x1b[1;32m╭─ COMMON COMMANDS ───────────────────────────────────────────────────────────╮\x1b[0m");
-            println!("│  \x1b[1;32mnexus-agent chat\x1b[0m               Interactive Gemini/Claude REPL");
-            println!("│  \x1b[1;32mnexus-agent ps\x1b[0m                 List models actively residing in VRAM");
-            println!("│  \x1b[1;32mnexus-agent load <model>\x1b[0m       Pre-warm weights into VRAM");
-            println!("│  \x1b[1;32mnexus-agent unload <model>\x1b[0m     Instantly evict model and free memory");
-            println!("│  \x1b[1;32mnexus-agent manual\x1b[0m             Display comprehensive operator guide");
+            println!("\x1b[1;32m╭─ TOP OPERATOR COMMANDS ─────────────────────────────────────────────────────╮\x1b[0m");
+            println!("│  \x1b[1;32mnexus run\x1b[0m                   Start background telemetry daemon & tray icon");
+            println!("│  \x1b[1;32mnexus elevate\x1b[0m               Upgrade to Administrator / Root background service");
+            println!("│  \x1b[1;32mnexus cluster\x1b[0m               Inspect 3-VM cluster (my-mac, cos, pro)");
+            println!("│  \x1b[1;32mnexus services\x1b[0m              Inspect running containers, web engines & games");
+            println!("│  \x1b[1;32mnexus restart <service>\x1b[0m     Trigger 1-click restart on cluster");
+            println!("│  \x1b[1;32mnexus chat\x1b[0m                  Start interactive AI session with slash console");
+            println!("│  \x1b[1;32mnexus ps\x1b[0m                    List models actively residing in VRAM");
+            println!("│  \x1b[1;32mnexus manual\x1b[0m                Display comprehensive operator reference manual");
             println!("\x1b[1;32m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
         }
+
         Some(Commands::Chat { model }) => {
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
-            ai_bridge.run_interactive_repl(model).await?;
+            ai_bridge.run_interactive_repl(model, Some(primary_hub), admin_pin).await?;
         }
-        Some(Commands::Ai { prompt, model }) => {
-            let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
-            let models_info = ai_bridge.check_models().await;
-            let selected_model = model
-                .or_else(|| models_info.models.first().cloned())
-                .unwrap_or_else(|| "llama3.2:3b".to_string());
-            let prompt_text = prompt.join(" ");
-            println!("\x1b[90m[Model: {}]\x1b[0m", selected_model);
-            ai_bridge.stream_to_stdout(&selected_model, &prompt_text, None, None).await?;
-        }
-        Some(Commands::Models) => {
-            let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
-            let info = ai_bridge.check_models().await;
-            println!("=== Local AI Models (Ollama at {}) ===", config.ai_endpoint);
-            if info.models.is_empty() {
-                println!("No models found. Try running: ollama pull llama3.2:3b");
-            } else {
-                for m in info.models {
-                    println!("  - {}", m);
-                }
-            }
-        }
+
         Some(Commands::Ps) => {
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
             let procs = ai_bridge.poll_loaded_models().await;
@@ -253,6 +352,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+
         Some(Commands::Load { model, time }) => {
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
             print!("Pre-loading '{}' into VRAM (keep_alive: {})... ", model, time);
@@ -261,6 +361,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => println!("\x1b[31mFailed: {}\x1b[0m", e),
             }
         }
+
         Some(Commands::Unload { model }) => {
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
             print!("Unloading '{}' from VRAM... ", model);
@@ -269,19 +370,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => println!("\x1b[31mFailed: {}\x1b[0m", e),
             }
         }
+
+        Some(Commands::Ai { prompt, model }) => {
+            let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
+            let models_info = ai_bridge.check_models().await;
+            let selected_model = model
+                .or_else(|| models_info.models.first().cloned())
+                .unwrap_or_else(|| "llama3.2:3b".to_string());
+            let prompt_text = prompt.join(" ");
+            println!("\x1b[90m[Model: {}]\x1b[0m", selected_model);
+            ai_bridge.stream_to_stdout(&selected_model, &prompt_text, None, None).await?;
+        }
+
+        Some(Commands::Models) => {
+            let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
+            let info = ai_bridge.check_models().await;
+            println!("=== Local AI Models (Ollama at {}) ===", config.ai_endpoint);
+            if info.models.is_empty() {
+                println!("No models found. Try running: ollama pull llama3.2:3b");
+            } else {
+                for m in info.models {
+                    println!("  - {}", m);
+                }
+            }
+        }
+
         Some(Commands::Manual) => {
             modules::helpbook::print_manual();
         }
-        Some(Commands::Run) => {
-            // Hide background console window when running as daemon
-            modules::tray::hide_console_window();
 
-            // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
-            modules::tray::start_system_tray(config.node_id.clone());
-
-            let mut client = MeshClient::new(config);
-            client.run().await;
+        Some(Commands::Update { manifest_url }) => {
+            info!("Checking for updates at: {}", manifest_url);
+            println!("Node is up to date (version: {}).", env!("CARGO_PKG_VERSION"));
         }
+
         None => {
             if cli.run {
                 modules::tray::hide_console_window();
@@ -302,23 +424,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
                 let ai_info = ai_bridge.check_models().await;
                 let is_online = ai_info.status.contains("ready");
+                let daemon_live = is_daemon_running();
 
                 modules::banner::print_status_box(&config.node_id, &config.hostname, &config.ai_endpoint, is_online);
 
+                let daemon_tag = if daemon_live {
+                    "\x1b[1;32m● RUNNING (Telemetry Streaming Active)\x1b[0m"
+                } else {
+                    "\x1b[1;31m○ NOT RUNNING\x1b[0m \x1b[90m(Run '\x1b[1;32mnexus run\x1b[0m\x1b[90m' to start)\x1b[0m"
+                };
+                println!("\x1b[1;37mDaemon State:\x1b[0m   {}", daemon_tag);
                 println!("\x1b[1;37mSystem:\x1b[0m         {} ({}) | RAM: {:.1}/{:.1} GB ({:.0}%)", cpu_model, cpu_cores, used_ram_gb, total_ram_gb, ram_pct);
                 if !ai_info.models.is_empty() {
                     println!("\x1b[1;37mAI Models:\x1b[0m      \x1b[32m{}\x1b[0m", ai_info.models.join(", "));
                 }
                 println!();
 
-                println!("\x1b[1;32mQuick CLI Commands:\x1b[0m");
-                println!("  \x1b[1;36mnexus-agent chat\x1b[0m               Start interactive Gemini/Claude-styled AI chat");
-                println!("  \x1b[1;36mnexus-agent ai <prompt>\x1b[0m        Stream one-off prompt directly to stdout");
-                println!("  \x1b[1;36mnexus-agent ps\x1b[0m                 List models currently in GPU VRAM");
-                println!("  \x1b[1;36mnexus-agent load <model>\x1b[0m       Pre-warm model into VRAM (avoid cold starts)");
-                println!("  \x1b[1;36mnexus-agent unload <model>\x1b[0m     Instantly evict model to free VRAM");
-                println!("  \x1b[1;36mnexus-agent status\x1b[0m             Display comprehensive hardware dashboard");
-                println!("  \x1b[1;36mnexus-agent manual\x1b[0m             Display full operator reference manual");
+                println!("\x1b[1;32mEssential Fleet Commands:\x1b[0m");
+                println!("  \x1b[1;36mnexus run\x1b[0m                      \x1b[1m[CRITICAL]\x1b[0m Start background telemetry daemon & tray");
+                println!("  \x1b[1;36mnexus status\x1b[0m                   Display live telemetry dashboard & metrics");
+                println!("  \x1b[1;36mnexus elevate\x1b[0m                  Upgrade to Administrator / Root background service");
+                println!("  \x1b[1;36mnexus cluster\x1b[0m                  Inspect 3-VM cluster (my-mac, cos, pro)");
+                println!("  \x1b[1;36mnexus services\x1b[0m                 View active containers, web engines & games");
+                println!("  \x1b[1;36mnexus restart <service>\x1b[0m        Trigger 1-click remote restart across cluster");
+                println!("  \x1b[1;36mnexus chat\x1b[0m                     Start interactive AI chat & slash console");
+                println!("  \x1b[1;36mnexus manual\x1b[0m                   Display full operator reference manual");
                 println!();
             }
         }
@@ -326,4 +456,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

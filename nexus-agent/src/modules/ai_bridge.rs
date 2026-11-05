@@ -338,6 +338,8 @@ impl AiBridge {
     pub async fn run_interactive_repl(
         &self,
         model_override: Option<String>,
+        hub_url: Option<String>,
+        pin: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         use std::io::{self, BufRead, Write};
 
@@ -348,6 +350,7 @@ impl AiBridge {
 
         let mut system_prompt: Option<String> = None;
         let mut temperature: Option<f32> = Some(0.7);
+        let hub = hub_url.unwrap_or_else(|| "wss://faizal.uk/api/mesh/ws".into());
 
         // Print Retro ASCII Gradient Banner & Welcome Box
         banner::print_banner();
@@ -389,6 +392,31 @@ impl AiBridge {
 
             if trimmed == "/help" || trimmed == "/?" {
                 helpbook::print_manual();
+                continue;
+            }
+
+            if trimmed == "/cluster" || trimmed == "/nodes" {
+                crate::modules::cluster_ops::ClusterOps::print_cluster_nodes(&hub, pin.as_deref()).await;
+                println!();
+                continue;
+            }
+
+            if trimmed == "/services" || trimmed == "/apps" || trimmed == "/games" {
+                crate::modules::cluster_ops::ClusterOps::print_services(&hub, pin.as_deref()).await;
+                println!();
+                continue;
+            }
+
+            if trimmed.starts_with("/restart ") {
+                let s_id = trimmed.trim_start_matches("/restart ").trim();
+                crate::modules::cluster_ops::ClusterOps::control_service(&hub, pin.as_deref(), s_id, "restart").await;
+                println!();
+                continue;
+            }
+
+            if trimmed == "/health" {
+                crate::modules::cluster_ops::ClusterOps::print_health_report(&hub, pin.as_deref()).await;
+                println!();
                 continue;
             }
 
