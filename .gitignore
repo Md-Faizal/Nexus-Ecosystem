@@ -4,12 +4,14 @@ package-lock.json
 
 # Rust build artifacts
 target/
-backend-rust/target/
-nexus-agent/target/
+services/*/target/
+apps/*/target/
 personal-site-rust
 
 # Production builds
 dist/
+apps/web/dist/
+apps/web/dist-admin/
 frontend/dist/
 frontend/dist-admin/
 
@@ -42,18 +44,16 @@ __pycache__/
 # Android build artifacts & environment
 .gradle/
 build/
-android/**/build/
-android/**/.gradle/
-android/**/.kotlin/
-android/**/b/
-android/**/build_out/
-android/**/temp_mappls/
-android/**/local.properties
-android/**/.cxx/
-android/**/.idea/
-android/**/*.apk
-android/**/*.aab
-android/**/*.aar
-android/**/captures/
-
-
+apps/mobile/**/build/
+apps/mobile/**/.gradle/
+apps/mobile/**/.kotlin/
+apps/mobile/**/b/
+apps/mobile/**/build_out/
+apps/mobile/**/temp_mappls/
+apps/mobile/**/local.properties
+apps/mobile/**/.cxx/
+apps/mobile/**/.idea/
+apps/mobile/**/*.apk
+apps/mobile/**/*.aab
+apps/mobile/**/*.aar
+apps/mobile/**/captures/

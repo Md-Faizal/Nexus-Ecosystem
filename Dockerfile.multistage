@@ -15,11 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Cache dependencies first
-COPY backend-rust/Cargo.toml backend-rust/Cargo.lock ./
+COPY services/core-hub/Cargo.toml services/core-hub/Cargo.lock ./
 RUN mkdir src && echo 'fn main(){}' > src/main.rs && cargo build --release --locked --jobs 1
 
 # Copy actual source and build
-COPY backend-rust/src ./src
+COPY services/core-hub/src ./src
 
 # Force rebuild of actual binary
 RUN touch src/main.rs && cargo build --release --locked --jobs 1
@@ -38,7 +38,7 @@ COPY --from=builder /build/target/release/personal-site-rust /app/personal-site-
 RUN chmod +x /app/personal-site-rust
 
 # Copy static frontend build & public assets
-COPY frontend/dist /app/frontend/dist
+COPY apps/web/dist /app/frontend/dist
 COPY public /app/public
 
 ENV PORT=3002 \

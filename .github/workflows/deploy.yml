@@ -15,7 +15,10 @@ on:
       - '**.md'
       - '.vscode/**'
       - '.editorconfig'
-      - 'nexus-agent/**'
+      - 'apps/desktop/**'
+      - 'apps/mobile/**'
+      - 'assets/design/**'
+      - 'archive/**'
       - 'public/releases/**'
 
   workflow_dispatch:
@@ -73,19 +76,19 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          cache-dependency-path: 'apps/web/package-lock.json'
 
       - name: "⚡ Install & Build React Frontend and Admin Console"
         run: |
-          cd frontend
+          cd apps/web
           npm ci --prefer-offline
           # Build Main SPA
           npm run build
           # Build Standalone Admin Console
           npx vite build -c vite.admin.config.js
           # Synchronize dist-admin into public and dist
-          cp dist-admin/admin.html ../public/admin.html
-          cp -r dist-admin/assets/* ../public/assets/
+          cp dist-admin/admin.html ../../public/admin.html
+          cp -r dist-admin/assets/* ../../public/assets/
           cp dist-admin/admin.html dist/admin.html
           cp -r dist-admin/assets/* dist/assets/
           cd ..
@@ -94,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: frontend/dist/
+          path: apps/web/dist/
           retention-days: 1
 
       - name: "📦 Upload Public Assets Artifact"
@@ -118,20 +121,19 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            backend-rust -> target
-            nexus-agent -> target
+            services/core-hub -> target
+            apps/desktop -> target
 
       - name: "🚀 Compile & Strip Release Binary"
         run: |
-          cd backend-rust
+          cd services/core-hub
           cargo build --release
           strip target/release/personal-site-rust
           cd ..
-          cp backend-rust/target/release/personal-site-rust ./personal-site-rust
+          cp services/core-hub/target/release/personal-site-rust ./personal-site-rust
           chmod +x ./personal-site-rust
           ls -lh ./personal-site-rust
-
-          cd nexus-agent
+          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Auto-incrementing Nexus Agent version to $VERSION"
           sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
@@ -144,8 +146,8 @@ jobs:
             cp target/release/nexus-agent target/release/nexus
           fi
           cd ..
-          cp nexus-agent/target/release/nexus-agent ./nexus-agent-linux-amd64
-          cp nexus-agent/target/release/nexus ./nexus-linux-amd64
+          cp apps/desktop/target/release/nexus-agent ./nexus-agent-linux-amd64
+          cp apps/desktop/target/release/nexus ./nexus-linux-amd64
           chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
           ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
 
@@ -172,11 +174,11 @@ jobs:
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "nexus-agent -> target"
+          workspaces: "apps/desktop -> target"
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          cd nexus-agent
+          cd apps/desktop
           $Version = "0.1.${{ github.run_number }}"
           Write-Host "Auto-incrementing Windows Nexus Agent version to $Version"
           (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content Cargo.toml
@@ -187,8 +189,8 @@ jobs:
             cp target/release/nexus-agent.exe target/release/nexus.exe
           }
           cd ..
-          cp nexus-agent/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
-          cp nexus-agent/target/release/nexus.exe ./nexus-windows-amd64.exe
+          cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
+          cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
 
       - name: "📦 Upload Windows Agent Binary Artifact"
         uses: actions/upload-artifact@v4
@@ -214,11 +216,11 @@ jobs:
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "nexus-agent -> target"
+          workspaces: "apps/desktop -> target"
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          cd nexus-agent
+          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Auto-incrementing macOS Nexus Agent version to $VERSION"
           sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
@@ -229,10 +231,10 @@ jobs:
             target/x86_64-apple-darwin/release/nexus
           strip target/release/nexus-universal
           cd ..
-          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-arm64
-          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-amd64
-          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-arm64
-          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-amd64
+          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-arm64
+          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-amd64
 
       - name: "📦 Upload macOS Agent Binary Artifact"
         uses: actions/upload-artifact@v4
@@ -369,7 +371,7 @@ jobs:
 
           # Step 2: Sync release bundle to my-mac via rsync
           echo "📦 Step 2: Syncing binary, configs, and web assets to my-mac via rsync..."
-          rsync -avz personal-site-rust Dockerfile docker-compose.yml ca-certificates.crt scripts production:"$TARGET_DIR/"
+          rsync -avz personal-site-rust Dockerfile docker-compose.yml ca-certificates.crt infra/scripts production:"$TARGET_DIR/"
           rsync -avz --delete frontend/dist/ production:"$TARGET_DIR/frontend/dist/"
           rsync -avz --delete public/ production:"$TARGET_DIR/public/"
 

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'nexus-agent/**'
+      - 'apps/desktop/**'
       - 'public/releases/**'
       - '.github/workflows/fast-cli-release.yml'
 
@@ -26,11 +26,11 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "nexus-agent -> target"
+          workspaces: "apps/desktop -> target"
 
       - name: "🚀 Compile & Strip Linux Agent"
         run: |
-          cd nexus-agent
+          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Bumping Nexus Agent to version $VERSION"
           sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
@@ -43,8 +43,8 @@ jobs:
             cp target/release/nexus-agent target/release/nexus
           fi
           cd ..
-          cp nexus-agent/target/release/nexus-agent ./nexus-agent-linux-amd64
-          cp nexus-agent/target/release/nexus ./nexus-linux-amd64
+          cp apps/desktop/target/release/nexus-agent ./nexus-agent-linux-amd64
+          cp apps/desktop/target/release/nexus ./nexus-linux-amd64
           chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
           ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
 
@@ -70,11 +70,11 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "nexus-agent -> target"
+          workspaces: "apps/desktop -> target"
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          cd nexus-agent
+          cd apps/desktop
           $Version = "0.1.${{ github.run_number }}"
           Write-Host "Bumping Windows Nexus Agent to version $Version"
           (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content Cargo.toml
@@ -85,8 +85,8 @@ jobs:
             cp target/release/nexus-agent.exe target/release/nexus.exe
           }
           cd ..
-          cp nexus-agent/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
-          cp nexus-agent/target/release/nexus.exe ./nexus-windows-amd64.exe
+          cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
+          cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
 
       - name: "📦 Upload Windows Agent Artifacts"
         uses: actions/upload-artifact@v4
@@ -112,11 +112,11 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "nexus-agent -> target"
+          workspaces: "apps/desktop -> target"
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          cd nexus-agent
+          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Bumping macOS Nexus Agent to version $VERSION"
           sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
@@ -127,10 +127,10 @@ jobs:
             target/x86_64-apple-darwin/release/nexus
           strip target/release/nexus-universal
           cd ..
-          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-arm64
-          cp nexus-agent/target/release/nexus-universal ./nexus-agent-darwin-amd64
-          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-arm64
-          cp nexus-agent/target/release/nexus-universal ./nexus-darwin-amd64
+          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-arm64
+          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-amd64
           chmod +x ./nexus*
           ls -lh ./nexus*
 

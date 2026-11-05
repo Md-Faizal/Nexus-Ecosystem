@@ -66,6 +66,8 @@ impl AppConfig {
             std::env::var("STATIC_DIR").unwrap_or_else(|_| {
                 if PathBuf::from("/app/frontend/dist").exists() {
                     "/app/frontend/dist".into()
+                } else if PathBuf::from("../../apps/web/dist").exists() {
+                    "../../apps/web/dist".into()
                 } else {
                     "../frontend/dist".into()
                 }
@@ -76,6 +78,8 @@ impl AppConfig {
             std::env::var("PUBLIC_DIR").unwrap_or_else(|_| {
                 if PathBuf::from("/app/public").exists() {
                     "/app/public".into()
+                } else if PathBuf::from("../../public").exists() {
+                    "../../public".into()
                 } else {
                     "../public".into()
                 }
