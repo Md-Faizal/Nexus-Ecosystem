@@ -96,7 +96,7 @@ unsafe extern "system" fn window_proc(
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|_| "nexus-agent".to_string());
                     let _ = Command::new("cmd")
-                        .args(["/c", "start", "powershell", "-NoExit", "-Command", &format!("& '{}' status", exe_str)])
+                        .args(["/c", "start", "Nexus Agent Dashboard", "cmd.exe", "/k", &format!("color 0F && \"{}\" status", exe_str)])
                         .spawn();
                 }
                 IDM_EXIT => {
@@ -166,7 +166,11 @@ unsafe fn run_tray_loop(node_id: String) {
     let class_name = to_wide_str("NexusAgentTrayClass");
     let window_title = to_wide_str("NexusAgentTrayWindow");
 
-    let h_icon: HICON = LoadIconW(null_mut(), IDI_APPLICATION);
+    let h_instance = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(null());
+    let mut h_icon: HICON = LoadIconW(h_instance, 1 as *const u16);
+    if h_icon == null_mut() {
+        h_icon = LoadIconW(null_mut(), IDI_APPLICATION);
+    }
 
     let mut wc = std::mem::zeroed::<WNDCLASSEXW>();
     wc.cbSize = std::mem::size_of::<WNDCLASSEXW>() as u32;

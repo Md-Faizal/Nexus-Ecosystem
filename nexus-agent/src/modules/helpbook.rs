@@ -1,0 +1,46 @@
+pub fn print_manual() {
+    println!("\x1b[38;2;120;180;255m================================================================================\x1b[0m");
+    println!("\x1b[1;37m ⚡ NEXUS FLEET AGENT // COMMAND MANUAL & OPERATOR GUIDE \x1b[0m");
+    println!("\x1b[38;2;120;180;255m================================================================================\x1b[0m");
+    println!();
+    println!("\x1b[1;33m1. CLI SUBCOMMANDS (Execute directly from Shell / CMD):\x1b[0m");
+    println!("  \x1b[1;32mnexus-agent\x1b[0m                     Display retro banner and node telemetry");
+    println!("  \x1b[1;32mnexus-agent chat [model]\x1b[0m        Launch interactive Gemini/Claude-styled REPL");
+    println!("  \x1b[1;32mnexus-agent ai <prompt>\x1b[0m         Stream prompt directly to terminal without REPL");
+    println!("  \x1b[1;32mnexus-agent models\x1b[0m              List all installed Ollama models");
+    println!("  \x1b[1;32mnexus-agent ps\x1b[0m                  List models currently active in VRAM / RAM");
+    println!("  \x1b[1;32mnexus-agent load <model> [dur]\x1b[0m  Pre-warm model into VRAM (e.g. '10m', '1h', '-1')");
+    println!("  \x1b[1;32mnexus-agent unload <model>\x1b[0m      Instantly evict model from VRAM (freeing memory)");
+    println!("  \x1b[1;32mnexus-agent status\x1b[0m              Show full node hardware, GPU, and mesh telemetry");
+    println!("  \x1b[1;32mnexus-agent manual\x1b[0m              Display this comprehensive operator manual");
+    println!("  \x1b[1;32mnexus-agent run\x1b[0m                 Run telemetry agent & tray icon in foreground");
+    println!("  \x1b[1;32mnexus-agent service install\x1b[0m     Register automatic Windows/Linux startup service");
+    println!("  \x1b[1;32mnexus-agent service uninstall\x1b[0m   Remove automatic startup service");
+    println!();
+    println!("\x1b[1;33m2. INTERACTIVE REPL SLASH COMMANDS (Inside 'nexus-agent chat'):\x1b[0m");
+    println!("  \x1b[1;36m/help\x1b[0m or \x1b[1;36m/?\x1b[0m                     Show quick slash command guide");
+    println!("  \x1b[1;36m/models\x1b[0m                         List all models available locally on Ollama");
+    println!("  \x1b[1;36m/ps\x1b[0m or \x1b[1;36m/vram\x1b[0m                    Inspect active VRAM usage and model expiration");
+    println!("  \x1b[1;36m/load <model> [duration]\x1b[0m        Pre-load weights into VRAM (dur default: '15m')");
+    println!("  \x1b[1;36m/unload <model>\x1b[0m                 Evict model weights from VRAM immediately");
+    println!("  \x1b[1;36m/set model <name>\x1b[0m               Switch active generation model");
+    println!("  \x1b[1;36m/set temp <0.0 - 1.0>\x1b[0m           Adjust generation temperature");
+    println!("  \x1b[1;36m/system <prompt>\x1b[0m                Set system instruction persona");
+    println!("  \x1b[1;36m/status\x1b[0m                         Display live hardware & mesh connection status");
+    println!("  \x1b[1;36m/clear\x1b[0m                          Clear the terminal screen");
+    println!("  \x1b[1;36m/bye\x1b[0m or \x1b[1;36m/exit\x1b[0m                   Exit interactive AI REPL session");
+    println!();
+    println!("\x1b[1;33m3. HOW OLLAMA VRAM MEMORY MANAGEMENT WORKS:\x1b[0m");
+    println!("  • \x1b[1mDefault Eviction:\x1b[0m Ollama automatically unloads models after 5 minutes of");
+    println!("    inactivity to preserve RAM/VRAM for system applications.");
+    println!("  • \x1b[1mPre-loading:\x1b[0m Pre-loads model weights directly into GPU memory without");
+    println!("    generating text. This eliminates the 5-15s cold-start penalty on your next prompt.");
+    println!("    API: POST /api/generate with {{\"model\": \"name\", \"keep_alive\": \"60m\"}}.");
+    println!("  • \x1b[1mEviction:\x1b[0m Passing keep_alive: 0 instantly unloads the weights from VRAM.");
+    println!("    API: POST /api/generate with {{\"model\": \"name\", \"keep_alive\": 0}}.");
+    println!("  • \x1b[1mInspection:\x1b[0m Querying GET /api/ps returns precise byte breakdown of");
+    println!("    active models and their remaining keep-alive countdown.");
+    println!();
+    println!("\x1b[38;2;120;180;255m================================================================================\x1b[0m");
+}
+

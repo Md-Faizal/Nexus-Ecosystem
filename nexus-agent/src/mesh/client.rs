@@ -204,7 +204,7 @@ impl MeshClient {
 
             MeshMessage::CommandDispatch { command_id, action, args, .. } => {
                 info!("Executing remote command: {} (args: {:?})", action, args);
-                let (success, code, stdout, stderr, ms) = Self::execute_command(&action, &args).await;
+                let (success, code, stdout, stderr, ms) = self.execute_command(&action, &args).await;
 
                 let ack = MeshMessage::CommandAck {
                     command_id,
@@ -250,8 +250,44 @@ impl MeshClient {
         }
     }
 
-    async fn execute_command(action: &str, args: &[String]) -> (bool, i32, String, String, u64) {
+    async fn execute_command(&self, action: &str, args: &[String]) -> (bool, i32, String, String, u64) {
         let start = Instant::now();
+
+        // ─── Native Ollama VRAM & Lifecycle Actions ───
+        if action == "ollama_load" {
+            let model = args.first().cloned().unwrap_or_default();
+            let dur = args.get(1).map(|s| s.as_str());
+            let ai = {
+                let guard = self.modules.lock().await;
+                guard.ai_bridge().clone()
+            };
+            return match ai.load_model(&model, dur).await {
+                Ok(_) => (true, 0, format!("Model '{}' pre-loaded into VRAM successfully", model), "".into(), start.elapsed().as_millis() as u64),
+                Err(e) => (false, 1, "".into(), e, start.elapsed().as_millis() as u64),
+            };
+        }
+
+        if action == "ollama_unload" {
+            let model = args.first().cloned().unwrap_or_default();
+            let ai = {
+                let guard = self.modules.lock().await;
+                guard.ai_bridge().clone()
+            };
+            return match ai.unload_model(&model).await {
+                Ok(_) => (true, 0, format!("Model '{}' evicted from VRAM successfully", model), "".into(), start.elapsed().as_millis() as u64),
+                Err(e) => (false, 1, "".into(), e, start.elapsed().as_millis() as u64),
+            };
+        }
+
+        if action == "ollama_ps" {
+            let ai = {
+                let guard = self.modules.lock().await;
+                guard.ai_bridge().clone()
+            };
+            let procs = ai.poll_loaded_models().await;
+            let json = serde_json::to_string(&procs).unwrap_or_else(|_| "[]".into());
+            return (true, 0, json, "".into(), start.elapsed().as_millis() as u64);
+        }
 
         let (cmd, cmd_args): (&str, Vec<&str>) = match action {
             "reboot" => {

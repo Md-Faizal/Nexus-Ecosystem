@@ -81,6 +81,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/fleet/nodes/:id/command", post(routes::mesh_api::dispatch_command))
         .route("/fleet/nodes/:id/features", post(routes::mesh_api::update_node_features))
         .route("/fleet/nodes/:id/ai/stream", post(routes::mesh_api::stream_ai_prompt))
+        .route("/fleet/nodes/:id/ai/load", post(routes::mesh_api::load_model_vram))
+        .route("/fleet/nodes/:id/ai/unload", post(routes::mesh_api::unload_model_vram))
+        .route("/fleet/nodes/:id/ai/ps", get(routes::mesh_api::get_vram_processes))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::require_admin_middleware,

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Server,
   Activity,
+  Bot,
   Zap,
   Mail,
   FolderGit2,
@@ -35,13 +36,14 @@ export default function AdminLayout({
   const tabs = [
     { id: 'cluster', number: '01', label: 'Cluster', icon: Server, desc: 'Hardware & nodes' },
     { id: 'services', number: '02', label: 'Services', icon: Activity, desc: 'Containers & units' },
-    { id: 'reports', number: '03', label: 'Supervision', icon: Zap, desc: '24h health & email' },
-    { id: 'messages', number: '04', label: 'Inbox', icon: Mail, desc: 'Client inquiries', badge: inboxCount },
-    { id: 'portfolio', number: '05', label: 'Portfolio', icon: FolderGit2, desc: 'Curated projects', badge: projectCount },
-    { id: 'profile', number: '06', label: 'Profile', icon: UserCheck, desc: 'Avatars & vault' },
-    { id: 'analytics', number: '07', label: 'Analytics', icon: Users, desc: 'Audience & traffic' },
-    { id: 'security', number: '08', label: 'Security', icon: Shield, desc: 'Firewall & bans' },
-    { id: 'settings', number: '09', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
+    { id: 'ai-studio', number: '03', label: 'Fleet AI', icon: Bot, desc: 'Local LLM Studio & VRAM' },
+    { id: 'reports', number: '04', label: 'Supervision', icon: Zap, desc: '24h health & email' },
+    { id: 'messages', number: '05', label: 'Inbox', icon: Mail, desc: 'Client inquiries', badge: inboxCount },
+    { id: 'portfolio', number: '06', label: 'Portfolio', icon: FolderGit2, desc: 'Curated projects', badge: projectCount },
+    { id: 'profile', number: '07', label: 'Profile', icon: UserCheck, desc: 'Avatars & vault' },
+    { id: 'analytics', number: '08', label: 'Analytics', icon: Users, desc: 'Audience & traffic' },
+    { id: 'security', number: '09', label: 'Security', icon: Shield, desc: 'Firewall & bans' },
+    { id: 'settings', number: '10', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
   ];
 
   const handleTabSelect = (tabId) => {

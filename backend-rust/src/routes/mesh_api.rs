@@ -421,6 +421,48 @@ pub async fn stream_ai_prompt(
     Sse::new(stream).keep_alive(KeepAlive::default()).into_response()
 }
 
+#[derive(Deserialize)]
+pub struct ModelVramActionPayload {
+    pub model: String,
+    pub keep_alive: Option<String>,
+}
+
+pub async fn load_model_vram(
+    State(state): State<SharedState>,
+    Path(node_id): Path<String>,
+    Json(payload): Json<ModelVramActionPayload>,
+) -> impl IntoResponse {
+    let dur = payload.keep_alive.unwrap_or_else(|| "15m".into());
+    let cmd = CommandPayload {
+        action: "ollama_load".into(),
+        args: vec![payload.model, dur],
+    };
+    dispatch_command(State(state), Path(node_id), Json(cmd)).await
+}
+
+pub async fn unload_model_vram(
+    State(state): State<SharedState>,
+    Path(node_id): Path<String>,
+    Json(payload): Json<ModelVramActionPayload>,
+) -> impl IntoResponse {
+    let cmd = CommandPayload {
+        action: "ollama_unload".into(),
+        args: vec![payload.model],
+    };
+    dispatch_command(State(state), Path(node_id), Json(cmd)).await
+}
+
+pub async fn get_vram_processes(
+    State(state): State<SharedState>,
+    Path(node_id): Path<String>,
+) -> impl IntoResponse {
+    let cmd = CommandPayload {
+        action: "ollama_ps".into(),
+        args: vec![],
+    };
+    dispatch_command(State(state), Path(node_id), Json(cmd)).await
+}
+
 // ─── Public 1-Command Installers ─────────────────────────────────────────────
 
 pub async fn serve_install_sh() -> impl IntoResponse {

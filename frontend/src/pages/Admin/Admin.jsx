@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from './AdminLayout';
 import ClusterTab from './tabs/ClusterTab';
 import ServicesTab from './tabs/ServicesTab';
+import AiStudioTab from './tabs/AiStudioTab';
 import ReportsTab from './tabs/ReportsTab';
 import MessagesTab from './tabs/MessagesTab';
 import PortfolioTab from './tabs/PortfolioTab';
@@ -643,6 +644,10 @@ export default function Admin({ onExit }) {
           fetchWithAuth={fetchWithAuth}
           showToast={showToast}
         />
+      )}
+
+      {activeTab === 'ai-studio' && (
+        <AiStudioTab onToast={showToast} />
       )}
 
       {activeTab === 'reports' && (
