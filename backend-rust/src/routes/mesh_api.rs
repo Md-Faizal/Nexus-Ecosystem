@@ -88,7 +88,7 @@ pub async fn handle_mesh_ws(
 
 async fn handle_node_connection(socket: WebSocket, state: SharedState) {
     let (mut sink, mut stream) = socket.split();
-    let (tx, rx) = mpsc::channel::<String>(100);
+    let (tx, mut rx) = mpsc::channel::<String>(100);
 
     // Forward outgoing messages over WebSocket
     let sink_task = tokio::spawn(async move {
