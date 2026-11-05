@@ -33,7 +33,8 @@ This repository is organized as an industrial-grade, domain-driven monorepo hous
 │
 ├── docs/                               # Master Architectural Context & Technical Roadmaps
 │   ├── NEXUS_MASTER_CONTEXT_AND_ROADMAP.md # Fleet CAN-bus architecture & Cockroach resilience doctrine
-│   └── PROJECT_ROADMAP_AND_HANDOFF.md      # Infrastructure status & VM migration diary
+│   ├── PROJECT_ROADMAP_AND_HANDOFF.md      # Infrastructure status & VM migration diary
+│   └── mobile/                             # Mobile Client debloating & modernization blueprint
 │
 └── archive/                            # Retired legacy services, prototypes, and historical tests
 ```
