@@ -481,7 +481,20 @@ $BinUrl = "$HubUrl/releases/nexus-agent-windows-amd64.exe?v=$CacheBuster"
 $DestExe = "$TargetDir\nexus-agent.exe"
 
 Write-Host "Downloading Nexus Agent from $BinUrl..." -ForegroundColor Gray
-Invoke-WebRequest -Uri $BinUrl -OutFile $DestExe -UseBasicParsing
+Stop-Process -Name "nexus-agent" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 200
+
+if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+    curl.exe -fsSL "$BinUrl" -o "$DestExe"
+} else {
+    Invoke-WebRequest -Uri $BinUrl -OutFile $DestExe -UseBasicParsing
+}
+
+# Unblock downloaded binary from Windows Mark-of-the-Web / Application Control
+Unblock-File -Path $DestExe -ErrorAction SilentlyContinue
+if (Test-Path "$DestExe:Zone.Identifier") {
+    Remove-Item "$DestExe:Zone.Identifier" -ErrorAction SilentlyContinue
+}
 
 if (-not (Test-Path $DestExe) -or (Get-Item $DestExe).Length -lt 100000) {
     Write-Error "Downloaded binary appears invalid or incomplete."
