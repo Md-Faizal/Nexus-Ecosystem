@@ -35,16 +35,9 @@ jobs:
           echo "Bumping Nexus Agent to version $VERSION"
           sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
           cargo build --release
-          if [ -f target/release/nexus ]; then
-            strip target/release/nexus
-            cp target/release/nexus target/release/nexus-agent
-          else
-            strip target/release/nexus-agent
-            cp target/release/nexus-agent target/release/nexus
-          fi
-          cd ..
-          cp apps/desktop/target/release/nexus-agent ./nexus-agent-linux-amd64
+          cd "$GITHUB_WORKSPACE"
           cp apps/desktop/target/release/nexus ./nexus-linux-amd64
+          cp apps/desktop/target/release/nexus ./nexus-agent-linux-amd64
           chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
           ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
 
@@ -79,14 +72,14 @@ jobs:
           Write-Host "Bumping Windows Nexus Agent to version $Version"
           (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 Cargo.toml
           cargo build --release
-          if (Test-Path target/release/nexus.exe) {
-            cp target/release/nexus.exe target/release/nexus-agent.exe
-          } elseif (Test-Path target/release/nexus-agent.exe) {
-            cp target/release/nexus-agent.exe target/release/nexus.exe
+          cd $env:GITHUB_WORKSPACE
+          if (Test-Path apps/desktop/target/release/nexus.exe) {
+            cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
+            cp apps/desktop/target/release/nexus.exe ./nexus-agent-windows-amd64.exe
+          } elseif (Test-Path apps/desktop/target/release/nexus-agent.exe) {
+            cp apps/desktop/target/release/nexus-agent.exe ./nexus-windows-amd64.exe
+            cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
           }
-          cd ..
-          cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
-          cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
 
       - name: "📦 Upload Windows Agent Artifacts"
         uses: actions/upload-artifact@v4
@@ -126,8 +119,7 @@ jobs:
           lipo -create -output target/release/nexus-universal \
             target/aarch64-apple-darwin/release/nexus \
             target/x86_64-apple-darwin/release/nexus
-          strip target/release/nexus-universal
-          cd ..
+          cd "$GITHUB_WORKSPACE"
           cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-arm64
           cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-amd64
           cp apps/desktop/target/release/nexus-universal ./nexus-darwin-arm64
