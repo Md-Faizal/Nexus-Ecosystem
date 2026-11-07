@@ -311,6 +311,18 @@ impl MeshClient {
             return (true, 0, json, "".into(), start.elapsed().as_millis() as u64);
         }
 
+        // ─── Minecraft Dedicated Fleet & Mode Switching Actions ───
+        if action == "minecraft_mode" {
+            let force = args.contains(&"--force".to_string());
+            let (ok, msg) = crate::modules::minecraft::MinecraftManager::switch_to_minecraft_mode(force);
+            return (ok, if ok { 0 } else { 1 }, msg.clone(), if ok { "".into() } else { msg }, start.elapsed().as_millis() as u64);
+        }
+
+        if action == "normal_mode" || action == "desktop_mode" {
+            let (ok, msg) = crate::modules::minecraft::MinecraftManager::restore_normal_mode();
+            return (ok, if ok { 0 } else { 1 }, msg.clone(), if ok { "".into() } else { msg }, start.elapsed().as_millis() as u64);
+        }
+
         let (cmd, cmd_args): (&str, Vec<&str>) = match action {
             "reboot" => {
                 #[cfg(target_os = "windows")]

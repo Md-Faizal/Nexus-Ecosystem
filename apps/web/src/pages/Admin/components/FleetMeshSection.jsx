@@ -9,6 +9,9 @@ import {
   Terminal,
   RefreshCw,
   Power,
+  PowerOff,
+  Gamepad2,
+  Monitor,
   Moon,
   Bot,
   Copy,
@@ -307,9 +310,8 @@ export default function FleetMeshSection() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`w-2.5 h-2.5 rounded-full ${
-                          isOnline ? 'bg-[#89ff00] animate-pulse' : 'bg-neutral-600'
-                        }`}
+                        className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-[#89ff00] animate-pulse' : 'bg-neutral-600'
+                          }`}
                       />
                       <h4 className="text-sm font-bold text-white tracking-tight">{node.hostname}</h4>
                       <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/5 text-neutral-300 border border-white/10 uppercase">
@@ -430,12 +432,52 @@ export default function FleetMeshSection() {
                 <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => handleDispatchCommand(node.node_id, 'reboot')}
+                      onClick={() => {
+                        if (window.confirm(`Reboot node '${node.hostname}'?`)) {
+                          handleDispatchCommand(node.node_id, 'reboot');
+                        }
+                      }}
                       disabled={!isOnline || actionLoading[`${node.node_id}-reboot`]}
-                      className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-30 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-yellow-500/20 text-neutral-400 hover:text-yellow-400 transition-colors disabled:opacity-30 cursor-pointer"
                       title="Reboot Machine"
                     >
                       <Power className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Turn OFF and shutdown node '${node.hostname}'? This will power down the machine completely.`)) {
+                          handleDispatchCommand(node.node_id, 'shutdown');
+                        }
+                      }}
+                      disabled={!isOnline || actionLoading[`${node.node_id}-shutdown`]}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Turn Off / Power Off Machine"
+                    >
+                      <PowerOff className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`🎮 Switch '${node.hostname}' to dedicated Minecraft Mode?\n\n• If someone is actively using the PC, an on-screen prompt with a 30s cancellation window will appear.\n• GNOME desktop will exit to free 1.2+ GB RAM.\n• Minecraft Forge Server will start.`)) {
+                          handleDispatchCommand(node.node_id, 'minecraft_mode');
+                        }
+                      }}
+                      disabled={!isOnline || actionLoading[`${node.node_id}-minecraft_mode`]}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 text-neutral-400 hover:text-emerald-400 transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Switch to Minecraft Server Mode (Headless, Free 1.2GB RAM)"
+                    >
+                      <Gamepad2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`🖥️ Restore '${node.hostname}' to Normal Desktop Mode?\n\n• Minecraft Server will stop.\n• GNOME Graphical Desktop will be restored for family use.`)) {
+                          handleDispatchCommand(node.node_id, 'normal_mode');
+                        }
+                      }}
+                      disabled={!isOnline || actionLoading[`${node.node_id}-normal_mode`]}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-neutral-400 hover:text-cyan-400 transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Restore GNOME Desktop (Normal Mode)"
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDispatchCommand(node.node_id, 'sleep')}
@@ -527,11 +569,10 @@ export default function FleetMeshSection() {
                   aiResponses.map((msg, idx) => (
                     <div
                       key={idx}
-                      className={`p-3 rounded-2xl ${
-                        msg.role === 'user'
+                      className={`p-3 rounded-2xl ${msg.role === 'user'
                           ? 'bg-purple-600/20 text-purple-200 border border-purple-500/30 ml-8'
                           : 'bg-white/5 text-neutral-200 border border-white/5 mr-8'
-                      }`}
+                        }`}
                     >
                       <div className="text-[10px] text-neutral-400 font-semibold mb-1 uppercase">
                         {msg.role === 'user' ? 'You' : `${msg.model || 'AI'} (Local)`}
@@ -616,14 +657,12 @@ export default function FleetMeshSection() {
                       </div>
                       <button
                         onClick={() => handleToggleFeature(featureModalNode.node_id, item.key, enabled)}
-                        className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
-                          enabled ? 'bg-[#89ff00]' : 'bg-neutral-700'
-                        }`}
+                        className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${enabled ? 'bg-[#89ff00]' : 'bg-neutral-700'
+                          }`}
                       >
                         <div
-                          className={`bg-black w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                            enabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
+                          className={`bg-black w-4 h-4 rounded-full shadow-md transform transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>

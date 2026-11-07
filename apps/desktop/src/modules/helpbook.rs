@@ -25,6 +25,14 @@ pub fn print_manual() {
     println!("    \x1b[90m--sysctl\x1b[0m                      Apply kernel BBR congestion control and FQ network queuing");
     println!("  \x1b[1;32mnx mc status [--dir <path>]\x1b[0m     Inspect live server PID, RSS memory, CPU usage & engine presence");
     println!("  \x1b[1;32mnx mc tune-sysctl\x1b[0m               Apply low-latency Linux kernel network tuning (BBR + FQ)");
+    println!("  \x1b[1;32mnx mc remote <action> [flags]\x1b[0m   Remote fleet control across LAN or SSH mesh:");
+    println!("    \x1b[1mstatus [--watch]\x1b[0m              Live remote CPU, RAM, Minecraft PID, and reverse tunnel status");
+    println!("    \x1b[1mmode <minecraft|normal>\x1b[0m       1-Click switch: headless gaming mode (saves 1.2GB) vs GNOME desktop");
+    println!("    \x1b[1mstart | stop | restart\x1b[0m        Remote systemd minecraft-server service control");
+    println!("    \x1b[1mshutdown | reboot\x1b[0m             Power down or reboot the remote server PC");
+    println!("    \x1b[1mcmd \"<command>\"\x1b[0m               Inject in-game console command (e.g. 'time set day', 'op Fazz')");
+    println!("    \x1b[1mlogs [-n 50] [--follow]\x1b[0m       Tail live latest.log stream remotely");
+    println!("    \x1b[1mprop <key> [value]\x1b[0m            Read or modify server.properties remotely");
     println!("  \x1b[1;32mnx tunnel listen [flags]\x1b[0m        Run reverse TCP edge gateway on cloud node (pro / mine.faizal.uk)");
     println!("    \x1b[90m-b, --bind <ip:port>\x1b[0m          Public game ingress port (default: 0.0.0.0:25565)");
     println!("    \x1b[90m-c, --control <ip:port>\x1b[0m       Internal tunnel control port (default: 0.0.0.0:25560)");

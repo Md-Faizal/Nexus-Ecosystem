@@ -205,7 +205,7 @@ enum TunnelCommands {
 }
 
 #[derive(Subcommand)]
-enum McCommands {
+pub enum McCommands {
     /// Auto-provision dedicated Minecraft server, tuning JVM heap and network kernel
     Setup {
         /// Installation / Server directory
@@ -238,6 +238,81 @@ enum McCommands {
 
     /// Apply Linux kernel BBR and FQ network optimizations for latency
     TuneSysctl,
+
+    /// Remote Minecraft Fleet Operations (live status, start/stop/restart, active guard, mode switch)
+    Remote {
+        #[command(subcommand)]
+        action: McRemoteCommands,
+
+        /// Remote target host or IP (default: $NEXUS_MC_HOST or 192.168.29.36)
+        #[arg(short = 'H', long)]
+        host: Option<String>,
+
+        /// Remote SSH user (default: rida)
+        #[arg(short, long)]
+        user: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum McRemoteCommands {
+    /// Live telemetry: Host CPU, RAM, Minecraft server PID, memory RSS, and reverse tunnel status
+    Status {
+        /// Watch and continuously refresh every 2 seconds
+        #[arg(short, long)]
+        watch: bool,
+    },
+
+    /// Switch remote host operating target (headless 'minecraft' mode vs 'normal' GNOME desktop)
+    Mode {
+        /// Target mode: 'minecraft' (frees 1.2GB+ RAM) or 'normal' (restores desktop)
+        target: String,
+
+        /// Bypass local user active-use cancellation grace period
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Remotely shut down / power off the target machine
+    Shutdown,
+
+    /// Remotely reboot the target machine
+    Reboot,
+
+    /// Start the Minecraft server service on the remote node
+    Start,
+
+    /// Stop the Minecraft server service on the remote node
+    Stop,
+
+    /// Restart the Minecraft server service on the remote node
+    Restart,
+
+    /// Send in-game command to Minecraft console (e.g. 'time set day', 'op Fazz', 'difficulty hard')
+    Cmd {
+        /// Command to execute on Minecraft server
+        command: String,
+    },
+
+    /// Tail live Minecraft server logs (latest.log)
+    Logs {
+        /// Initial line count to tail
+        #[arg(short = 'n', long, default_value = "40")]
+        lines: usize,
+
+        /// Follow stream continuously
+        #[arg(short, long)]
+        follow: bool,
+    },
+
+    /// Read or update server.properties remotely (e.g. 'nx mc remote prop view-distance 6')
+    Prop {
+        /// Property key name
+        key: String,
+
+        /// New value (omitting prints current value)
+        value: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -640,6 +715,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             McCommands::TuneSysctl => {
                 modules::minecraft::MinecraftManager::apply_network_sysctl().map_err(|e| e.to_string())?;
+            }
+            McCommands::Remote { action, host, user } => {
+                modules::minecraft::MinecraftManager::handle_remote_command(
+                    action, host.as_deref(), user.as_deref(),
+                ).await.map_err(|e| e.to_string())?;
             }
         },
 

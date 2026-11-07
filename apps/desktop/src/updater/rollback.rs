@@ -53,7 +53,17 @@ impl RollbackUpdater {
             fs::rename(&temp_download, &current_exe)?;
         }
 
-        info!("Binary updated successfully! Restarting process/service...");
+        info!("Binary updated successfully!");
+
+        // Check if Minecraft server or game reverse tunnel is currently in active combat/game session
+        if crate::modules::minecraft::MinecraftManager::is_server_or_tunnel_running() {
+            tracing::warn!(
+                "🎮 Active Minecraft server or reverse tunnel detected! Binary has been staged on disk. Postponing process restart until game server is idle so players are not disconnected."
+            );
+            return Ok(());
+        }
+
+        info!("Restarting process/service...");
 
         // 5. Exit so service manager (systemd, Windows Service, launchd) re-launches the binary
         std::process::exit(0);
