@@ -431,6 +431,12 @@ impl AiBridge {
                 continue;
             }
 
+            if trimmed == "/mc" || trimmed == "/mc status" || trimmed == "/minecraft" {
+                crate::modules::minecraft::MinecraftManager::status(None);
+                println!();
+                continue;
+            }
+
             if trimmed.starts_with("/restart ") {
                 let s_id = trimmed.trim_start_matches("/restart ").trim();
                 crate::modules::cluster_ops::ClusterOps::control_service(&hub, pin.as_deref(), s_id, "restart").await;

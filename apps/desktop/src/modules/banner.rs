@@ -25,14 +25,17 @@ pub fn print_welcome_box() {
     println!("\x1b[38;2;255;140;90m│\x1b[0m \x1b[1;37m* Nexus Fleet Console — Unified Cluster & Workstation Management             \x1b[0m\x1b[38;2;255;140;90m│\x1b[0m");
     println!("\x1b[38;2;255;140;90m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
     println!();
-    println!("\x1b[1;37mCore Operations & Commands:\x1b[0m");
-    println!("  1. \x1b[1;32mnexus run\x1b[0m                 Start telemetry daemon, WebSocket mesh & system tray");
-    println!("  2. \x1b[1;32mnexus status\x1b[0m              Live node health, CPU/RAM, and daemon status");
-    println!("  3. \x1b[1;32mnexus cluster\x1b[0m             Inspect 3-VM cluster (my-mac, cos, pro) & edge nodes");
-    println!("  4. \x1b[1;32mnexus services\x1b[0m            View running containers, web engines, and games");
-    println!("  5. \x1b[1;32mnexus elevate\x1b[0m             Upgrade to Administrator / Root background service");
-    println!("  6. \x1b[1;32mnexus chat\x1b[0m                Interactive local LLM chat and slash console");
-    println!("  7. \x1b[1;32mnexus manual\x1b[0m              Display comprehensive operator reference manual");
+    println!("\x1b[1;37mCore Operations & Commands (via 'nx' or 'nexus'):\x1b[0m");
+    println!("  1. \x1b[1;32mnx run\x1b[0m                    Start telemetry daemon, WebSocket mesh & system tray");
+    println!("  2. \x1b[1;32mnx status\x1b[0m                 Live node health, CPU/RAM, and daemon status");
+    println!("  3. \x1b[1;32mnx cluster\x1b[0m                Inspect 3-VM cluster (my-mac, cos, pro) & edge nodes");
+    println!("  4. \x1b[1;32mnx services\x1b[0m               View running containers, web engines, and games");
+    println!("  5. \x1b[1;32mnx mc status\x1b[0m              Inspect local Minecraft server PID, RSS RAM & health");
+    println!("  6. \x1b[1;32mnx mc setup\x1b[0m               Auto-provision server: Forge/Paper/Vanilla & systemd");
+    println!("  7. \x1b[1;32mnx tunnel connect\x1b[0m         Connect local game port to edge gateway (mine.faizal.uk)");
+    println!("  8. \x1b[1;32mnx elevate\x1b[0m                Upgrade to Administrator / Root background service");
+    println!("  9. \x1b[1;32mnx chat\x1b[0m                   Interactive local LLM chat and slash console");
+    println!(" 10. \x1b[1;32mnx manual\x1b[0m                 Display comprehensive operator reference manual");
     println!();
 }
 

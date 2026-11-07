@@ -130,6 +130,9 @@ impl ChatRenderer {
         println!("│    \x1b[1;32m/copy\x1b[0m                  Copy last assistant response to system clipboard");
         println!("│");
         println!("│  \x1b[1;33mENGINE TUNING & CLUSTER ACCESS:\x1b[0m");
+        println!("│    \x1b[1;32m/cluster\x1b[0m / \x1b[1;32m/nodes\x1b[0m       Inspect live 3-VM cluster nodes and hardware");
+        println!("│    \x1b[1;32m/services\x1b[0m / \x1b[1;32m/apps\x1b[0m     List running cluster services and game servers");
+        println!("│    \x1b[1;32m/mc\x1b[0m / \x1b[1;32m/mc status\x1b[0m         Inspect local Minecraft server PID, RSS RAM & health");
         println!("│    \x1b[1;32m/system [prompt]\x1b[0m       Inspect or set custom system instructions");
         println!("│    \x1b[1;32m/temp <0.0 - 1.0>\x1b[0m      Adjust model creativity / temperature");
         println!("│    \x1b[1;32m/pin <pin>\x1b[0m             Authenticate operator PIN (Default: 2004)");

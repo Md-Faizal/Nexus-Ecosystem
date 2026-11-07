@@ -617,6 +617,13 @@ impl OperatorConsole {
                 continue;
             }
 
+            // Minecraft Server Telemetry
+            if trimmed == "/mc" || trimmed == "/mc status" || trimmed == "/minecraft" {
+                crate::modules::minecraft::MinecraftManager::status(None);
+                println!();
+                continue;
+            }
+
             // Switch Node
             if trimmed == "/node" || trimmed == "/switch" {
                 if let Ok(refreshed) = self.fetch_nodes().await {
