@@ -114,7 +114,7 @@ impl TunnelServer {
         expected_token: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("============================================================");
-        info!("   NEXUS WARFARE REVERSE TUNNEL - CLOUD EDGE GATEWAY");
+        info!("   NEXUS REVERSE TCP TUNNEL - CLOUD EDGE GATEWAY");
         info!("   Public Ingress:  {}", bind_addr);
         info!("   Control Link:    {}", control_addr);
         info!(
@@ -336,7 +336,7 @@ impl TunnelClient {
         token: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("============================================================");
-        info!("   NEXUS WARFARE REVERSE TUNNEL - BARE-METAL CLIENT");
+        info!("   NEXUS REVERSE TCP TUNNEL - CLIENT WORKER");
         info!("   Edge Gateway:    {}", edge_addr);
         info!("   Local Server:    {}", target_addr);
         info!("============================================================");

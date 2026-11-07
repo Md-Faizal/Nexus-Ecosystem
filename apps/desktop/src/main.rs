@@ -164,7 +164,7 @@ enum Commands {
         action: TunnelCommands,
     },
 
-    /// Minecraft Warfare fleet node orchestration & auto-tuning (Forge 1.20.1)
+    /// Dedicated Minecraft server node orchestration & auto-tuning (Forge, Fabric, Paper, Vanilla)
     Mc {
         #[command(subcommand)]
         action: McCommands,
@@ -173,7 +173,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum TunnelCommands {
-    /// Run reverse tunnel edge gateway on cloud ingress node (e.g. pro)
+    /// Run reverse tunnel edge gateway on cloud ingress node
     Listen {
         /// Public address for incoming game clients
         #[arg(short, long, default_value = "0.0.0.0:25565")]
@@ -188,7 +188,7 @@ enum TunnelCommands {
         token: Option<String>,
     },
 
-    /// Connect reverse tunnel worker from local bare-metal node to cloud edge
+    /// Connect reverse tunnel worker from local node to cloud edge gateway
     Connect {
         /// Cloud edge gateway control address (e.g. 35.208.86.56:25560 or pro:25560)
         #[arg(short, long)]
@@ -206,17 +206,21 @@ enum TunnelCommands {
 
 #[derive(Subcommand)]
 enum McCommands {
-    /// Auto-provision Forge 1.20.1 Warfare server, tuning JVM heap and network kernel
+    /// Auto-provision dedicated Minecraft server, tuning JVM heap and network kernel
     Setup {
         /// Installation / Server directory
         #[arg(short, long, default_value = ".")]
         dir: String,
 
-        /// Custom JVM max heap in MB (e.g. 2800 for 4GB RAM, 5120 for 8GB RAM)
+        /// Custom JVM max heap in MB (auto-calculated from system RAM if omitted)
         #[arg(long)]
         heap: Option<u64>,
 
-        /// Switch Linux target to headless multi-user.target (~280 MB RAM footprint)
+        /// Override server execution command (auto-detected if omitted)
+        #[arg(short, long)]
+        exec: Option<String>,
+
+        /// Switch Linux target to headless multi-user.target
         #[arg(long)]
         headless: bool,
 
@@ -232,7 +236,7 @@ enum McCommands {
         dir: Option<String>,
     },
 
-    /// Apply Linux kernel BBR and FQ network optimizations for combat latency
+    /// Apply Linux kernel BBR and FQ network optimizations for latency
     TuneSysctl,
 }
 
@@ -626,16 +630,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         Some(Commands::Mc { action }) => match action {
-            McCommands::Setup { dir, heap, headless, sysctl } => {
-                modules::minecraft_warfare::MinecraftWarfareManager::setup(
-                    &dir, heap, headless, sysctl,
+            McCommands::Setup { dir, heap, exec, headless, sysctl } => {
+                modules::minecraft::MinecraftManager::setup(
+                    &dir, heap, exec.as_deref(), headless, sysctl,
                 ).map_err(|e| e.to_string())?;
             }
             McCommands::Status { dir } => {
-                modules::minecraft_warfare::MinecraftWarfareManager::status(dir.as_deref());
+                modules::minecraft::MinecraftManager::status(dir.as_deref());
             }
             McCommands::TuneSysctl => {
-                modules::minecraft_warfare::MinecraftWarfareManager::apply_network_sysctl().map_err(|e| e.to_string())?;
+                modules::minecraft::MinecraftManager::apply_network_sysctl().map_err(|e| e.to_string())?;
             }
         },
 
@@ -702,7 +706,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  \x1b[1;36mnexus cluster\x1b[0m                  Inspect 3-VM cluster (my-mac, cos, pro)");
                 println!("  \x1b[1;36mnexus services\x1b[0m                 View active containers, web engines & games");
                 println!("  \x1b[1;36mnexus restart <service>\x1b[0m        Trigger 1-click remote restart across cluster");
-                println!("  \x1b[1;36mnexus mc setup\x1b[0m                 Auto-provision Forge 1.20.1 Warfare server & JVM args");
+                println!("  \x1b[1;36mnexus mc setup\x1b[0m                 Auto-provision Minecraft server (Forge, Fabric, Paper, Vanilla)");
                 println!("  \x1b[1;36mnexus mc status\x1b[0m                Check Minecraft server process & memory usage");
                 println!("  \x1b[1;36mnexus tunnel connect\x1b[0m           Reverse TCP tunnel to Cloud Edge (e.g. --edge pro:25560)");
                 println!("  \x1b[1;36mnexus chat\x1b[0m                     Start interactive AI chat & slash console");
