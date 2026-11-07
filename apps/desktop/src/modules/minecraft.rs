@@ -2,6 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use sysinfo::System;
 use tracing::info;
+#[cfg(target_os = "linux")]
+use tracing::warn;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerType {

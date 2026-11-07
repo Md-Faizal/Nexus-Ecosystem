@@ -77,7 +77,7 @@ jobs:
           cd apps/desktop
           $Version = "0.1.${{ github.run_number }}"
           Write-Host "Bumping Windows Nexus Agent to version $Version"
-          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content Cargo.toml
+          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 Cargo.toml
           cargo build --release
           if (Test-Path target/release/nexus.exe) {
             cp target/release/nexus.exe target/release/nexus-agent.exe
@@ -122,6 +122,7 @@ jobs:
           sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
           cargo build --release --target aarch64-apple-darwin
           cargo build --release --target x86_64-apple-darwin
+          mkdir -p target/release
           lipo -create -output target/release/nexus-universal \
             target/aarch64-apple-darwin/release/nexus \
             target/x86_64-apple-darwin/release/nexus
