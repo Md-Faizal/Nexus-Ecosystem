@@ -7,9 +7,11 @@ pub mod daemon_lock;
 pub mod docker;
 pub mod gpu;
 pub mod helpbook;
+pub mod minecraft_warfare;
 pub mod operator_console;
 pub mod telemetry;
 pub mod tray;
+pub mod tunnel;
 
 use crate::config::AgentConfig;
 use crate::mesh::protocol::TelemetryPayload;

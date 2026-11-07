@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use config::AgentConfig;
 use mesh::client::MeshClient;
 use service::ServiceManager;
-use tracing::{error, info};
+use tracing::info;
 
 #[derive(Parser)]
 #[command(name = "nexus")]
@@ -157,6 +157,83 @@ enum Commands {
         #[arg(long, default_value = "https://faizal.uk/releases/latest.json")]
         manifest_url: String,
     },
+
+    /// Low-latency reverse TCP tunneling for game servers & distributed edge ingress
+    Tunnel {
+        #[command(subcommand)]
+        action: TunnelCommands,
+    },
+
+    /// Minecraft Warfare fleet node orchestration & auto-tuning (Forge 1.20.1)
+    Mc {
+        #[command(subcommand)]
+        action: McCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum TunnelCommands {
+    /// Run reverse tunnel edge gateway on cloud ingress node (e.g. pro)
+    Listen {
+        /// Public address for incoming game clients
+        #[arg(short, long, default_value = "0.0.0.0:25565")]
+        bind: String,
+
+        /// Internal control address for local server connection
+        #[arg(short, long, default_value = "0.0.0.0:25560")]
+        control: String,
+
+        /// Authentication token required from reverse client
+        #[arg(short, long)]
+        token: Option<String>,
+    },
+
+    /// Connect reverse tunnel worker from local bare-metal node to cloud edge
+    Connect {
+        /// Cloud edge gateway control address (e.g. 35.208.86.56:25560 or pro:25560)
+        #[arg(short, long)]
+        edge: String,
+
+        /// Local game server address
+        #[arg(short, long, default_value = "127.0.0.1:25565")]
+        target: String,
+
+        /// Authentication token matching edge gateway
+        #[arg(short, long)]
+        token: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum McCommands {
+    /// Auto-provision Forge 1.20.1 Warfare server, tuning JVM heap and network kernel
+    Setup {
+        /// Installation / Server directory
+        #[arg(short, long, default_value = ".")]
+        dir: String,
+
+        /// Custom JVM max heap in MB (e.g. 2800 for 4GB RAM, 5120 for 8GB RAM)
+        #[arg(long)]
+        heap: Option<u64>,
+
+        /// Switch Linux target to headless multi-user.target (~280 MB RAM footprint)
+        #[arg(long)]
+        headless: bool,
+
+        /// Apply BBR and low-latency TCP network sysctl parameters
+        #[arg(long)]
+        sysctl: bool,
+    },
+
+    /// Inspect local Minecraft server process, memory RSS, and node telemetry
+    Status {
+        /// Server directory to inspect configuration presence
+        #[arg(short, long)]
+        dir: Option<String>,
+    },
+
+    /// Apply Linux kernel BBR and FQ network optimizations for combat latency
+    TuneSysctl,
 }
 
 #[derive(Subcommand)]
@@ -236,7 +313,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Catch panics gracefully
     std::panic::set_hook(Box::new(|panic_info| {
-        error!("Nexus Agent encountered panic: {:?}", panic_info);
+        eprintln!("Nexus Agent encountered panic: {:?}", panic_info);
     }));
 
     // Ergonomic CLI translation: if user ran "nexus services install" (plural), map to "service"
@@ -539,6 +616,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             updater::AgentUpdater::run_update(&manifest_url, check, force).await?;
         }
 
+        Some(Commands::Tunnel { action }) => match action {
+            TunnelCommands::Listen { bind, control, token } => {
+                modules::tunnel::TunnelServer::run(&bind, &control, token).await.map_err(|e| e.to_string())?;
+            }
+            TunnelCommands::Connect { edge, target, token } => {
+                modules::tunnel::TunnelClient::run(&edge, &target, token).await.map_err(|e| e.to_string())?;
+            }
+        },
+
+        Some(Commands::Mc { action }) => match action {
+            McCommands::Setup { dir, heap, headless, sysctl } => {
+                modules::minecraft_warfare::MinecraftWarfareManager::setup(
+                    &dir, heap, headless, sysctl,
+                ).map_err(|e| e.to_string())?;
+            }
+            McCommands::Status { dir } => {
+                modules::minecraft_warfare::MinecraftWarfareManager::status(dir.as_deref());
+            }
+            McCommands::TuneSysctl => {
+                modules::minecraft_warfare::MinecraftWarfareManager::apply_network_sysctl().map_err(|e| e.to_string())?;
+            }
+        },
+
         None => {
             if cli.run {
                 handle_run_command(config, false).await?;
@@ -602,6 +702,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  \x1b[1;36mnexus cluster\x1b[0m                  Inspect 3-VM cluster (my-mac, cos, pro)");
                 println!("  \x1b[1;36mnexus services\x1b[0m                 View active containers, web engines & games");
                 println!("  \x1b[1;36mnexus restart <service>\x1b[0m        Trigger 1-click remote restart across cluster");
+                println!("  \x1b[1;36mnexus mc setup\x1b[0m                 Auto-provision Forge 1.20.1 Warfare server & JVM args");
+                println!("  \x1b[1;36mnexus mc status\x1b[0m                Check Minecraft server process & memory usage");
+                println!("  \x1b[1;36mnexus tunnel connect\x1b[0m           Reverse TCP tunnel to Cloud Edge (e.g. --edge pro:25560)");
                 println!("  \x1b[1;36mnexus chat\x1b[0m                     Start interactive AI chat & slash console");
                 println!("  \x1b[1;36mnexus manual\x1b[0m                   Display full operator reference manual");
                 println!();
