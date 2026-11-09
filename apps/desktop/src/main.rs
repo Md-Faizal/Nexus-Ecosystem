@@ -729,11 +729,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("│  \x1b[1mRAM:\x1b[0m          {:.2} GB / {:.2} GB ({:.1}%)", used_ram_gb, total_ram_gb, ram_pct);
             if let Some(g) = gpus {
                 println!("│  \x1b[1mGPU:\x1b[0m          {} ({})", g.name, g.vendor);
-                println!("│  \x1b[1mVRAM:\x1b[0m         {:.1} GB / {:.1} GB ({:.0}%) | Temp: {:.0}°C", 
-                    g.vram_used_mb as f64 / 1024.0, 
-                    g.vram_total_mb as f64 / 1024.0,
-                    g.utilization_pct,
-                    g.temperature_c.unwrap_or(0.0));
+                if g.vram_total_mb > 0 {
+                    let temp_str = g.temperature_c.map(|t| format!(" | Temp: {:.0}°C", t)).unwrap_or_default();
+                    println!("│  \x1b[1mVRAM:\x1b[0m         {:.1} GB / {:.1} GB ({:.0}%){}", 
+                        g.vram_used_mb as f64 / 1024.0, 
+                        g.vram_total_mb as f64 / 1024.0,
+                        g.utilization_pct,
+                        temp_str);
+                } else {
+                    println!("│  \x1b[1mVRAM:\x1b[0m         Unified System VRAM");
+                }
+            } else {
+                println!("│  \x1b[1mGPU:\x1b[0m          Integrated / CPU Offload (No discrete GPU)");
             }
             println!("\x1b[1;36m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
             println!();
@@ -756,13 +763,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!();
 
             println!("\x1b[1;32m╭─ TOP OPERATOR COMMANDS ─────────────────────────────────────────────────────╮\x1b[0m");
+            println!("│  \x1b[1;32mnexus gui\x1b[0m                   Launch native SpaceX/xAI monochrome Flight Deck HUD");
             println!("│  \x1b[1;32mnexus run\x1b[0m                   Start background telemetry daemon & tray icon");
-            println!("│  \x1b[1;32mnexus elevate\x1b[0m               Upgrade to Administrator / Root background service");
+            println!("│  \x1b[1;32mnexus stop [service]\x1b[0m        Stop local background daemon or cluster service");
+            println!("│  \x1b[1;32mnexus restart [service]\x1b[0m     Restart local background daemon or cluster service");
+            println!("│  \x1b[1;32mnexus hub\x1b[0m                   Run full Axum backend server directly on this node");
             println!("│  \x1b[1;32mnexus cluster\x1b[0m               Inspect 3-VM cluster (my-mac, cos, pro)");
             println!("│  \x1b[1;32mnexus services\x1b[0m              Inspect running containers, web engines & games");
-            println!("│  \x1b[1;32mnexus restart <service>\x1b[0m     Trigger 1-click restart on cluster");
+            println!("│  \x1b[1;32mnexus purge\x1b[0m                 Clean-slate uninstaller, stops & removes agent");
             println!("│  \x1b[1;32mnexus chat\x1b[0m                  Start interactive AI session with slash console");
-            println!("│  \x1b[1;32mnexus ps\x1b[0m                    List models actively residing in VRAM");
             println!("│  \x1b[1;32mnexus manual\x1b[0m                Display comprehensive operator reference manual");
             println!("\x1b[1;32m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
         }

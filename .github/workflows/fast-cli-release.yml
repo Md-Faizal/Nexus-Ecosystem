@@ -25,6 +25,11 @@ jobs:
       - name: "🦀 Setup Rust Toolchain"
         uses: dtolnay/rust-toolchain@stable
 
+      - name: "📦 Install Linux GUI System Dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxkbcommon-dev
+
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:

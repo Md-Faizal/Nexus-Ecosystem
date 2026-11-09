@@ -11,7 +11,15 @@ impl GpuCollector {
             return Some(gpu);
         }
 
-        // 2. Try macOS Apple Silicon
+        // 2. Try Windows generic GPU detection (Intel Iris/UHD, AMD Radeon, Qualcomm)
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(gpu) = Self::collect_windows_generic() {
+                return Some(gpu);
+            }
+        }
+
+        // 3. Try macOS Apple Silicon
         #[cfg(target_os = "macos")]
         {
             if let Some(gpu) = Self::collect_apple_silicon() {
@@ -19,7 +27,7 @@ impl GpuCollector {
             }
         }
 
-        // 3. Fallback Linux sysfs AMD/Intel/ROCm
+        // 4. Fallback Linux sysfs AMD/Intel/ROCm
         #[cfg(target_os = "linux")]
         {
             if let Some(gpu) = Self::collect_linux_drm() {
@@ -69,6 +77,56 @@ impl GpuCollector {
         }
 
         None
+    }
+
+    #[cfg(target_os = "windows")]
+    fn collect_windows_generic() -> Option<GpuTelemetry> {
+        static CACHED_WIN_GPU: std::sync::OnceLock<Option<GpuTelemetry>> = std::sync::OnceLock::new();
+        CACHED_WIN_GPU.get_or_init(|| {
+            let output = Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Get-CimInstance Win32_VideoController | Select-Object -First 1 Name, AdapterRAM | ConvertTo-Json",
+                ])
+                .output()
+                .ok()?;
+
+            if !output.status.success() {
+                return None;
+            }
+
+            let text = String::from_utf8_lossy(&output.stdout);
+            let val: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
+            let name = val.get("Name")?.as_str()?.to_string();
+            let adapter_ram = val.get("AdapterRAM").and_then(|v| v.as_u64()).unwrap_or(0);
+            let vram_total_mb = adapter_ram / (1024 * 1024);
+
+            let vendor = if name.contains("NVIDIA") || name.contains("GeForce") {
+                "NVIDIA"
+            } else if name.contains("Intel") || name.contains("Iris") || name.contains("UHD") {
+                "Intel"
+            } else if name.contains("AMD") || name.contains("Radeon") {
+                "AMD"
+            } else if name.contains("Qualcomm") || name.contains("Snapdragon") {
+                "Qualcomm"
+            } else {
+                "Generic"
+            };
+
+            debug!("Detected Windows Display Controller: {} [{}] (VRAM: {}MB)", name, vendor, vram_total_mb);
+
+            Some(GpuTelemetry {
+                vendor: vendor.to_string(),
+                name,
+                utilization_pct: 0.0,
+                vram_total_mb,
+                vram_used_mb: 0,
+                temperature_c: None,
+                power_watts: None,
+            })
+        }).clone()
     }
 
     #[cfg(target_os = "macos")]

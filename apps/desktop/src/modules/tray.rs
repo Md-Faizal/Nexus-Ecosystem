@@ -35,9 +35,13 @@ const IDM_TITLE: usize = 1001;
 #[cfg(target_os = "windows")]
 const IDM_STATUS: usize = 1002;
 #[cfg(target_os = "windows")]
-const IDM_OPEN_ADMIN: usize = 1003;
+const IDM_LAUNCH_GUI: usize = 1000;
 #[cfg(target_os = "windows")]
 const IDM_STATUS_CLI: usize = 1004;
+#[cfg(target_os = "windows")]
+const IDM_RESTART: usize = 1006;
+#[cfg(target_os = "windows")]
+const IDM_OPEN_ADMIN: usize = 1003;
 #[cfg(target_os = "windows")]
 const IDM_EXIT: usize = 1005;
 
@@ -83,26 +87,39 @@ unsafe extern "system" fn window_proc(
             if event == WM_RBUTTONUP {
                 show_tray_menu(hwnd);
             } else if event == WM_LBUTTONDBLCLK {
-                let _ = Command::new("cmd")
-                    .args(["/c", "start", "https://faizal.uk/admin.html"])
-                    .spawn();
+                std::thread::spawn(|| {
+                    crate::gui::launch_gui();
+                });
             }
             0
         }
         WM_COMMAND => {
             let cmd_id = (wparam & 0xFFFF) as usize;
             match cmd_id {
-                IDM_OPEN_ADMIN => {
-                    let _ = Command::new("cmd")
-                        .args(["/c", "start", "https://faizal.uk/admin.html"])
-                        .spawn();
+                IDM_LAUNCH_GUI => {
+                    std::thread::spawn(|| {
+                        crate::gui::launch_gui();
+                    });
                 }
                 IDM_STATUS_CLI => {
                     let exe_str = std::env::current_exe()
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|_| "nexus-agent".to_string());
                     let _ = Command::new("cmd")
-                        .args(["/c", "start", "Nexus Agent Dashboard", "cmd.exe", "/k", &format!("color 0F && \"{}\" status", exe_str)])
+                        .args(["/c", "start", "Nexus Agent Status", "cmd.exe", "/k", &format!("color 0F && \"{}\" status", exe_str)])
+                        .spawn();
+                }
+                IDM_RESTART => {
+                    let exe_str = std::env::current_exe()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|_| "nexus-agent".to_string());
+                    let _ = Command::new("cmd")
+                        .args(["/c", "start", "Nexus Agent Restart", "cmd.exe", "/c", &format!("\"{}\" restart", exe_str)])
+                        .spawn();
+                }
+                IDM_OPEN_ADMIN => {
+                    let _ = Command::new("cmd")
+                        .args(["/c", "start", "https://faizal.uk/admin.html"])
                         .spawn();
                 }
                 IDM_EXIT => {
@@ -132,17 +149,21 @@ unsafe fn show_tray_menu(hwnd: HWND) {
     let mut cursor = POINT { x: 0, y: 0 };
     GetCursorPos(&mut cursor);
 
-    let title = to_wide_str("⚡ Nexus Fleet Agent");
+    let title = to_wide_str("⚡ Nexus Fleet Node");
     let status = to_wide_str("● Status: Connected (faizal.uk)");
-    let admin_label = to_wide_str("🌐 Open Personal Site Admin");
-    let status_label = to_wide_str("📊 View Node Status (CLI)");
-    let exit_label = to_wide_str("❌ Exit Agent");
+    let gui_label = to_wide_str("🚀 Launch Flight Deck (Native GUI)");
+    let status_label = to_wide_str("📊 View Fleet Telemetry (CLI)");
+    let restart_label = to_wide_str("🔄 Restart Local Agent");
+    let admin_label = to_wide_str("🌐 Open Cloud Admin Portal");
+    let exit_label = to_wide_str("❌ Stop / Exit Agent");
 
     AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, IDM_TITLE, title.as_ptr());
     AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, IDM_STATUS, status.as_ptr());
     AppendMenuW(menu, MF_SEPARATOR, 0, null());
-    AppendMenuW(menu, MF_STRING, IDM_OPEN_ADMIN, admin_label.as_ptr());
+    AppendMenuW(menu, MF_STRING, IDM_LAUNCH_GUI, gui_label.as_ptr());
     AppendMenuW(menu, MF_STRING, IDM_STATUS_CLI, status_label.as_ptr());
+    AppendMenuW(menu, MF_STRING, IDM_RESTART, restart_label.as_ptr());
+    AppendMenuW(menu, MF_STRING, IDM_OPEN_ADMIN, admin_label.as_ptr());
     AppendMenuW(menu, MF_SEPARATOR, 0, null());
     AppendMenuW(menu, MF_STRING, IDM_EXIT, exit_label.as_ptr());
 
