@@ -197,6 +197,69 @@ async fn fetch_gcp_stats() -> serde_json::Value {
     })
 }
 
+pub async fn get_bedrock_telemetry(
+    State(state): State<SharedState>,
+) -> impl IntoResponse {
+    // 1. Check if prometheus or a bedrock-tagged node is registered in live fleet mesh
+    let sessions = state.fleet.sessions.read().await;
+    let known = state.fleet.known_nodes.read().await;
+
+    for (node_id, node) in known.iter() {
+        if node_id.contains("prometheus") || node.hostname.contains("prometheus") || node.features.get("bedrock") == Some(&true) {
+            if let Some(sess) = sessions.get(node_id) {
+                if let Some(ref tel) = sess.latest_telemetry {
+                    let cpu_pct = tel.get("cpu").and_then(|c| c.get("usage_pct")).and_then(|p| p.as_f64()).unwrap_or(0.0);
+                    let cpu_cores = tel.get("cpu").and_then(|c| c.get("logical_cores")).and_then(|p| p.as_u64()).unwrap_or(2) as usize;
+                    let mem_total = tel.get("memory").and_then(|m| m.get("total_bytes")).and_then(|b| b.as_u64()).unwrap_or(1024 * 1024 * 1024);
+                    let mem_used = tel.get("memory").and_then(|m| m.get("used_bytes")).and_then(|b| b.as_u64()).unwrap_or(0);
+                    let mem_pct = tel.get("memory").and_then(|m| m.get("used_pct")).and_then(|p| p.as_f64()).unwrap_or(0.0);
+                    let uptime = tel.get("uptime_secs").and_then(|u| u.as_u64()).unwrap_or(0);
+                    let temp_c = tel.get("thermals").and_then(|t| t.get("cpu_temp_c")).and_then(|c| c.as_f64()).map(|f| f as f32);
+
+                    return Json(serde_json::json!({
+                        "hostname": &node.hostname,
+                        "os_label": if node.os_version.is_empty() { node.os.clone() } else { node.os_version.clone() },
+                        "cpu_pct": cpu_pct,
+                        "cpu_cores": cpu_cores,
+                        "memory_used_mb": mem_used / (1024 * 1024),
+                        "memory_total_mb": mem_total / (1024 * 1024),
+                        "memory_pct": mem_pct,
+                        "uptime_secs": uptime,
+                        "temp_c": temp_c,
+                        "status": "online"
+                    }));
+                }
+            }
+        }
+    }
+    drop(sessions);
+    drop(known);
+
+    // 2. Fallback to direct TCP probe
+    let gcp = fetch_gcp_stats().await;
+    let cpu_pct = gcp.get("cpu").and_then(|c| c.get("loadPercent")).and_then(|p| p.as_f64()).unwrap_or(0.0);
+    let cpu_cores = gcp.get("cpu").and_then(|c| c.get("cores")).and_then(|p| p.as_u64()).unwrap_or(2) as usize;
+    let mem_total_bytes = gcp.get("memory").and_then(|m| m.get("totalBytes")).and_then(|b| b.as_u64()).unwrap_or(1024 * 1024 * 1024);
+    let mem_used_bytes = gcp.get("memory").and_then(|m| m.get("usedBytes")).and_then(|b| b.as_u64()).unwrap_or(0);
+    let mem_pct = gcp.get("memory").and_then(|m| m.get("usedPercent")).and_then(|p| p.as_f64()).unwrap_or(0.0);
+    let uptime = gcp.get("uptime").and_then(|u| u.as_u64()).unwrap_or(0);
+    let status = gcp.get("status").and_then(|s| s.as_str()).unwrap_or("online");
+    let hostname = gcp.get("node").and_then(|n| n.as_str()).unwrap_or("prometheus");
+
+    Json(serde_json::json!({
+        "hostname": hostname,
+        "os_label": "Ubuntu Minimal (GCP)",
+        "cpu_pct": cpu_pct,
+        "cpu_cores": cpu_cores,
+        "memory_used_mb": mem_used_bytes / (1024 * 1024),
+        "memory_total_mb": mem_total_bytes / (1024 * 1024),
+        "memory_pct": mem_pct,
+        "uptime_secs": uptime,
+        "temp_c": null,
+        "status": status
+    }))
+}
+
 pub async fn get_system_stats(
     State(state): State<SharedState>,
 ) -> impl IntoResponse {

@@ -78,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health-report/errors", get(routes::health_api::get_health_errors))
         .route("/oci-allocator/send-mail", post(routes::health_api::send_oci_digest))
         .route("/fleet/nodes", get(routes::mesh_api::list_nodes))
+        .route("/fleet/telemetry/bedrock", get(routes::health_api::get_bedrock_telemetry))
         .route("/fleet/nodes/:id/command", post(routes::mesh_api::dispatch_command))
         .route("/fleet/nodes/:id/features", post(routes::mesh_api::update_node_features))
         .route("/fleet/nodes/:id/ai/stream", post(routes::mesh_api::stream_ai_prompt))

@@ -323,6 +323,65 @@ impl MeshClient {
             return (ok, if ok { 0 } else { 1 }, msg.clone(), if ok { "".into() } else { msg }, start.elapsed().as_millis() as u64);
         }
 
+        if action == "minecraft_mods_list" {
+            let mods = crate::modules::minecraft::MinecraftManager::list_mods(None);
+            let json = serde_json::to_string(&mods).unwrap_or_else(|_| "[]".into());
+            return (true, 0, json, "".into(), start.elapsed().as_millis() as u64);
+        }
+
+        if action == "minecraft_mod_toggle" {
+            let mod_id = args.first().map(|s| s.as_str()).unwrap_or("");
+            match crate::modules::minecraft::MinecraftManager::toggle_mod(None, mod_id) {
+                Ok(msg) => return (true, 0, msg, "".into(), start.elapsed().as_millis() as u64),
+                Err(err) => return (false, 1, "".into(), err, start.elapsed().as_millis() as u64),
+            }
+        }
+
+        if action == "minecraft_mod_delete" {
+            let mod_id = args.first().map(|s| s.as_str()).unwrap_or("");
+            match crate::modules::minecraft::MinecraftManager::delete_mod(None, mod_id) {
+                Ok(msg) => return (true, 0, msg, "".into(), start.elapsed().as_millis() as u64),
+                Err(err) => return (false, 1, "".into(), err, start.elapsed().as_millis() as u64),
+            }
+        }
+
+        if action == "minecraft_mod_install" {
+            let url = args.first().map(|s| s.as_str()).unwrap_or("");
+            let name = args.get(1).map(|s| s.as_str());
+            match crate::modules::minecraft::MinecraftManager::install_mod_url(None, url, name).await {
+                Ok(msg) => return (true, 0, msg, "".into(), start.elapsed().as_millis() as u64),
+                Err(err) => return (false, 1, "".into(), err, start.elapsed().as_millis() as u64),
+            }
+        }
+
+        if action == "minecraft_install" {
+            let flavor = args.first().map(|s| s.as_str()).unwrap_or("paper");
+            let version = args.get(1).map(|s| s.as_str()).unwrap_or("1.21.4");
+            let build = args.get(2).map(|s| s.as_str());
+            let download_url = args.get(3).filter(|s| !s.is_empty()).map(|s| s.as_str());
+            let jvm_heap = args.get(4).filter(|s| !s.is_empty()).map(|s| s.as_str());
+
+            match crate::modules::minecraft::MinecraftManager::install_flavor(None, flavor, version, build, download_url, jvm_heap).await {
+                Ok(msg) => return (true, 0, msg, "".into(), start.elapsed().as_millis() as u64),
+                Err(err) => return (false, 1, "".into(), err, start.elapsed().as_millis() as u64),
+            }
+        }
+
+        if action == "minecraft_command" {
+            let cmd_text = args.first().cloned().unwrap_or_default();
+            #[cfg(target_os = "linux")]
+            {
+                let escaped = cmd_text.replace('"', "\\\"");
+                let script = format!("screen -S minecraft -X stuff \"{}\\n\" 2>/dev/null || true", escaped);
+                let _ = tokio::process::Command::new("sh").arg("-c").arg(&script).output().await;
+                return (true, 0, format!("Command '{}' dispatched to server screen", cmd_text), "".into(), start.elapsed().as_millis() as u64);
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                return (true, 0, format!("Command '{}' acknowledged on host", cmd_text), "".into(), start.elapsed().as_millis() as u64);
+            }
+        }
+
         let (cmd, cmd_args): (&str, Vec<&str>) = match action {
             "reboot" => {
                 #[cfg(target_os = "windows")]

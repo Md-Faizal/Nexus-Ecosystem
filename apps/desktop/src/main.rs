@@ -239,6 +239,16 @@ pub enum McCommands {
     /// Apply Linux kernel BBR and FQ network optimizations for latency
     TuneSysctl,
 
+    /// Manage installed Minecraft mods (list, toggle, remove, install)
+    Mods {
+        #[command(subcommand)]
+        action: McModCommands,
+
+        /// Server directory (optional)
+        #[arg(short, long)]
+        dir: Option<String>,
+    },
+
     /// Remote Minecraft Fleet Operations (live status, start/stop/restart, active guard, mode switch)
     Remote {
         #[command(subcommand)]
@@ -251,6 +261,34 @@ pub enum McCommands {
         /// Remote SSH user (default: rida)
         #[arg(short, long)]
         user: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum McModCommands {
+    /// List all installed mods and their status (.jar vs .jar.disabled)
+    List,
+
+    /// Toggle a mod between enabled (.jar) and disabled (.jar.disabled)
+    Toggle {
+        /// Mod name or filename
+        name: String,
+    },
+
+    /// Remove/uninstall a mod from the mods folder
+    Remove {
+        /// Mod name or filename
+        name: String,
+    },
+
+    /// Download and install a mod jar from URL
+    Add {
+        /// Direct download URL for the mod .jar
+        url: String,
+
+        /// Target filename (optional)
+        #[arg(short, long)]
+        filename: Option<String>,
     },
 }
 
@@ -764,6 +802,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 modules::minecraft::MinecraftManager::handle_remote_command(
                     action, host.as_deref(), user.as_deref(),
                 ).await.map_err(|e| e.to_string())?;
+            }
+            McCommands::Mods { action, dir } => {
+                let p = dir.as_deref().map(std::path::Path::new);
+                match action {
+                    McModCommands::List => {
+                        let mods = modules::minecraft::MinecraftManager::list_mods(p);
+                        println!("\x1b[1;36m============================================================\x1b[0m");
+                        println!("\x1b[1;37m   NEXUS MINECRAFT SERVER - INSTALLED MODS ({})\x1b[0m", mods.len());
+                        println!("\x1b[1;36m============================================================\x1b[0m");
+                        if mods.is_empty() {
+                            println!("   No mods found in mods/ directory.");
+                        } else {
+                            for m in mods {
+                                let enabled = m["enabled"].as_bool().unwrap_or(true);
+                                let state_badge = if enabled { "\x1b[1;32m[ENABLED]\x1b[0m" } else { "\x1b[1;31m[DISABLED]\x1b[0m" };
+                                println!("• {} {} ({})", state_badge, m["filename"].as_str().unwrap_or(""), m["size_formatted"].as_str().unwrap_or(""));
+                            }
+                        }
+                        println!("\x1b[1;36m============================================================\x1b[0m");
+                    }
+                    McModCommands::Toggle { name } => {
+                        match modules::minecraft::MinecraftManager::toggle_mod(p, &name) {
+                            Ok(msg) => println!("\x1b[1;32m✓ {msg}\x1b[0m"),
+                            Err(err) => eprintln!("\x1b[1;31m✗ {err}\x1b[0m"),
+                        }
+                    }
+                    McModCommands::Remove { name } => {
+                        match modules::minecraft::MinecraftManager::delete_mod(p, &name) {
+                            Ok(msg) => println!("\x1b[1;32m✓ {msg}\x1b[0m"),
+                            Err(err) => eprintln!("\x1b[1;31m✗ {err}\x1b[0m"),
+                        }
+                    }
+                    McModCommands::Add { url, filename } => {
+                        match modules::minecraft::MinecraftManager::install_mod_url(p, &url, filename.as_deref()).await {
+                            Ok(msg) => println!("\x1b[1;32m✓ {msg}\x1b[0m"),
+                            Err(err) => eprintln!("\x1b[1;31m✗ {err}\x1b[0m"),
+                        }
+                    }
+                }
             }
         },
 

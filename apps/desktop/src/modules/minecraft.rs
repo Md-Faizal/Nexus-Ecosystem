@@ -771,4 +771,282 @@ net.ipv4.tcp_wmem = 4096 65536 8388608
 
         Ok(())
     }
+
+    /// Resolves the base Minecraft server directory on this node
+    pub fn resolve_minecraft_dir() -> PathBuf {
+        if let Ok(dir) = std::env::var("MINECRAFT_JAVA_DIR") {
+            let p = PathBuf::from(dir);
+            if p.exists() { return p; }
+        }
+        if let Ok(dir) = std::env::var("MINECRAFT_SERVER_DIR") {
+            let p = PathBuf::from(dir);
+            if p.exists() { return p; }
+        }
+
+        let candidates = [
+            PathBuf::from("/home/ubuntu/minecraft-server"),
+            PathBuf::from("/home/ubuntu/stack/games/minecraft"),
+            PathBuf::from("/data/java"),
+            PathBuf::from("minecraft-server"),
+            PathBuf::from("java"),
+            PathBuf::from("."),
+        ];
+
+        for cand in candidates {
+            if cand.join("server.properties").exists() || cand.join("mods").exists() || cand.join("user_jvm_args.txt").exists() {
+                return cand;
+            }
+        }
+
+        if Path::new("/home/ubuntu/minecraft-server").exists() {
+            PathBuf::from("/home/ubuntu/minecraft-server")
+        } else {
+            PathBuf::from(".")
+        }
+    }
+
+    /// List all mods installed in the Java server mods/ directory
+    pub fn list_mods(custom_dir: Option<&Path>) -> Vec<serde_json::Value> {
+        let base = custom_dir.map(PathBuf::from).unwrap_or_else(Self::resolve_minecraft_dir);
+        let mods_dir = base.join("mods");
+        let mut list = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(&mods_dir) {
+            for entry in entries.flatten() {
+                let fname = entry.file_name().to_string_lossy().to_string();
+                let is_jar = fname.ends_with(".jar");
+                let is_disabled = fname.ends_with(".jar.disabled");
+
+                if is_jar || is_disabled {
+                    let meta = entry.metadata().ok();
+                    let size_bytes = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let size_formatted = if size_bytes > 1024 * 1024 {
+                        format!("{:.1} MB", size_bytes as f64 / (1024.0 * 1024.0))
+                    } else {
+                        format!("{:.1} KB", size_bytes as f64 / 1024.0)
+                    };
+
+                    let clean_name = if is_disabled {
+                        fname.trim_end_matches(".disabled").trim_end_matches(".jar").to_string()
+                    } else {
+                        fname.trim_end_matches(".jar").to_string()
+                    };
+
+                    list.push(serde_json::json!({
+                        "name": clean_name,
+                        "filename": fname,
+                        "enabled": is_jar,
+                        "size_bytes": size_bytes,
+                        "size_formatted": size_formatted,
+                    }));
+                }
+            }
+        }
+
+        list.sort_by(|a, b| {
+            let na = a["name"].as_str().unwrap_or("");
+            let nb = b["name"].as_str().unwrap_or("");
+            na.cmp(nb)
+        });
+
+        list
+    }
+
+    /// Toggle a mod between enabled (.jar) and disabled (.jar.disabled)
+    pub fn toggle_mod(custom_dir: Option<&Path>, mod_identifier: &str) -> Result<String, String> {
+        let base = custom_dir.map(PathBuf::from).unwrap_or_else(Self::resolve_minecraft_dir);
+        let mods_dir = base.join("mods");
+        if !mods_dir.exists() {
+            return Err("Mods directory does not exist".to_string());
+        }
+
+        let id_clean = mod_identifier.trim();
+        let mut target_entry = None;
+
+        if let Ok(entries) = fs::read_dir(&mods_dir) {
+            for entry in entries.flatten() {
+                let fname = entry.file_name().to_string_lossy().to_string();
+                if fname.eq_ignore_ascii_case(id_clean)
+                    || fname.starts_with(id_clean)
+                    || fname.trim_end_matches(".disabled").trim_end_matches(".jar").eq_ignore_ascii_case(id_clean)
+                {
+                    target_entry = Some(entry.path());
+                    break;
+                }
+            }
+        }
+
+        let target_path = target_entry.ok_or_else(|| format!("Mod '{}' not found in {}", id_clean, mods_dir.display()))?;
+        let fname = target_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+        if fname.ends_with(".jar.disabled") {
+            let new_name = fname.trim_end_matches(".disabled");
+            let new_path = mods_dir.join(new_name);
+            fs::rename(&target_path, &new_path).map_err(|e| format!("Failed to enable mod: {e}"))?;
+            Ok(format!("Mod '{}' enabled successfully as '{}'", id_clean, new_name))
+        } else if fname.ends_with(".jar") {
+            let new_name = format!("{}.disabled", fname);
+            let new_path = mods_dir.join(&new_name);
+            fs::rename(&target_path, &new_path).map_err(|e| format!("Failed to disable mod: {e}"))?;
+            Ok(format!("Mod '{}' disabled successfully as '{}'", id_clean, new_name))
+        } else {
+            Err("Target file is neither .jar nor .jar.disabled".to_string())
+        }
+    }
+
+    /// Remove a mod from the mods directory
+    pub fn delete_mod(custom_dir: Option<&Path>, mod_identifier: &str) -> Result<String, String> {
+        let base = custom_dir.map(PathBuf::from).unwrap_or_else(Self::resolve_minecraft_dir);
+        let mods_dir = base.join("mods");
+        if !mods_dir.exists() {
+            return Err("Mods directory does not exist".to_string());
+        }
+
+        let id_clean = mod_identifier.trim();
+        let mut target_entry = None;
+
+        if let Ok(entries) = fs::read_dir(&mods_dir) {
+            for entry in entries.flatten() {
+                let fname = entry.file_name().to_string_lossy().to_string();
+                if fname.eq_ignore_ascii_case(id_clean)
+                    || fname.starts_with(id_clean)
+                    || fname.trim_end_matches(".disabled").trim_end_matches(".jar").eq_ignore_ascii_case(id_clean)
+                {
+                    target_entry = Some(entry.path());
+                    break;
+                }
+            }
+        }
+
+        let target_path = target_entry.ok_or_else(|| format!("Mod '{}' not found", id_clean))?;
+        fs::remove_file(&target_path).map_err(|e| format!("Failed to remove mod: {e}"))?;
+        Ok(format!("Mod '{}' removed successfully.", id_clean))
+    }
+
+    /// Download and install a mod jar from URL
+    pub async fn install_mod_url(custom_dir: Option<&Path>, url: &str, target_name: Option<&str>) -> Result<String, String> {
+        let base = custom_dir.map(PathBuf::from).unwrap_or_else(Self::resolve_minecraft_dir);
+        let mods_dir = base.join("mods");
+        fs::create_dir_all(&mods_dir).map_err(|e| format!("Could not create mods directory: {e}"))?;
+
+        let fname = if let Some(n) = target_name {
+            if n.ends_with(".jar") { n.to_string() } else { format!("{}.jar", n) }
+        } else {
+            url.split('/').last().unwrap_or("mod.jar").to_string()
+        };
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let res = client.get(url)
+            .header("User-Agent", "Nexus-Fleet-Minecraft-Agent/1.0")
+            .send()
+            .await
+            .map_err(|e| format!("Failed to download mod: {e}"))?;
+
+        if !res.status().is_success() {
+            return Err(format!("Download failed with HTTP {}", res.status()));
+        }
+
+        let bytes = res.bytes().await.map_err(|e| format!("Failed reading mod bytes: {e}"))?;
+        let out_path = mods_dir.join(&fname);
+        fs::write(&out_path, bytes).map_err(|e| format!("Failed to write mod jar: {e}"))?;
+
+        Ok(format!("Installed mod '{}' ({:.1} MB)", fname, out_path.metadata().map(|m| m.len() as f64 / 1_048_576.0).unwrap_or(0.0)))
+    }
+
+    /// Install or update server engine flavor (Paper, Purpur, Vanilla)
+    pub async fn install_flavor(
+        custom_dir: Option<&Path>,
+        flavor: &str,
+        version: &str,
+        build: Option<&str>,
+        download_url: Option<&str>,
+        jvm_heap: Option<&str>,
+    ) -> Result<String, String> {
+        let base = custom_dir.map(PathBuf::from).unwrap_or_else(Self::resolve_minecraft_dir);
+        fs::create_dir_all(&base).map_err(|e| format!("Could not create server directory: {e}"))?;
+
+        // 1. Back up existing jar
+        let backup_dir = base.join("backups");
+        let _ = fs::create_dir_all(&backup_dir);
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+
+        for cand in ["server.jar", "paper.jar", "purpur.jar", "fabric-server-launch.jar"] {
+            let p = base.join(cand);
+            if p.exists() {
+                let _ = fs::copy(&p, backup_dir.join(format!("{}.{}.bak", cand, timestamp)));
+            }
+        }
+
+        // 2. Resolve URL
+        let (resolved_url, target_jar) = if let Some(url) = download_url {
+            (url.to_string(), "server.jar")
+        } else {
+            match flavor.to_lowercase().as_str() {
+                "paper" => {
+                    let b = build.unwrap_or("latest");
+                    let b_num = if b == "latest" {
+                        let api = format!("https://api.papermc.io/v2/projects/paper/versions/{version}/builds");
+                        let res = reqwest::get(&api).await.map_err(|e| format!("PaperMC API error: {e}"))?;
+                        let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+                        let builds = json.get("builds").and_then(|b| b.as_array()).ok_or("No builds found for version")?;
+                        let last = builds.last().ok_or("Empty build list")?;
+                        last.get("build").and_then(|v| v.as_u64()).ok_or("Build number missing")?
+                    } else {
+                        b.parse::<u64>().unwrap_or(1)
+                    };
+                    let jar_name = format!("paper-{version}-{b_num}.jar");
+                    (format!("https://api.papermc.io/v2/projects/paper/versions/{version}/builds/{b_num}/downloads/{jar_name}"), "paper.jar")
+                }
+                "purpur" => {
+                    let b = build.unwrap_or("latest");
+                    (format!("https://api.purpurmc.org/v2/purpur/{version}/{b}/download"), "purpur.jar")
+                }
+                "vanilla" => {
+                    let manifest_res = reqwest::get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
+                        .await.map_err(|e| format!("Mojang API error: {e}"))?;
+                    let manifest: serde_json::Value = manifest_res.json().await.map_err(|e| e.to_string())?;
+                    let versions = manifest.get("versions").and_then(|v| v.as_array()).ok_or("No versions found")?;
+                    let target_ver = versions.iter().find(|v| v.get("id").and_then(|s| s.as_str()) == Some(version))
+                        .ok_or_else(|| format!("Minecraft version '{version}' not found"))?;
+                    let package_url = target_ver.get("url").and_then(|u| u.as_str()).ok_or("Package URL missing")?;
+                    let pkg_res = reqwest::get(package_url).await.map_err(|e| e.to_string())?;
+                    let pkg_json: serde_json::Value = pkg_res.json().await.map_err(|e| e.to_string())?;
+                    let server_dl = pkg_json.get("downloads").and_then(|d| d.get("server")).and_then(|s| s.get("url")).and_then(|u| u.as_str())
+                        .ok_or("Server download URL missing")?;
+                    (server_dl.to_string(), "server.jar")
+                }
+                _ => {
+                    return Err(format!("Unknown flavor '{flavor}'. Provide a download URL or choose paper, purpur, or vanilla."));
+                }
+            }
+        };
+
+        // 3. Download the jar
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(120)).build().map_err(|e| e.to_string())?;
+        let res = client.get(&resolved_url).send().await.map_err(|e| format!("Download error: {e}"))?;
+        if !res.status().is_success() {
+            return Err(format!("Download failed with status {}", res.status()));
+        }
+        let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+        fs::write(base.join(target_jar), bytes).map_err(|e| format!("Failed to save jar: {e}"))?;
+
+        if target_jar != "server.jar" {
+            let _ = fs::copy(base.join(target_jar), base.join("server.jar"));
+        }
+
+        // 4. Accept EULA
+        let _ = fs::write(base.join("eula.txt"), "eula=true\n# Automatically agreed via Nexus Fleet Manager\n");
+
+        // 5. Update JVM args if provided
+        if let Some(heap) = jvm_heap {
+            let jvm_file = base.join("user_jvm_args.txt");
+            let _ = fs::write(jvm_file, format!("-Xms512M\n-Xmx{heap}\n"));
+        }
+
+        Ok(format!("Installed {} {} as {} successfully.", flavor, version, target_jar))
+    }
 }
