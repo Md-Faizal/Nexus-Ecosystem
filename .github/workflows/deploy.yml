@@ -121,25 +121,33 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            services/core-hub -> target
-            apps/desktop -> target
+            . -> target
 
       - name: "🚀 Compile & Strip Release Binary"
         run: |
-          cd services/core-hub
-          cargo build --release
-          cd "$GITHUB_WORKSPACE"
-          cp services/core-hub/target/release/personal-site-rust ./personal-site-rust
+          cargo build --release -p personal-site-rust
+          BIN_PERSONAL=$(find . -name personal-site-rust -path "*/release/personal-site-rust" | head -n 1)
+          if [ -z "$BIN_PERSONAL" ] && [ -f target/release/personal-site-rust ]; then
+            BIN_PERSONAL="target/release/personal-site-rust"
+          elif [ -z "$BIN_PERSONAL" ] && [ -f services/core-hub/target/release/personal-site-rust ]; then
+            BIN_PERSONAL="services/core-hub/target/release/personal-site-rust"
+          fi
+          cp "$BIN_PERSONAL" ./personal-site-rust
           chmod +x ./personal-site-rust
           ls -lh ./personal-site-rust
-          cd apps/desktop
+
           VERSION="0.1.${{ github.run_number }}"
           echo "Auto-incrementing Nexus Agent version to $VERSION"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-          cargo build --release
-          cd "$GITHUB_WORKSPACE"
-          cp apps/desktop/target/release/nexus ./nexus-linux-amd64
-          cp apps/desktop/target/release/nexus ./nexus-agent-linux-amd64
+          sed -i "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent
+          BIN_AGENT=$(find . -name nexus -path "*/release/nexus" -not -path "*/target/*/*" | head -n 1)
+          if [ -z "$BIN_AGENT" ] && [ -f target/release/nexus ]; then
+            BIN_AGENT="target/release/nexus"
+          elif [ -z "$BIN_AGENT" ] && [ -f apps/desktop/target/release/nexus ]; then
+            BIN_AGENT="apps/desktop/target/release/nexus"
+          fi
+          cp "$BIN_AGENT" ./nexus-linux-amd64
+          cp "$BIN_AGENT" ./nexus-agent-linux-amd64
           chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
           ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
 
@@ -166,22 +174,21 @@ jobs:
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/desktop -> target"
+          workspaces: |
+            . -> target
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          cd apps/desktop
           $Version = "0.1.${{ github.run_number }}"
           Write-Host "Auto-incrementing Windows Nexus Agent version to $Version"
-          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 Cargo.toml
-          cargo build --release
-          cd $env:GITHUB_WORKSPACE
-          if (Test-Path apps/desktop/target/release/nexus.exe) {
+          (Get-Content apps/desktop/Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent
+          if (Test-Path target/release/nexus.exe) {
+            cp target/release/nexus.exe ./nexus-windows-amd64.exe
+            cp target/release/nexus.exe ./nexus-agent-windows-amd64.exe
+          } elseif (Test-Path apps/desktop/target/release/nexus.exe) {
             cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
             cp apps/desktop/target/release/nexus.exe ./nexus-agent-windows-amd64.exe
-          } elseif (Test-Path apps/desktop/target/release/nexus-agent.exe) {
-            cp apps/desktop/target/release/nexus-agent.exe ./nexus-windows-amd64.exe
-            cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
           }
 
       - name: "📦 Upload Windows Agent Binary Artifact"
@@ -208,25 +215,24 @@ jobs:
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/desktop -> target"
+          workspaces: |
+            . -> target
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Auto-incrementing macOS Nexus Agent version to $VERSION"
-          sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-          cargo build --release --target aarch64-apple-darwin
-          cargo build --release --target x86_64-apple-darwin
+          sed -i '' "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent --target aarch64-apple-darwin
+          cargo build --release -p nexus-agent --target x86_64-apple-darwin
           mkdir -p target/release
-          lipo -create -output target/release/nexus-universal \
-            target/aarch64-apple-darwin/release/nexus \
-            target/x86_64-apple-darwin/release/nexus
-          cd "$GITHUB_WORKSPACE"
-          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-arm64
-          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-amd64
-          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-arm64
-          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-amd64
+          ARM_BIN=$(find . -name nexus -path "*/aarch64-apple-darwin/release/nexus" | head -n 1)
+          INTEL_BIN=$(find . -name nexus -path "*/x86_64-apple-darwin/release/nexus" | head -n 1)
+          lipo -create -output target/release/nexus-universal "$ARM_BIN" "$INTEL_BIN"
+          cp target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp target/release/nexus-universal ./nexus-darwin-arm64
+          cp target/release/nexus-universal ./nexus-darwin-amd64
 
       - name: "📦 Upload macOS Agent Binary Artifact"
         uses: actions/upload-artifact@v4

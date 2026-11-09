@@ -1,4 +1,5 @@
 mod config;
+mod gui;
 mod mesh;
 mod modules;
 mod service;
@@ -21,7 +22,7 @@ struct Cli {
     command: Option<Commands>,
 
     /// Override the primary mesh hub URL (e.g. wss://faizal.uk/api/mesh/ws)
-    #[arg(short, long)]
+    #[arg(short = 'H', long)]
     hub: Option<String>,
 
     /// Override the local Ollama AI endpoint (default: http://127.0.0.1:11434)
@@ -46,8 +47,20 @@ enum Commands {
         foreground: bool,
     },
 
+    /// Run the centralized Nexus Web Hub, REST API & CAN-Bus WebSocket server
+    #[cfg(feature = "hub")]
+    Hub {
+        /// Port to bind the HTTP/API server (default: 3002 or PORT env)
+        #[arg(short, long)]
+        port: Option<u16>,
+    },
+
     /// Show local node identity, live hardware telemetry, and daemon status
     Status,
+
+    /// Launch the SpaceX-themed Flight Deck GUI Dashboard
+    #[command(alias = "dashboard", alias = "ui")]
+    Gui,
 
     /// Upgrade to Administrator / Root background service (triggers UAC / sudo)
     Elevate,
@@ -58,22 +71,30 @@ enum Commands {
     /// Inspect cluster services, docker containers, and game servers
     Services,
 
-    /// 1-Click restart a service across the cluster (e.g. 'nexus restart personal-site-rust')
+    /// Restart a cluster service, or restart the local Nexus agent daemon if omitted
     Restart {
-        /// Name or ID of service to restart
-        service: String,
+        /// Name or ID of service to restart across the cluster (optional: if omitted, restarts local agent daemon)
+        service: Option<String>,
     },
 
-    /// Start a service across the cluster
+    /// Start a service across the cluster, or start the local Nexus agent daemon if omitted
     Start {
-        /// Name or ID of service to start
-        service: String,
+        /// Name or ID of service to start across the cluster (optional: if omitted, starts local agent daemon)
+        service: Option<String>,
     },
 
-    /// Stop a service across the cluster
+    /// Stop a service across the cluster, or stop the local Nexus daemon if omitted
     Stop {
-        /// Name or ID of service to stop
-        service: String,
+        /// Name or ID of service to stop across the cluster. If omitted, stops the local background daemon.
+        service: Option<String>,
+    },
+
+    /// Completely stop, purge, and uninstall Nexus Agent from this system
+    #[command(alias = "uninstall", alias = "delete")]
+    Purge {
+        /// Force removal without interactive confirmation
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// View 24h cluster error logs and system health digest
@@ -430,7 +451,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Catch panics gracefully
     std::panic::set_hook(Box::new(|panic_info| {
-        eprintln!("Nexus Agent encountered panic: {:?}", panic_info);
+        let msg = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            *s
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.as_str()
+        } else {
+            "unknown"
+        };
+        eprintln!("Panic: {msg} at {:?}", panic_info.location());
     }));
 
     // Ergonomic CLI translation: if user ran "nexus services install" (plural), map to "service"
@@ -468,6 +496,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Some(Commands::Run { foreground }) => {
             handle_run_command(config, foreground).await?;
+        }
+
+        #[cfg(feature = "hub")]
+        Some(Commands::Hub { port }) => {
+            let mut app_config = nexus_core::config::AppConfig::from_env();
+            if let Some(p) = port {
+                app_config.port = p;
+            }
+            println!("\x1b[1;32m[Nexus Hub]\x1b[0m Starting universal core engine on http://0.0.0.0:{}", app_config.port);
+            if let Err(e) = nexus_core::run_server(app_config).await {
+                eprintln!("\x1b[1;31m[Nexus Hub Error]\x1b[0m {e}");
+                std::process::exit(1);
+            }
+        }
+
+        Some(Commands::Gui) => {
+            println!("\x1b[1;36m[Flight Deck]\x1b[0m Starting local GUI server...");
+            gui::start_local_gui_server();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            gui::launch_gui();
+            println!("\x1b[32m✓ SpaceX Flight Deck HUD opened (http://127.0.0.1:9876/dashboard).\x1b[0m");
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         }
 
         Some(Commands::Elevate) => {
@@ -521,15 +571,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Restart { service }) => {
-            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "restart").await;
+            handle_restart_command(&primary_hub, admin_pin.as_deref(), service).await?;
         }
 
         Some(Commands::Start { service }) => {
-            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "start").await;
+            handle_start_command(&primary_hub, admin_pin.as_deref(), service).await?;
         }
 
         Some(Commands::Stop { service }) => {
-            modules::cluster_ops::ClusterOps::control_service(&primary_hub, admin_pin.as_deref(), &service, "stop").await;
+            handle_stop_command(&primary_hub, admin_pin.as_deref(), service).await;
+        }
+
+        Some(Commands::Purge { force }) => {
+            handle_purge_command(force).await?;
         }
 
         Some(Commands::Health) => {
@@ -569,6 +623,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ram_pct = if total_ram_gb > 0.0 { (used_ram_gb / total_ram_gb) * 100.0 } else { 0.0 };
             let cpu_model = sys.cpus().first().map(|c| c.brand().trim()).unwrap_or("Unknown CPU");
             let cpu_cores = sys.cpus().len();
+            let cpu_usage = sys.global_cpu_usage();
 
             let gpus = modules::gpu::GpuCollector::collect();
             let ai_bridge = modules::ai_bridge::AiBridge::new(&config.ai_endpoint);
@@ -646,6 +701,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("│  \x1b[1mDaemon State:\x1b[0m {}", daemon_tag);
             println!("│  \x1b[1mHub Mesh:\x1b[0m     {}", hub_tag);
+
+            // Calculate dynamic symbiote fitness score
+            let is_cloud = modules::fitness::FitnessScore::detect_is_cloud();
+            let total_ram_mb = (total_ram_gb * 1024.0) as u64;
+            let used_ram_mb = (used_ram_gb * 1024.0) as u64;
+            let fitness = modules::fitness::FitnessScore::calculate(
+                total_ram_mb,
+                used_ram_mb,
+                cpu_usage,
+                is_cloud,
+                !hub_online,
+                true,
+            );
+            let filled = ((fitness.fitness_pct / 100.0) * 12.0).round() as usize;
+            let empty = 12usize.saturating_sub(filled);
+            let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(empty));
+            let color = if fitness.fitness_pct >= 80.0 { "\x1b[1;32m" } else if fitness.fitness_pct >= 50.0 { "\x1b[1;33m" } else { "\x1b[1;31m" };
+            println!("│  \x1b[1mFleet Fitness:\x1b[0m{}{} {:.1}%\x1b[0m \x1b[90m(Tier: {}, {})\x1b[0m", color, bar, fitness.fitness_pct, fitness.tier.to_uppercase(), fitness.role_label);
             println!("│  \x1b[1mSystem Uptime:\x1b[0m{}", uptime_formatted);
             println!("│  \x1b[1mCPU:\x1b[0m          {} ({} cores)", cpu_model, cpu_cores);
             if let Some(temp) = cpu_temp_c {
@@ -1180,4 +1253,119 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
     // Clean up daemon state on shutdown
     modules::daemon_lock::remove_daemon_state();
     Ok(())
+}
+
+async fn handle_restart_command(primary_hub: &str, admin_pin: Option<&str>, service: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    match service {
+        Some(ref s) if s != "agent" && s != "daemon" && s != "self" => {
+            modules::cluster_ops::ClusterOps::control_service(primary_hub, admin_pin, s, "restart").await;
+        }
+        _ => {
+            println!("\x1b[1;33mRestarting local Nexus Fleet Agent daemon...\x1b[0m");
+            let _ = ServiceManager::stop(true);
+            let _ = ServiceManager::stop(false);
+            modules::daemon_lock::remove_daemon_state();
+            std::thread::sleep(std::time::Duration::from_millis(600));
+            ServiceManager::start(true).or_else(|_| ServiceManager::start(false))?;
+            println!("\x1b[32m✓ Local Nexus Agent background daemon restarted.\x1b[0m");
+        }
+    }
+    Ok(())
+}
+
+async fn handle_start_command(primary_hub: &str, admin_pin: Option<&str>, service: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    match service {
+        Some(ref s) if s != "agent" && s != "daemon" && s != "self" => {
+            modules::cluster_ops::ClusterOps::control_service(primary_hub, admin_pin, s, "start").await;
+        }
+        _ => {
+            println!("\x1b[1;33mStarting local Nexus Fleet Agent daemon...\x1b[0m");
+            ServiceManager::start(true).or_else(|_| ServiceManager::start(false))?;
+            println!("\x1b[32m✓ Local Nexus Agent background daemon started.\x1b[0m");
+        }
+    }
+    Ok(())
+}
+
+async fn handle_stop_command(primary_hub: &str, admin_pin: Option<&str>, service: Option<String>) {
+    match service {
+        Some(ref s) if s != "agent" && s != "daemon" && s != "self" => {
+            modules::cluster_ops::ClusterOps::control_service(primary_hub, admin_pin, s, "stop").await;
+        }
+        _ => {
+            println!("\x1b[1;33mStopping local Nexus Fleet Agent daemon...\x1b[0m");
+            let _ = ServiceManager::stop(true);
+            let _ = ServiceManager::stop(false);
+            modules::daemon_lock::remove_daemon_state();
+            println!("\x1b[32m✓ Local Nexus Agent background daemon stopped.\x1b[0m");
+        }
+    }
+}
+
+async fn handle_purge_command(force: bool) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\x1b[1;31m=== Nexus Fleet Agent: Purge & Full Uninstallation ===\x1b[0m");
+    if !force {
+        print!("Are you sure you want to completely remove Nexus Agent from this system? [y/N]: ");
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("Purge cancelled.");
+            return Ok(());
+        }
+    }
+
+    println!("\x1b[1;33mStopping all running Nexus Agent processes...\x1b[0m");
+    let _ = ServiceManager::stop(true);
+    let _ = ServiceManager::stop(false);
+    modules::daemon_lock::remove_daemon_state();
+
+    println!("\x1b[1;33mUnregistering background services & startup tasks...\x1b[0m");
+    let _ = ServiceManager::uninstall(true);
+    let _ = ServiceManager::uninstall(false);
+
+    // Remove state and config directories
+    let config_dir = dirs_next_or_home();
+    if let Some(dir) = config_dir {
+        let agent_dir = dir.join(".nexus-agent");
+        if agent_dir.exists() {
+            let _ = std::fs::remove_dir_all(&agent_dir);
+            println!("\x1b[32m✓ Removed configuration directory ({})\x1b[0m", agent_dir.display());
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        println!("\x1b[1;33mCleaning Windows environment variables...\x1b[0m");
+        let script = r#"
+            $dirs = @("$env:ProgramFiles\NexusAgent", "$env:ProgramFiles(x86)\NexusAgent", "$env:LOCALAPPDATA\Programs\NexusAgent")
+            foreach ($scope in @("User", "Machine")) {
+                try {
+                    $p = [Environment]::GetEnvironmentVariable("Path", $scope)
+                    if ($p) {
+                        $parts = $p.Split(';') | Where-Object { $d = $_; -not ($dirs | Where-Object { $d -like "*$_*" }) }
+                        [Environment]::SetEnvironmentVariable("Path", ($parts -join ';'), $scope)
+                    }
+                } catch {}
+            }
+        "#;
+        let _ = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", script])
+            .status();
+    }
+
+    println!("\x1b[1;32m✓ Nexus Fleet Agent has been completely purged and uninstalled.\x1b[0m");
+    Ok(())
+}
+
+fn dirs_next_or_home() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("USERPROFILE").ok().map(std::path::PathBuf::from)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("HOME").ok().map(std::path::PathBuf::from)
+    }
 }

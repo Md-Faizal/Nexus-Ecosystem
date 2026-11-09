@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/desktop",
+    "services/core-hub",
+    "services/watchdog",
+]
+
+[profile.release]
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

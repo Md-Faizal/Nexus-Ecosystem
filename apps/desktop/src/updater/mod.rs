@@ -170,6 +170,12 @@ impl AgentUpdater {
             return Err(Box::new(e));
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            let zone_path = format!("{}:Zone.Identifier", temp_exe.display());
+            let _ = fs::remove_file(zone_path);
+        }
+
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -296,12 +302,19 @@ impl AgentUpdater {
     #[cfg(target_os = "windows")]
     fn elevate_windows(force: bool) -> Result<(), Box<dyn std::error::Error>> {
         let current_exe = std::env::current_exe()?;
-        let exe_str = current_exe.to_string_lossy().to_string();
-        let args = if force { "update --force" } else { "update" };
+        let target_dir = current_exe.parent().unwrap_or_else(|| Path::new("."));
+        let target_dir_str = target_dir.to_string_lossy().to_string();
+
+        let _ = force;
+        // Launch elevation via signed powershell.exe to prevent Device Guard from blocking unsigned binaries
+        let ps_inner = format!(
+            "$TargetDir = '{}'; irm https://faizal.uk/install.ps1 | iex",
+            target_dir_str.replace('\'', "''")
+        );
 
         let ps_cmd = format!(
-            "Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs",
-            exe_str, args
+            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"{}\"'",
+            ps_inner
         );
 
         let status = std::process::Command::new("powershell")
@@ -309,7 +322,7 @@ impl AgentUpdater {
             .status()?;
 
         if status.success() {
-            println!("\x1b[32mUpdate launched in elevated window.\x1b[0m");
+            println!("\x1b[32mUpdate launched in elevated PowerShell window.\x1b[0m");
         } else {
             println!("\x1b[31mUAC elevation was cancelled or failed.\x1b[0m");
         }

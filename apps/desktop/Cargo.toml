@@ -8,7 +8,13 @@ description = "Ultra-lightweight, resilient distributed fleet telemetry & remote
 name = "nexus"
 path = "src/main.rs"
 
+[features]
+default = ["hub"]
+hub = ["dep:nexus-core"]
+
 [dependencies]
+nexus-core = { path = "../../services/core-hub", package = "personal-site-rust", optional = true }
+axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
@@ -37,10 +43,3 @@ windows-sys = { version = "0.59", features = [
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
-
-[profile.release]
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true

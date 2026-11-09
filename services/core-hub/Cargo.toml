@@ -3,6 +3,14 @@ name = "personal-site-rust"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "nexus_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "personal-site-rust"
+path = "src/main.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["multipart", "ws"] }
 tokio = { version = "1", features = ["full"] }
@@ -21,11 +29,3 @@ sysinfo = { version = "0.31", default-features = false, features = ["system", "d
 chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-[profile.release]
-# Maximum optimisation for size + speed
-opt-level = "z"        # Optimise for binary size (smaller than opt-level=3 at runtime)
-lto = "thin"           # Thin LTO: faster compile than "fat", still eliminates dead code
-codegen-units = 1      # Single codegen unit for maximum inlining
-panic = "abort"        # No unwinding machinery — saves ~50KB
-strip = true           # Strip all symbols (debug + symbol table)

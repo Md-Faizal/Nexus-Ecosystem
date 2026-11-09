@@ -5,6 +5,7 @@ pub mod chat_storage;
 pub mod cluster_ops;
 pub mod daemon_lock;
 pub mod docker;
+pub mod fitness;
 pub mod gpu;
 pub mod helpbook;
 pub mod minecraft;

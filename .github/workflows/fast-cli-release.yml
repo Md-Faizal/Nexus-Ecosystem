@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - 'apps/desktop/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'public/releases/**'
       - '.github/workflows/fast-cli-release.yml'
 
@@ -26,18 +28,23 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/desktop -> target"
+          workspaces: |
+            . -> target
 
       - name: "🚀 Compile & Strip Linux Agent"
         run: |
-          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Bumping Nexus Agent to version $VERSION"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-          cargo build --release
-          cd "$GITHUB_WORKSPACE"
-          cp apps/desktop/target/release/nexus ./nexus-linux-amd64
-          cp apps/desktop/target/release/nexus ./nexus-agent-linux-amd64
+          sed -i "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent
+          BIN=$(find . -name nexus -path "*/release/nexus" -not -path "*/target/*/*" | head -n 1)
+          if [ -z "$BIN" ] && [ -f target/release/nexus ]; then
+            BIN="target/release/nexus"
+          elif [ -z "$BIN" ] && [ -f apps/desktop/target/release/nexus ]; then
+            BIN="apps/desktop/target/release/nexus"
+          fi
+          cp "$BIN" ./nexus-linux-amd64
+          cp "$BIN" ./nexus-agent-linux-amd64
           chmod +x ./nexus-agent-linux-amd64 ./nexus-linux-amd64
           ls -lh ./nexus-agent-linux-amd64 ./nexus-linux-amd64
 
@@ -63,22 +70,21 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/desktop -> target"
+          workspaces: |
+            . -> target
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          cd apps/desktop
           $Version = "0.1.${{ github.run_number }}"
           Write-Host "Bumping Windows Nexus Agent to version $Version"
-          (Get-Content Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 Cargo.toml
-          cargo build --release
-          cd $env:GITHUB_WORKSPACE
-          if (Test-Path apps/desktop/target/release/nexus.exe) {
+          (Get-Content apps/desktop/Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent
+          if (Test-Path target/release/nexus.exe) {
+            cp target/release/nexus.exe ./nexus-windows-amd64.exe
+            cp target/release/nexus.exe ./nexus-agent-windows-amd64.exe
+          } elseif (Test-Path apps/desktop/target/release/nexus.exe) {
             cp apps/desktop/target/release/nexus.exe ./nexus-windows-amd64.exe
             cp apps/desktop/target/release/nexus.exe ./nexus-agent-windows-amd64.exe
-          } elseif (Test-Path apps/desktop/target/release/nexus-agent.exe) {
-            cp apps/desktop/target/release/nexus-agent.exe ./nexus-windows-amd64.exe
-            cp apps/desktop/target/release/nexus-agent.exe ./nexus-agent-windows-amd64.exe
           }
 
       - name: "📦 Upload Windows Agent Artifacts"
@@ -105,25 +111,24 @@ jobs:
       - name: "⚡ Cache Rust Dependencies"
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/desktop -> target"
+          workspaces: |
+            . -> target
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          cd apps/desktop
           VERSION="0.1.${{ github.run_number }}"
           echo "Bumping macOS Nexus Agent to version $VERSION"
-          sed -i '' "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-          cargo build --release --target aarch64-apple-darwin
-          cargo build --release --target x86_64-apple-darwin
+          sed -i '' "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          cargo build --release -p nexus-agent --target aarch64-apple-darwin
+          cargo build --release -p nexus-agent --target x86_64-apple-darwin
           mkdir -p target/release
-          lipo -create -output target/release/nexus-universal \
-            target/aarch64-apple-darwin/release/nexus \
-            target/x86_64-apple-darwin/release/nexus
-          cd "$GITHUB_WORKSPACE"
-          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-arm64
-          cp apps/desktop/target/release/nexus-universal ./nexus-agent-darwin-amd64
-          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-arm64
-          cp apps/desktop/target/release/nexus-universal ./nexus-darwin-amd64
+          ARM_BIN=$(find . -name nexus -path "*/aarch64-apple-darwin/release/nexus" | head -n 1)
+          INTEL_BIN=$(find . -name nexus -path "*/x86_64-apple-darwin/release/nexus" | head -n 1)
+          lipo -create -output target/release/nexus-universal "$ARM_BIN" "$INTEL_BIN"
+          cp target/release/nexus-universal ./nexus-agent-darwin-arm64
+          cp target/release/nexus-universal ./nexus-agent-darwin-amd64
+          cp target/release/nexus-universal ./nexus-darwin-arm64
+          cp target/release/nexus-universal ./nexus-darwin-amd64
           chmod +x ./nexus*
           ls -lh ./nexus*
 

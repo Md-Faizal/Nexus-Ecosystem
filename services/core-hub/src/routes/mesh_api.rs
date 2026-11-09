@@ -35,6 +35,8 @@ pub struct NodeInfo {
     pub features: HashMap<String, bool>,
     pub models: Vec<String>,
     pub telemetry: Option<serde_json::Value>,
+    #[serde(default)]
+    pub fitness: Option<serde_json::Value>,
 }
 
 pub struct ActiveSession {
@@ -183,6 +185,7 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                                     features,
                                     models: vec![],
                                     telemetry: None,
+                                    fitness: None,
                                 },
                             );
                         }
@@ -338,6 +341,7 @@ pub async fn list_nodes(State(state): State<SharedState>) -> Json<Vec<NodeInfo>>
                 features: HashMap::new(),
                 models,
                 telemetry,
+                fitness: None,
             })
         }) {
             for r in rows.flatten() {
@@ -363,9 +367,61 @@ pub async fn list_nodes(State(state): State<SharedState>) -> Json<Vec<NodeInfo>>
 
     let mut result: Vec<NodeInfo> = node_map.into_values().collect();
 
-    // Sort: online first, then by hostname
+    // 3. Attach Dynamic Fitness Percentage Score to each node
+    for node in &mut result {
+        let is_cloud = {
+            let h = node.hostname.to_lowercase();
+            let os = node.os.to_lowercase();
+            h.contains("mac") || h.contains("cos") || h.contains("pro") || h.contains("oracle") || h.contains("gcp") || (os.contains("linux") && !h.contains("potato"))
+        };
+
+        let (cpu_usage, free_ram_pct) = if let Some(ref tel) = node.telemetry {
+            let cpu = tel.get("cpu").and_then(|c| c.get("usage_pct")).and_then(|v| v.as_f64()).unwrap_or(15.0) as f32;
+            let mem = tel.get("memory");
+            let free_pct = if let Some(m) = mem {
+                let total = m.get("total_mb").and_then(|v| v.as_f64()).unwrap_or(8000.0) as f32;
+                let used = m.get("used_mb").and_then(|v| v.as_f64()).unwrap_or(4000.0) as f32;
+                if total > 0.0 { ((total - used) / total * 100.0).clamp(0.0, 100.0) } else { 50.0 }
+            } else {
+                50.0
+            };
+            (cpu, free_pct)
+        } else {
+            (10.0, 60.0)
+        };
+
+        let cpu_headroom_pct = (100.0 - cpu_usage).clamp(0.0, 100.0);
+        let network_health = if node.status == "online" { 100.0 } else { 0.0 };
+        let resource_score = 0.40 * free_ram_pct + 0.35 * cpu_headroom_pct + 0.25 * network_health;
+        let tier_factor = if is_cloud { 1.0 } else { 0.70 };
+        let fitness_pct = (resource_score * tier_factor).clamp(0.0, 100.0);
+
+        let role_label = if node.status != "online" {
+            "○ Offline Node"
+        } else if is_cloud && fitness_pct >= 85.0 {
+            "👑 Active Cloud Coordinator"
+        } else if is_cloud {
+            "⚡ Warm Quorum Standby"
+        } else {
+            "🛡️ Edge Worker Standby"
+        };
+
+        node.fitness = Some(serde_json::json!({
+            "fitness_pct": (fitness_pct * 10.0).round() / 10.0,
+            "tier": if is_cloud { "cloud" } else { "edge" },
+            "is_cloud": is_cloud,
+            "ram_headroom_pct": (free_ram_pct * 10.0).round() / 10.0,
+            "cpu_headroom_pct": (cpu_headroom_pct * 10.0).round() / 10.0,
+            "role_label": role_label,
+            "services_healthy": node.status == "online"
+        }));
+    }
+
+    // Sort: online first, then by highest fitness percentage score
     result.sort_by(|a, b| {
-        b.status.cmp(&a.status).then_with(|| a.hostname.cmp(&b.hostname))
+        let score_a = a.fitness.as_ref().and_then(|f| f.get("fitness_pct")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let score_b = b.fitness.as_ref().and_then(|f| f.get("fitness_pct")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        b.status.cmp(&a.status).then_with(|| score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal))
     });
 
     Json(result)

@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS // FLIGHT DECK</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface-1: #070708;
+      --surface-2: #0e0e11;
+      --surface-3: #141418;
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --border-glow: rgba(255, 255, 255, 0.28);
+      --text-1: #ffffff;
+      --text-2: #a1a1aa;
+      --text-3: #52525b;
+      --text-4: #27272a;
+      --accent: #ffffff;
+      --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Ambient Satin Background Gradient */
+    .ambient-mesh {
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.02) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Top Architectural Navigation ─── */
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .monogram-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #18181b 0%, #09090b 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .brand-meta h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+      display: inline-block;
+    }
+
+    .brand-meta p {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .pill-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+
+    /* ─── Circular macOS/iOS Style Precision Button ─── */
+    .settings-trigger {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-2);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .settings-trigger:hover {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+      transform: scale(1.04);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+
+    .settings-trigger:active {
+      transform: scale(0.96);
+    }
+
+    .settings-trigger svg {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .settings-trigger:hover svg {
+      transform: rotate(60deg);
+    }
+
+    /* ─── Main Grid Canvas ─── */
+    main {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 20px;
+      }
+    }
+
+    /* ─── Designer Card Surfaces ─── */
+    .card {
+      background: linear-gradient(180deg, rgba(14, 14, 17, 0.6) 0%, rgba(8, 8, 10, 0.8) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .card:hover {
+      border-color: var(--border-strong);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 10px;
+      font-family: var(--mono);
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    .card-subtext {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      letter-spacing: 0.08em;
+    }
+
+    /* ─── Minimalist Hairline Fitness Radial Meter ─── */
+    .gauge-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0 24px 0;
+    }
+
+    .gauge-disc {
+      position: relative;
+      width: 220px;
+      height: 220px;
+    }
+
+    .gauge-disc svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .track-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.04);
+      stroke-width: 4;
+    }
+
+    .track-active {
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-dasharray: 628;
+      stroke-dashoffset: 440;
+      transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+    }
+
+    .gauge-core {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-reading {
+      font-size: 52px;
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      color: #fff;
+      line-height: 0.95;
+    }
+
+    .gauge-label {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-top: 8px;
+    }
+
+    .role-badge-box {
+      margin-top: 16px;
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.06em;
+      color: var(--text-2);
+      text-align: center;
+    }
+
+    /* ─── Telemetry Hairline Bars ─── */
+    .metric-group {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .metric-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .metric-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    .metric-meta span:last-child {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .hairline-track {
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .hairline-fill {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, #ffffff 100%);
+      border-radius: 2px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ─── Hardware Matrix Tiles ─── */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .tile {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tile-label {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    .tile-value {
+      font-size: 20px;
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .tile-sub {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-2);
+    }
+
+    /* ─── Tri-Core Business Survivability Rows ─── */
+    .tricore-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .tricore-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .tricore-row:hover {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: var(--border-strong);
+    }
+
+    .tricore-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tricore-tag {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--text-3);
+    }
+
+    .tricore-state {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    .tricore-state.synced {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-2);
+      border-color: var(--border-subtle);
+    }
+
+    /* ─── Control Strip ─── */
+    .control-cluster {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .btn-minimal {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--text-2);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+
+    .btn-minimal:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .btn-minimal:active {
+      transform: translateY(0);
+    }
+
+    /* ─── macOS / iOS Sheet Drawer ─── */
+    .sheet-scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sheet-scrim.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sheet-surface {
+      width: 440px;
+      max-width: 90vw;
+      background: #09090b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      transform: scale(0.94) translateY(12px);
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .sheet-scrim.visible .sheet-surface {
+      transform: scale(1) translateY(0);
+    }
+
+    .sheet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .sheet-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #fff;
+    }
+
+    .sheet-close-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+
+    .sheet-close-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    .drawer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .drawer-label {
+      font-size: 13px;
+      color: #fff;
+      font-weight: 400;
+    }
+
+    .drawer-sub {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+
+    /* iOS Precision Toggle */
+    .switch-ui {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .switch-ui input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch-knob {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      background: #27272a;
+      border-radius: 9999px;
+      transition: background 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .switch-knob::before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    input:checked + .switch-knob {
+      background: #ffffff;
+    }
+
+    input:checked + .switch-knob::before {
+      transform: translateX(18px);
+      background: #000000;
+    }
+
+    .input-mono {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #fff;
+      font-family: var(--mono);
+      font-size: 11px;
+      margin-top: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .input-mono:focus {
+      outline: none;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-mesh"></div>
+
+  <!-- Minimalist Architectural Navigation -->
+  <header>
+    <div class="brand-cluster">
+      <div class="monogram-mark">F•</div>
+      <div class="brand-meta">
+        <h1>Nexus Flight Deck <span class="status-dot"></span></h1>
+        <p id="node-tag">POTATO-PRO // TIER: EDGE WORKSTATION</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="pill-status" id="quorum-tag">5-Node Quorum Active</div>
+      <!-- Circular Precision Settings Button -->
+      <button class="settings-trigger" id="open-settings-btn" title="Configuration Drawer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Flight Deck Main Layout -->
+  <main>
+    <!-- Left Column: Symbiote Fitness Metric Disc -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">01 // Symbiote Fitness</span>
+        <span class="card-subtext" id="tier-indicator">Tier: Edge</span>
+      </div>
+
+      <div class="gauge-container">
+        <div class="gauge-disc">
+          <svg viewBox="0 0 220 220">
+            <circle class="track-bg" cx="110" cy="110" r="100" />
+            <circle class="track-active" id="radial-arc" cx="110" cy="110" r="100" />
+          </svg>
+          <div class="gauge-core">
+            <div class="gauge-reading" id="score-text">28.9<span style="font-size:24px; font-weight:300;">%</span></div>
+            <div class="gauge-label">Consensus Score</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="role-badge-box" id="role-text">🛡️ Edge Worker Standby</div>
+
+      <div class="metric-group">
+        <div class="metric-cell">
+          <div class="metric-meta">
+            <span>RAM Headroom</span>
+            <span id="ram-head-val">36.2%</span>
+          </div>
+          <div class="hairline-track">
+            <div class="hairline-fill" id="ram-head-bar" style="width: 36.2%;"></div>
+          </div>
+        </div>
+
+        <div class="metric-cell">
+          <div class="metric-meta">
+            <span>CPU Headroom</span>
+            <span id="cpu-head-val">88.5%</span>
+          </div>
+          <div class="hairline-track">
+            <div class="hairline-fill" id="cpu-head-bar" style="width: 88.5%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Hardware Matrix & Tri-Core Payload -->
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      <!-- Hardware Telemetry Matrix -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">02 // Host Telemetry Matrix</span>
+          <span class="card-subtext" id="uptime-val">Uptime: 23h 16m</span>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="tile">
+            <span class="tile-label">Processor</span>
+            <div class="tile-value" id="cpu-val">11.5%</div>
+            <span class="tile-sub" id="cpu-spec">Intel Core i3-8100 • 4C</span>
+          </div>
+
+          <div class="tile">
+            <span class="tile-label">Memory</span>
+            <div class="tile-value" id="ram-val">4.99 GB</div>
+            <span class="tile-sub" id="ram-spec">7.83 GB Total (63.8%)</span>
+          </div>
+
+          <div class="tile">
+            <span class="tile-label">Graphics Engine</span>
+            <div class="tile-value">RTX 3060</div>
+            <span class="tile-sub">12.0 GB VRAM • 10% Used</span>
+          </div>
+
+          <div class="tile">
+            <span class="tile-label">CAN-Bus Relay</span>
+            <div class="tile-value">Connected</div>
+            <span class="tile-sub">faizal.uk (Latency: 18ms)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tri-Core Business Survivability -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">03 // Protected Tri-Core Payload</span>
+          <span class="card-subtext" style="color:#ffffff;">Survivability: Maximum</span>
+        </div>
+
+        <div class="tricore-stack">
+          <div class="tricore-row">
+            <div>
+              <div class="tricore-name">Nexus Fleet Hub & Website</div>
+              <div class="tricore-tag">faizal.uk // Rust Axum Core (Port 3002)</div>
+            </div>
+            <span class="tricore-state">Primary Active</span>
+          </div>
+
+          <div class="tricore-row">
+            <div>
+              <div class="tricore-name">Stalwart Mail Stack</div>
+              <div class="tricore-tag">mail.faizal.uk // IMAP, SMTP, JMAP</div>
+            </div>
+            <span class="tricore-state synced">Hot Standby</span>
+          </div>
+
+          <div class="tricore-row">
+            <div>
+              <div class="tricore-name">macOS Business Environment</div>
+              <div class="tricore-tag">macos.faizal.uk // Docker Blue-Green</div>
+            </div>
+            <span class="tricore-state synced">Hot Standby</span>
+          </div>
+        </div>
+
+        <!-- Minimalist Actions -->
+        <div class="control-cluster">
+          <button class="btn-minimal" onclick="fetch('/api/action/restart', {method:'POST'}).catch(() => alert('Daemon restarted.'))">
+            ↻ Restart Node
+          </button>
+          <button class="btn-minimal" onclick="window.open('https://faizal.uk/admin.html', '_blank')">
+            ↗ Cloud Admin Console
+          </button>
+          <button class="btn-minimal" onclick="document.getElementById('open-settings-btn').click()">
+            ⚙ Preferences
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- iOS / macOS Glassmorphic Settings Sheet -->
+  <div class="sheet-scrim" id="settings-scrim">
+    <div class="sheet-surface">
+      <div class="sheet-header">
+        <div class="sheet-title">Node Preferences</div>
+        <button class="sheet-close-btn" id="close-settings-btn">✕</button>
+      </div>
+
+      <div class="drawer-row">
+        <div>
+          <div class="drawer-label">Autonomous Coordinator</div>
+          <div class="drawer-sub">Self-promote if all cloud instances fail</div>
+        </div>
+        <label class="switch-ui">
+          <input type="checkbox" id="pref-coord" checked>
+          <span class="switch-knob"></span>
+        </label>
+      </div>
+
+      <div class="drawer-row">
+        <div>
+          <div class="drawer-label">High-Cadence Telemetry</div>
+          <div class="drawer-sub">Stream system metrics at 2-second interval</div>
+        </div>
+        <label class="switch-ui">
+          <input type="checkbox" id="pref-telemetry" checked>
+          <span class="switch-knob"></span>
+        </label>
+      </div>
+
+      <div class="drawer-row">
+        <div>
+          <div class="drawer-label">Local AI Engine Relay</div>
+          <div class="drawer-sub">Expose local Ollama models to cloud mesh</div>
+        </div>
+        <label class="switch-ui">
+          <input type="checkbox" id="pref-ai" checked>
+          <span class="switch-knob"></span>
+        </label>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label class="drawer-label" style="font-size:11px;">Primary CAN-Bus WebSocket Hub</label>
+        <input class="input-mono" type="text" value="wss://faizal.uk/api/mesh/ws" id="hub-input-field">
+      </div>
+
+      <div style="margin-top: 24px; display:flex; justify-content:flex-end;">
+        <button class="btn-minimal" id="save-btn" style="background:#fff; color:#000; border-color:#fff; font-weight:600;">
+          Apply & Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // iOS / macOS Settings Drawer controller
+    const scrim = document.getElementById('settings-scrim');
+    const openBtn = document.getElementById('open-settings-btn');
+    const closeBtn = document.getElementById('close-settings-btn');
+    const saveBtn = document.getElementById('save-btn');
+
+    openBtn.addEventListener('click', () => scrim.classList.add('visible'));
+    closeBtn.addEventListener('click', () => scrim.classList.remove('visible'));
+    saveBtn.addEventListener('click', () => scrim.classList.remove('visible'));
+    scrim.addEventListener('click', (e) => {
+      if (e.target === scrim) scrim.classList.remove('visible');
+    });
+
+    // Update radial arc (radius = 100, circumference = 2 * PI * 100 = 628.318)
+    function renderFitness(score) {
+      const arc = document.getElementById('radial-arc');
+      const text = document.getElementById('score-text');
+      const circumference = 628.318;
+      const offset = circumference - (score / 100) * circumference;
+      arc.style.strokeDashoffset = offset;
+      text.innerHTML = `${score.toFixed(1)}<span style="font-size:24px; font-weight:300;">%</span>`;
+    }
+
+    renderFitness(28.9);
+
+    // Live poller for local status endpoint
+    async function updateHUD() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.fitness) {
+            renderFitness(data.fitness.fitness_pct);
+            document.getElementById('role-text').innerText = data.fitness.role_label;
+            document.getElementById('tier-indicator').innerText = `Tier: ${data.fitness.tier.toUpperCase()}`;
+            document.getElementById('ram-head-val').innerText = `${data.fitness.ram_headroom_pct.toFixed(1)}%`;
+            document.getElementById('ram-head-bar').style.width = `${data.fitness.ram_headroom_pct}%`;
+            document.getElementById('cpu-head-val').innerText = `${data.fitness.cpu_headroom_pct.toFixed(1)}%`;
+            document.getElementById('cpu-head-bar').style.width = `${data.fitness.cpu_headroom_pct}%`;
+          }
+          if (data.cpu_usage_pct !== undefined) {
+            document.getElementById('cpu-val').innerText = `${data.cpu_usage_pct.toFixed(1)}%`;
+          }
+        }
+      } catch (e) {
+        // Fallback to static preview
+      }
+    }
+
+    setInterval(updateHUD, 2000);
+  </script>
+</body>
+</html>

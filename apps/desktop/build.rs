@@ -22,7 +22,8 @@ fn main() {
 
             if let Ok(s) = status {
                 if s.success() && out_obj.exists() {
-                    println!("cargo:rustc-link-arg=resources/resource.o");
+                    let obj_str = out_obj.to_str().unwrap().replace('\\', "/");
+                    println!("cargo:rustc-link-arg={}", obj_str);
                     println!("cargo:rerun-if-changed=resources/app.ico");
                     return;
                 }

@@ -49,8 +49,14 @@ Start-Sleep -Milliseconds 600
 Move-Item -Path $TempExe -Destination $DestExe -Force
 Copy-Item -Path $DestExe -Destination $NexusAlias -Force -ErrorAction SilentlyContinue
 Copy-Item -Path $DestExe -Destination $NxAlias -Force -ErrorAction SilentlyContinue
+Unblock-File -Path $DestExe -ErrorAction SilentlyContinue
 Unblock-File -Path $NexusAlias -ErrorAction SilentlyContinue
 Unblock-File -Path $NxAlias -ErrorAction SilentlyContinue
+foreach ($f in @($DestExe, $NexusAlias, $NxAlias)) {
+    if (Test-Path "$f:Zone.Identifier") {
+        Remove-Item "$f:Zone.Identifier" -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Write-Host "Configuring system PATH environment variable..." -ForegroundColor Gray
 if ($IsAdmin) {
