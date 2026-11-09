@@ -60,7 +60,7 @@ pub fn print_status_box(
     };
 
     println!("\x1b[38;2;250;200;80m╭─────────────────────────────────────────────────────────────────────────────╮\x1b[0m");
-    println!("\x1b[38;2;250;200;80m│\x1b[0m Nexus Fleet Agent v{} • Hub: {}", env!("CARGO_PKG_VERSION"), hub_str);
+    println!("\x1b[38;2;250;200;80m│\x1b[0m Nexus Fleet Agent v{} • Hub: {}", crate::AGENT_VERSION, hub_str);
     println!("\x1b[38;2;250;200;80m│\x1b[0m Node: \x1b[1;36m{}\x1b[0m ({}) • Ollama Engine: \x1b[1;33m{}\x1b[0m [{}]", node_id, hostname, ai_endpoint, ai_str);
     println!("\x1b[38;2;250;200;80m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m");
     println!();

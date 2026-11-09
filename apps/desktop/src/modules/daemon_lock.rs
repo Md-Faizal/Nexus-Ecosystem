@@ -111,7 +111,7 @@ pub fn write_daemon_state(pid: u32) {
     let state = DaemonState {
         pid,
         last_heartbeat: now,
-        agent_version: env!("CARGO_PKG_VERSION").to_string(),
+        agent_version: crate::AGENT_VERSION.to_string(),
     };
     if let Ok(json) = serde_json::to_string_pretty(&state) {
         let _ = std::fs::write(crate::config::AgentConfig::state_path(), json);

@@ -27,7 +27,7 @@ pub struct AgentUpdater;
 
 impl AgentUpdater {
     pub async fn run_update(manifest_url: &str, check_only: bool, force: bool) -> Result<(), Box<dyn std::error::Error>> {
-        let current_version = env!("CARGO_PKG_VERSION");
+        let current_version = crate::AGENT_VERSION;
         println!("\x1b[1;36mChecking for Nexus Fleet updates from {}...\x1b[0m", manifest_url);
 
         let client = reqwest::Client::builder()
@@ -306,15 +306,42 @@ impl AgentUpdater {
         let target_dir_str = target_dir.to_string_lossy().to_string();
 
         let _ = force;
-        // Launch elevation via signed powershell.exe to prevent Device Guard from blocking unsigned binaries
-        let ps_inner = format!(
+        // Construct script: set $TargetDir and execute installer
+        let script = format!(
             "$TargetDir = '{}'; irm https://faizal.uk/install.ps1 | iex",
             target_dir_str.replace('\'', "''")
         );
 
+        // Encode as UTF-16LE Base64 so PowerShell -EncodedCommand executes it without any quote or parenthesis parsing bugs
+        let utf16: Vec<u8> = script
+            .encode_utf16()
+            .flat_map(|u| u.to_le_bytes())
+            .collect();
+
+        const B64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut b64 = String::with_capacity(utf16.len() * 4 / 3 + 4);
+        for chunk in utf16.chunks(3) {
+            let b0 = chunk[0];
+            let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+            let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+
+            b64.push(B64_CHARS[(b0 >> 2) as usize] as char);
+            b64.push(B64_CHARS[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+            if chunk.len() > 1 {
+                b64.push(B64_CHARS[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+            } else {
+                b64.push('=');
+            }
+            if chunk.len() > 2 {
+                b64.push(B64_CHARS[(b2 & 0x3f) as usize] as char);
+            } else {
+                b64.push('=');
+            }
+        }
+
         let ps_cmd = format!(
-            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"{}\"'",
-            ps_inner
+            "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -EncodedCommand {}'",
+            b64
         );
 
         let status = std::process::Command::new("powershell")
@@ -370,7 +397,7 @@ impl AgentUpdater {
         };
 
         let remote_version = manifest.version.trim();
-        let current_version = env!("CARGO_PKG_VERSION").trim();
+        let current_version = crate::AGENT_VERSION.trim();
 
         if Self::is_newer_version(remote_version, current_version) {
             tracing::info!(

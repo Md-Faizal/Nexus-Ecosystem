@@ -78,7 +78,7 @@ impl MeshClient {
             os: self.config.os.clone(),
             os_version: sysinfo::System::os_version().unwrap_or_default(),
             arch: self.config.arch.clone(),
-            agent_version: env!("CARGO_PKG_VERSION").to_string(),
+            agent_version: crate::AGENT_VERSION.to_string(),
             features: self.config.features.clone(),
             local_ips: vec![],
         };

@@ -4,13 +4,21 @@ $ErrorActionPreference = "Stop"
 $HubUrl = if ($env:NEXUS_HUB) { $env:NEXUS_HUB } else { "https://faizal.uk" }
 $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-if ($IsAdmin) {
-    $TargetDir = "$env:ProgramFiles\NexusAgent"
-    Write-Host "=== Installing Nexus Fleet Agent (System Administrator Mode) ===" -ForegroundColor Cyan
+if (-not $TargetDir) {
+    if ($IsAdmin) {
+        if (Test-Path "${env:ProgramFiles(x86)}\NexusAgent") {
+            $TargetDir = "${env:ProgramFiles(x86)}\NexusAgent"
+        } else {
+            $TargetDir = "$env:ProgramFiles\NexusAgent"
+        }
+        Write-Host "=== Installing Nexus Fleet Agent (System Administrator Mode) ===" -ForegroundColor Cyan
+    } else {
+        $TargetDir = "$env:LOCALAPPDATA\Programs\NexusAgent"
+        Write-Host "=== Installing Nexus Fleet Agent (User Mode) ===" -ForegroundColor Yellow
+        Write-Host "Note: Installing without admin privileges. Run 'nexus elevate' anytime to upgrade." -ForegroundColor Gray
+    }
 } else {
-    $TargetDir = "$env:LOCALAPPDATA\Programs\NexusAgent"
-    Write-Host "=== Installing Nexus Fleet Agent (User Mode) ===" -ForegroundColor Yellow
-    Write-Host "Note: Installing without admin privileges. Run 'nexus elevate' anytime to upgrade." -ForegroundColor Gray
+    Write-Host "=== Installing Nexus Fleet Agent into $TargetDir ===" -ForegroundColor Cyan
 }
 
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null

@@ -385,7 +385,7 @@ impl eframe::App for FlightDeckApp {
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(egui::RichText::new("NEXUS AGENT v0.1.82 • STANDALONE RUST NATIVE").font(FontId::monospace(9.0)).color(Color32::from_rgb(90, 90, 100)));
+                        ui.label(egui::RichText::new(format!("NEXUS AGENT v{} • STANDALONE RUST NATIVE", crate::AGENT_VERSION)).font(FontId::monospace(9.0)).color(Color32::from_rgb(90, 90, 100)));
                     });
                 });
                 ui.add_space(4.0);

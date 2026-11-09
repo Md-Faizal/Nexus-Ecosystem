@@ -11,11 +11,16 @@ use mesh::client::MeshClient;
 use service::ServiceManager;
 use tracing::info;
 
+pub const AGENT_VERSION: &str = match option_env!("NEXUS_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 #[derive(Parser)]
 #[command(name = "nexus")]
 #[command(bin_name = "nexus")]
 #[command(author = "Faizal")]
-#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(version = AGENT_VERSION)]
 #[command(about = "Unified distributed fleet telemetry & remote cluster operations console", long_about = None)]
 struct Cli {
     #[command(subcommand)]

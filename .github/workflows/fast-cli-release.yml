@@ -38,9 +38,11 @@ jobs:
 
       - name: "🚀 Compile & Strip Linux Agent"
         run: |
-          VERSION="0.1.${{ github.run_number }}"
-          echo "Bumping Nexus Agent to version $VERSION"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
+          [ "$REV" -le 92 ] && REV=93
+          VERSION="0.1.$REV"
+          echo "Compiling Linux Nexus Agent version $VERSION"
+          export NEXUS_VERSION="$VERSION"
           cargo build --release -p nexus-agent
           BIN=$(find . -name nexus -path "*/release/nexus" -not -path "*/target/*/*" | head -n 1)
           if [ -z "$BIN" ] && [ -f target/release/nexus ]; then
@@ -80,9 +82,11 @@ jobs:
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          $Version = "0.1.${{ github.run_number }}"
-          Write-Host "Bumping Windows Nexus Agent to version $Version"
-          (Get-Content apps/desktop/Cargo.toml) -replace '^version = .*', "version = `"$Version`"" | Set-Content -Encoding utf8 apps/desktop/Cargo.toml
+          $Rev = (git rev-list --count HEAD)
+          if (-not $Rev -or [int]$Rev -le 92) { $Rev = 93 }
+          $Version = "0.1.$Rev"
+          Write-Host "Compiling Windows Nexus Agent version $Version"
+          $env:NEXUS_VERSION = $Version
           cargo build --release -p nexus-agent
           if (Test-Path target/release/nexus.exe) {
             cp target/release/nexus.exe ./nexus-windows-amd64.exe
@@ -121,9 +125,11 @@ jobs:
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          VERSION="0.1.${{ github.run_number }}"
-          echo "Bumping macOS Nexus Agent to version $VERSION"
-          sed -i '' "s/^version = .*/version = \"$VERSION\"/" apps/desktop/Cargo.toml
+          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
+          [ "$REV" -le 92 ] && REV=93
+          VERSION="0.1.$REV"
+          echo "Compiling macOS Nexus Agent version $VERSION"
+          export NEXUS_VERSION="$VERSION"
           cargo build --release -p nexus-agent --target aarch64-apple-darwin
           cargo build --release -p nexus-agent --target x86_64-apple-darwin
           mkdir -p target/release
@@ -176,7 +182,10 @@ jobs:
 
       - name: "🔧 Prepare Release Binaries & Manifest"
         run: |
-          VERSION="0.1.${{ github.run_number }}"
+          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
+          [ "$REV" -le 92 ] && REV=93
+          VERSION="0.1.$REV"
+          echo "Publishing Nexus Agent release v$VERSION"
           mkdir -p public/releases
           
           if [ -f ./nexus-agent-linux-amd64 ]; then
@@ -199,10 +208,19 @@ jobs:
 
           chmod +x public/releases/nexus*
 
+          WIN_SHA=$(sha256sum public/releases/nexus-agent-windows-amd64.exe 2>/dev/null | awk '{print $1}' || echo "")
+          LINUX_SHA=$(sha256sum public/releases/nexus-agent-linux-amd64 2>/dev/null | awk '{print $1}' || echo "")
+
           if [ -f public/releases/latest.json ]; then
-            sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" public/releases/latest.json
-            sed -i "s/\"release_date\": \".*\"/\"release_date\": \"$(date +%Y-%m-%d)\"/" public/releases/latest.json
+            TODAY=$(date +%Y-%m-%d)
+            jq --arg v "$VERSION" --arg d "$TODAY" --arg ws "$WIN_SHA" --arg ls "$LINUX_SHA" '
+              .version = $v |
+              .release_date = $d |
+              (if $ws != "" then .artifacts["windows-amd64"].sha256 = $ws else . end) |
+              (if $ls != "" then .artifacts["linux-amd64"].sha256 = $ls else . end)
+            ' public/releases/latest.json > tmp.json && mv tmp.json public/releases/latest.json
             echo "Updated public/releases/latest.json to version $VERSION"
+            cat public/releases/latest.json
           fi
 
           ls -lh public/releases/
