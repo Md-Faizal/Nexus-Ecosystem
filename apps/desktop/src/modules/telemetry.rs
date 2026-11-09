@@ -154,14 +154,61 @@ impl TelemetryCollector {
             total_tx_bytes: current_tx,
         };
 
-        // ─── Thermals ───
+        // ─── Thermals (Cross-Platform: Linux, Windows, macOS) ───
         let mut cpu_temp: Option<f32> = None;
+
+        // 1. Scan Components with expanded labels across hardware vendors
+        let thermal_keywords = [
+            "cpu", "core", "package", "tctl", "tdie", "k10temp", "temp", "acpitz",
+            "composite", "zenpower", "soc", "die", "peci", "ambient"
+        ];
         for comp in &self.components {
             let label = comp.label().to_lowercase();
-            if label.contains("cpu") || label.contains("core") || label.contains("package") {
+            if thermal_keywords.iter().any(|&k| label.contains(k)) {
                 if let Some(temp) = comp.temperature() {
-                    cpu_temp = Some(temp);
-                    break;
+                    if temp > 15.0 && temp < 125.0 {
+                        cpu_temp = Some(temp);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: Take first plausible component temperature on any OS
+        if cpu_temp.is_none() {
+            for comp in &self.components {
+                if let Some(temp) = comp.temperature() {
+                    if temp > 18.0 && temp < 115.0 {
+                        cpu_temp = Some(temp);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Linux Direct Kernel Sensor Fallback (/sys/class/thermal & /sys/class/hwmon)
+        #[cfg(target_os = "linux")]
+        if cpu_temp.is_none() {
+            if let Ok(content) = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp") {
+                if let Ok(raw) = content.trim().parse::<f32>() {
+                    let val = if raw > 1000.0 { raw / 1000.0 } else { raw };
+                    if val > 15.0 && val < 120.0 {
+                        cpu_temp = Some(val);
+                    }
+                }
+            }
+            if cpu_temp.is_none() {
+                for zone in 0..6 {
+                    let path = format!("/sys/class/hwmon/hwmon{}/temp1_input", zone);
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(raw) = content.trim().parse::<f32>() {
+                            let val = if raw > 1000.0 { raw / 1000.0 } else { raw };
+                            if val > 15.0 && val < 120.0 {
+                                cpu_temp = Some(val);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }

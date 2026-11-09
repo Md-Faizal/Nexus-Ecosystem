@@ -568,9 +568,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("\x1b[1;31m○ DISCONNECTED\x1b[0m \x1b[90m({} - {})\x1b[0m", hub_host, hub_sub_status)
             };
 
+            let uptime_secs = sysinfo::System::uptime();
+            let up_days = uptime_secs / 86400;
+            let up_hours = (uptime_secs % 86400) / 3600;
+            let up_mins = (uptime_secs % 3600) / 60;
+            let uptime_formatted = if up_days > 0 {
+                format!("{}d {}h {}m", up_days, up_hours, up_mins)
+            } else {
+                format!("{}h {}m", up_hours, up_mins)
+            };
+
+            let components = sysinfo::Components::new_with_refreshed_list();
+            let mut cpu_temp_c: Option<f32> = None;
+            let thermal_keywords = [
+                "cpu", "core", "package", "tctl", "tdie", "k10temp", "temp", "acpitz",
+                "composite", "zenpower", "soc", "die", "peci"
+            ];
+            for comp in &components {
+                let label = comp.label().to_lowercase();
+                if thermal_keywords.iter().any(|&k| label.contains(k)) {
+                    if let Some(t) = comp.temperature() {
+                        if t > 15.0 && t < 125.0 {
+                            cpu_temp_c = Some(t);
+                            break;
+                        }
+                    }
+                }
+            }
+            if cpu_temp_c.is_none() {
+                for comp in &components {
+                    if let Some(t) = comp.temperature() {
+                        if t > 18.0 && t < 115.0 {
+                            cpu_temp_c = Some(t);
+                            break;
+                        }
+                    }
+                }
+            }
+
             println!("│  \x1b[1mDaemon State:\x1b[0m {}", daemon_tag);
             println!("│  \x1b[1mHub Mesh:\x1b[0m     {}", hub_tag);
+            println!("│  \x1b[1mSystem Uptime:\x1b[0m{}", uptime_formatted);
             println!("│  \x1b[1mCPU:\x1b[0m          {} ({} cores)", cpu_model, cpu_cores);
+            if let Some(temp) = cpu_temp_c {
+                println!("│  \x1b[1mThermals:\x1b[0m     {:.1}°C (CPU Package)", temp);
+            } else {
+                println!("│  \x1b[1mThermals:\x1b[0m     N/A");
+            }
             println!("│  \x1b[1mRAM:\x1b[0m          {:.2} GB / {:.2} GB ({:.1}%)", used_ram_gb, total_ram_gb, ram_pct);
             if let Some(g) = gpus {
                 println!("│  \x1b[1mGPU:\x1b[0m          {} ({})", g.name, g.vendor);
