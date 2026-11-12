@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: "📥 Checkout Source Code"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "🦀 Setup Rust Toolchain"
         uses: dtolnay/rust-toolchain@stable
@@ -70,6 +72,8 @@ jobs:
     steps:
       - name: "📥 Checkout Source Code"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "🦀 Setup Rust Toolchain"
         uses: dtolnay/rust-toolchain@stable
@@ -111,6 +115,8 @@ jobs:
     steps:
       - name: "📥 Checkout Source Code"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "🦀 Setup Rust Toolchain"
         uses: dtolnay/rust-toolchain@stable
@@ -161,6 +167,8 @@ jobs:
     steps:
       - name: "📥 Checkout Repository"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "📥 Download Linux Agent Artifact"
         uses: actions/download-artifact@v4

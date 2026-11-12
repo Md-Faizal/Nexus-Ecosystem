@@ -1,4 +1,4 @@
-﻿# Nexus Fleet Agent — Universal Zero-Token 1-Command Installer (Windows)
+﻿# Nexus Fleet Agent - Universal Zero-Token 1-Command Installer (Windows)
 $ErrorActionPreference = "Stop"
 
 $HubUrl = if ($env:NEXUS_HUB) { $env:NEXUS_HUB } else { "https://faizal.uk" }
