@@ -256,6 +256,36 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                             }
                         }
 
+                        "crash_report" => {
+                            let crash_id = payload.get("crash_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            if !crash_id.is_empty() {
+                                let hostname = payload.get("hostname").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let agent_version = payload.get("agent_version").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let os = payload.get("os").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let arch = payload.get("arch").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let component = payload.get("component").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                                let kind = payload.get("kind").and_then(|v| v.as_str()).unwrap_or("panic").to_string();
+                                let message = payload.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let location = payload.get("location").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let backtrace = payload.get("backtrace").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let occurred_at = payload.get("occurred_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let recovered = if payload.get("recovered").and_then(|v| v.as_bool()).unwrap_or(false) { 1i64 } else { 0i64 };
+                                let restart_attempt = payload.get("restart_attempt").and_then(|v| v.as_i64()).unwrap_or(0);
+
+                                let db = state.db.clone();
+                                let nid_db = node_id.clone();
+                                tokio::spawn(async move {
+                                    let conn = db.lock().await;
+                                    let _ = conn.execute(
+                                        "INSERT OR IGNORE INTO fleet_crash_reports (crash_id, node_id, hostname, agent_version, os, arch, component, kind, message, location, backtrace, recovered, restart_attempt, occurred_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                                        rusqlite::params![
+                                            crash_id, nid_db, hostname, agent_version, os, arch, component, kind, message, location, backtrace, recovered, restart_attempt, occurred_at
+                                        ],
+                                    );
+                                });
+                            }
+                        }
+
                         "ai_stream_chunk" => {
                             let req_id = payload.get("request_id").and_then(|v| v.as_str()).unwrap_or("");
                             let token = payload.get("token").and_then(|v| v.as_str()).unwrap_or("");
@@ -1176,4 +1206,65 @@ Write-Host "Your PC will appear on your Personal Site Admin Panel (https://faiza
         [("content-type", "text/plain; charset=utf-8")],
         script,
     )
+}
+
+#[derive(Deserialize)]
+pub struct CrashQuery {
+    pub node_id: Option<String>,
+    pub limit: Option<usize>,
+}
+
+pub async fn get_mesh_crashes(
+    State(state): State<SharedState>,
+    Query(query): Query<CrashQuery>,
+) -> Json<serde_json::Value> {
+    let limit = query.limit.unwrap_or(50).min(200) as i64;
+    let conn = state.db.lock().await;
+
+    let mut crashes = Vec::new();
+    if let Some(ref nid) = query.node_id {
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT crash_id, node_id, hostname, agent_version, os, arch, component, kind, message, location, backtrace, recovered, restart_attempt, occurred_at, received_at FROM fleet_crash_reports WHERE node_id = ?1 ORDER BY id DESC LIMIT ?2",
+        ) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params![nid, limit], map_crash_row) {
+                for r in rows.flatten() {
+                    crashes.push(r);
+                }
+            }
+        }
+    } else if let Ok(mut stmt) = conn.prepare(
+        "SELECT crash_id, node_id, hostname, agent_version, os, arch, component, kind, message, location, backtrace, recovered, restart_attempt, occurred_at, received_at FROM fleet_crash_reports ORDER BY id DESC LIMIT ?1",
+    ) {
+        if let Ok(rows) = stmt.query_map(rusqlite::params![limit], map_crash_row) {
+            for r in rows.flatten() {
+                crashes.push(r);
+            }
+        }
+    }
+
+    let total = crashes.len();
+    Json(serde_json::json!({
+        "crashes": crashes,
+        "total": total
+    }))
+}
+
+fn map_crash_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<serde_json::Value> {
+    Ok(serde_json::json!({
+        "crash_id": row.get::<_, String>(0)?,
+        "node_id": row.get::<_, String>(1)?,
+        "hostname": row.get::<_, Option<String>>(2)?,
+        "agent_version": row.get::<_, Option<String>>(3)?,
+        "os": row.get::<_, Option<String>>(4)?,
+        "arch": row.get::<_, Option<String>>(5)?,
+        "component": row.get::<_, Option<String>>(6)?,
+        "kind": row.get::<_, Option<String>>(7)?,
+        "message": row.get::<_, String>(8)?,
+        "location": row.get::<_, Option<String>>(9)?,
+        "backtrace": row.get::<_, Option<String>>(10)?,
+        "recovered": row.get::<_, i64>(11)? != 0,
+        "restart_attempt": row.get::<_, i64>(12)?,
+        "occurred_at": row.get::<_, String>(13)?,
+        "received_at": row.get::<_, Option<String>>(14)?,
+    }))
 }

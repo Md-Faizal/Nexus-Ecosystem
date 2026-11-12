@@ -118,6 +118,7 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
 
     let app = Router::new()
         .route("/api/mesh/ws", get(routes::mesh_api::handle_mesh_ws))
+        .route("/api/mesh/crashes", get(routes::mesh_api::get_mesh_crashes))
         .route("/install.sh", get(routes::mesh_api::serve_install_sh))
         .route("/install.ps1", get(routes::mesh_api::serve_install_ps1))
         .route("/save-message", post(routes::contact::save_message))

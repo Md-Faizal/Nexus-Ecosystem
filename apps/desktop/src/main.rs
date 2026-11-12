@@ -109,6 +109,16 @@ enum Commands {
     /// View 24h cluster error logs and system health digest
     Health,
 
+    /// Inspect or clear local crash records & recovery telemetry
+    Crashes {
+        /// Clear local crash records and circuit-breaker state
+        #[arg(long)]
+        clear: bool,
+        /// Output crash records as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Manage native OS background service (systemd, Windows Startup, launchd)
     Service {
         #[command(subcommand)]
@@ -466,18 +476,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    // Catch panics gracefully
-    std::panic::set_hook(Box::new(|panic_info| {
-        let msg = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-            *s
-        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
-            s.as_str()
-        } else {
-            "unknown"
-        };
-        eprintln!("Panic: {msg} at {:?}", panic_info.location());
-    }));
-
     // Ergonomic CLI translation: if user ran "nexus services install" (plural), map to "service"
     let mut raw_args: Vec<String> = std::env::args().collect();
     if raw_args.len() >= 2 && raw_args[1].eq_ignore_ascii_case("services") {
@@ -490,6 +488,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let cli = Cli::parse_from(&raw_args);
+    let (crash_component, auto_recover_daemon) = match &cli.command {
+        Some(Commands::Run { foreground: true, silent: false }) => ("daemon", true),
+        Some(Commands::Gui) => ("gui", false),
+        _ => ("cli", false),
+    };
+    modules::crash::install_crash_handlers(crash_component, auto_recover_daemon);
     let mut config = AgentConfig::load_or_init();
 
     if let Some(hub) = cli.hub {
@@ -529,12 +533,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Gui) => {
-            println!("\x1b[1;36m[Flight Deck]\x1b[0m Starting local GUI server...");
-            gui::start_local_gui_server();
-            std::thread::sleep(std::time::Duration::from_millis(300));
             gui::launch_gui();
-            println!("\x1b[32m✓ SpaceX Flight Deck HUD opened (http://127.0.0.1:9876/dashboard).\x1b[0m");
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        }
+
+        Some(Commands::Crashes { clear, json }) => {
+            if clear {
+                let removed = modules::crash::clear_local_crashes().unwrap_or(0);
+                println!("\x1b[32m✓ Cleared {} local crash record(s).\x1b[0m", removed);
+            } else {
+                let crashes = modules::crash::list_recent_crashes(25);
+                if json {
+                    let payload: Vec<_> = crashes
+                        .iter()
+                        .map(|(uploaded, rec)| serde_json::json!({ "uploaded": uploaded, "record": rec }))
+                        .collect();
+                    println!("{}", serde_json::to_string_pretty(&payload)?);
+                } else if crashes.is_empty() {
+                    println!("\x1b[32m✓ No local crash records found.\x1b[0m");
+                    println!("\x1b[90mCrash directory: {}\x1b[0m", modules::crash::crash_root_dir().display());
+                } else {
+                    println!("\x1b[1;36m=== Nexus Local Crash Records ({}) ===\x1b[0m", crashes.len());
+                    for (uploaded, rec) in crashes {
+                        let sync_tag = if uploaded { "\x1b[32mUPLOADED\x1b[0m" } else { "\x1b[33mPENDING\x1b[0m" };
+                        let rec_tag = if rec.recovered { "\x1b[32mRECOVERED\x1b[0m" } else { "\x1b[90mNO-RECOVER\x1b[0m" };
+                        println!(
+                            "  \x1b[1m{}\x1b[0m [{}] [{}] ({}/{}) {} @ {}",
+                            rec.occurred_at, sync_tag, rec_tag, rec.component, rec.kind, rec.message, rec.location
+                        );
+                    }
+                }
+            }
         }
 
         Some(Commands::Elevate) => {

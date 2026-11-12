@@ -1,5 +1,5 @@
 use crate::config::AgentConfig;
-use crate::mesh::protocol::{MeshFrame, MeshMessage};
+use crate::mesh::protocol::{CrashReportPayload, MeshFrame, MeshMessage};
 use crate::modules::ModuleManager;
 use crate::updater::rollback::RollbackUpdater;
 use futures_util::{SinkExt, StreamExt};
@@ -92,6 +92,28 @@ impl MeshClient {
             }
         }
 
+        // Flush any pending local crash records from previous runs or child processes
+        for (path, rec) in crate::modules::crash::load_pending_crashes() {
+            let payload = CrashReportPayload {
+                crash_id: rec.crash_id,
+                hostname: rec.hostname,
+                agent_version: rec.agent_version,
+                os: rec.os,
+                arch: rec.arch,
+                component: rec.component,
+                kind: rec.kind,
+                message: rec.message,
+                location: rec.location,
+                backtrace: rec.backtrace,
+                occurred_at: rec.occurred_at,
+                recovered: rec.recovered,
+                restart_attempt: rec.restart_attempt,
+            };
+            if self.send_frame(&mut ws_sink, MeshMessage::CrashReport(payload)).await.is_ok() {
+                crate::modules::crash::mark_crash_uploaded(&path);
+            }
+        }
+
         // Send Initial Telemetry Report Immediately on Connect (Zero-Delay)
         {
             crate::modules::daemon_lock::touch_daemon_heartbeat();
@@ -127,6 +149,28 @@ impl MeshClient {
                 let telemetry_msg = MeshMessage::TelemetryReport(Box::new(payload));
                 if telemetry_tx.send(telemetry_msg).await.is_err() {
                     break;
+                }
+
+                // Periodically flush any crash records written by child GUI/CLI processes
+                for (path, rec) in crate::modules::crash::load_pending_crashes() {
+                    let crash_payload = CrashReportPayload {
+                        crash_id: rec.crash_id,
+                        hostname: rec.hostname,
+                        agent_version: rec.agent_version,
+                        os: rec.os,
+                        arch: rec.arch,
+                        component: rec.component,
+                        kind: rec.kind,
+                        message: rec.message,
+                        location: rec.location,
+                        backtrace: rec.backtrace,
+                        occurred_at: rec.occurred_at,
+                        recovered: rec.recovered,
+                        restart_attempt: rec.restart_attempt,
+                    };
+                    if telemetry_tx.send(MeshMessage::CrashReport(crash_payload)).await.is_ok() {
+                        crate::modules::crash::mark_crash_uploaded(&path);
+                    }
                 }
                 crate::modules::daemon_lock::touch_daemon_heartbeat();
 

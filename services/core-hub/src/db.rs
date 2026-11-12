@@ -172,10 +172,30 @@ fn init_schema(conn: &Connection) -> Result<()> {
             last_models TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS fleet_crash_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            crash_id TEXT UNIQUE NOT NULL,
+            node_id TEXT NOT NULL,
+            hostname TEXT,
+            agent_version TEXT,
+            os TEXT,
+            arch TEXT,
+            component TEXT,
+            kind TEXT,
+            message TEXT NOT NULL,
+            location TEXT,
+            backtrace TEXT,
+            recovered INTEGER NOT NULL DEFAULT 0,
+            restart_attempt INTEGER NOT NULL DEFAULT 0,
+            occurred_at TEXT NOT NULL,
+            received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE INDEX IF NOT EXISTS idx_metrics_hist_ts ON system_metrics_history(timestamp);
         CREATE INDEX IF NOT EXISTS idx_http_req_ts ON http_request_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_fleet_chat_id ON fleet_chat_messages(chat_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_fleet_ai_conv_id ON fleet_ai_messages(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_fleet_crash_node_ts ON fleet_crash_reports(node_id, occurred_at);
         "#,
     )?;
 

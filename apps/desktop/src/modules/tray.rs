@@ -75,6 +75,39 @@ pub fn start_system_tray(node_id: String) {
 }
 
 #[cfg(target_os = "windows")]
+static LAST_GUI_SPAWN_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(target_os = "windows")]
+fn launch_gui_subprocess() {
+    use std::os::windows::process::CommandExt;
+    use std::sync::atomic::Ordering;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let prev = LAST_GUI_SPAWN_MS.load(Ordering::SeqCst);
+    if now_ms.saturating_sub(prev) < 1500 {
+        return;
+    }
+    LAST_GUI_SPAWN_MS.store(now_ms, Ordering::SeqCst);
+
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = Command::new(&exe)
+            .arg("gui")
+            .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+}
+
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn window_proc(
     hwnd: HWND,
     msg: u32,
@@ -87,9 +120,7 @@ unsafe extern "system" fn window_proc(
             if event == WM_RBUTTONUP {
                 show_tray_menu(hwnd);
             } else if event == WM_LBUTTONDBLCLK {
-                std::thread::spawn(|| {
-                    crate::gui::launch_gui();
-                });
+                launch_gui_subprocess();
             }
             0
         }
@@ -97,9 +128,7 @@ unsafe extern "system" fn window_proc(
             let cmd_id = (wparam & 0xFFFF) as usize;
             match cmd_id {
                 IDM_LAUNCH_GUI => {
-                    std::thread::spawn(|| {
-                        crate::gui::launch_gui();
-                    });
+                    launch_gui_subprocess();
                 }
                 IDM_STATUS_CLI => {
                     let exe_str = std::env::current_exe()

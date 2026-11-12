@@ -3,6 +3,7 @@ pub mod banner;
 pub mod chat_renderer;
 pub mod chat_storage;
 pub mod cluster_ops;
+pub mod crash;
 pub mod daemon_lock;
 pub mod docker;
 pub mod fitness;

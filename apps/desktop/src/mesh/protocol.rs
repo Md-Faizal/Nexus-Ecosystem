@@ -87,6 +87,26 @@ pub enum MeshMessage {
         download_url: String,
         sha256: String,
     },
+
+    // ─── Crash Record Telemetry ───
+    CrashReport(CrashReportPayload),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrashReportPayload {
+    pub crash_id: String,
+    pub hostname: String,
+    pub agent_version: String,
+    pub os: String,
+    pub arch: String,
+    pub component: String,
+    pub kind: String,
+    pub message: String,
+    pub location: String,
+    pub backtrace: String,
+    pub occurred_at: String,
+    pub recovered: bool,
+    pub restart_attempt: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
