@@ -440,7 +440,7 @@ pub fn render_topology_canvas(
     selected_node: &mut Option<String>,
 ) {
     let w = ui.available_width().max(260.0);
-    let h = 290.0;
+    let h = 330.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(w, h), Sense::hover());
     let painter = ui.painter_at(rect);
 
@@ -471,11 +471,11 @@ pub fn render_topology_canvas(
     let hub_pos = Pos2::new(center.x, center.y);
 
     // Core Tri-VM Ring (inner orbit)
-    let inner_rx = (w * 0.22).clamp(95.0, 165.0);
+    let inner_rx = (w * 0.16).clamp(80.0, 130.0);
     let core_vms = [
-        ("my-mac", "Ingress", Pos2::new(center.x - inner_rx, center.y - 52.0), ACCENT_EMERALD),
-        ("container-of-souls", "Failover", Pos2::new(center.x + inner_rx, center.y - 52.0), ACCENT_CYAN),
-        ("prometheus", "Metrics", Pos2::new(center.x, center.y + 74.0), ACCENT_VIOLET),
+        ("my-mac", "Ingress", Pos2::new(center.x - inner_rx, center.y - 42.0), ACCENT_EMERALD),
+        ("container-of-souls", "Failover", Pos2::new(center.x + inner_rx, center.y - 42.0), ACCENT_CYAN),
+        ("prometheus", "Metrics", Pos2::new(center.x, center.y + 58.0), ACCENT_VIOLET),
     ];
 
     let time = ui.input(|i| i.time) as f32;
@@ -495,10 +495,10 @@ pub fn render_topology_canvas(
 
         painter.circle_filled(
             *pos,
-            23.0,
+            21.0,
             Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 26),
         );
-        painter.circle_stroke(*pos, 23.0, Stroke::new(1.2_f32, *color));
+        painter.circle_stroke(*pos, 21.0, Stroke::new(1.2_f32, *color));
         painter.text(
             Pos2::new(pos.x, pos.y - 4.0),
             egui::Align2::CENTER_CENTER,
@@ -520,11 +520,15 @@ pub fn render_topology_canvas(
         build_topology_outer_items(local_node_id, local_hostname, local_cpu_pct, nodes);
 
     let total_outer = outer_items.len().max(1);
+    let safe_bounds = rect.shrink2(Vec2::new(62.0, 24.0));
     for (i, (label, sub, online, node_id_opt, is_this_pc)) in outer_items.iter().enumerate() {
         let angle = (i as f32 / total_outer as f32) * 2.0 * PI - PI * 0.5;
-        let rx = (w * 0.41).clamp(115.0, 330.0);
-        let ry = 108.0;
-        let pos = Pos2::new(center.x + angle.cos() * rx, center.y + angle.sin() * ry);
+        let rx = (w * 0.41).clamp(120.0, 330.0);
+        let ry = (h * 0.39).clamp(112.0, 132.0);
+        let pos = Pos2::new(
+            (center.x + angle.cos() * rx).clamp(safe_bounds.left(), safe_bounds.right()),
+            (center.y + angle.sin() * ry).clamp(safe_bounds.top(), safe_bounds.bottom()),
+        );
         let color = if *is_this_pc {
             ACCENT_CYAN
         } else if *online {

@@ -69,7 +69,7 @@ impl WindowsInstaller {
         const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
 
         let _ = Command::new(&current_exe)
-            .args(["run", "--foreground"])
+            .args(["run", "--foreground", "--wait-lock"])
             .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
@@ -77,7 +77,7 @@ impl WindowsInstaller {
             .spawn()
             .or_else(|_| {
                 Command::new(&current_exe)
-                    .args(["run", "--foreground"])
+                    .args(["run", "--foreground", "--wait-lock"])
                     .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
@@ -88,17 +88,61 @@ impl WindowsInstaller {
         Ok(())
     }
 
+    fn kill_daemon_processes_only() {
+        use std::collections::BTreeSet;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let self_pid = std::process::id();
+        let mut target_pids = BTreeSet::new();
+
+        if let Some(state) = crate::modules::daemon_lock::read_daemon_state() {
+            if state.pid != self_pid {
+                target_pids.insert(state.pid);
+            }
+        }
+
+        let mut sys = sysinfo::System::new();
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        for (pid, proc_) in sys.processes() {
+            let pid_u32 = pid.as_u32();
+            if pid_u32 == self_pid {
+                continue;
+            }
+            let name = proc_.name().to_string_lossy().to_ascii_lowercase();
+            let is_nexus_bin = matches!(
+                name.as_str(),
+                "nexus.exe" | "nexus-agent.exe" | "nx.exe"
+            );
+            if is_nexus_bin {
+                let has_run_arg = proc_
+                    .cmd()
+                    .iter()
+                    .any(|arg| arg.to_string_lossy() == "run");
+                if has_run_arg {
+                    target_pids.insert(pid_u32);
+                }
+            }
+        }
+
+        for pid in target_pids {
+            let _ = Command::new("taskkill.exe")
+                .args(["/F", "/PID", &pid.to_string()])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+        crate::modules::daemon_lock::remove_daemon_state();
+    }
+
     pub fn stop() -> Result<(), Box<dyn std::error::Error>> {
-        let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nexus-agent.exe"]).output();
-        let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nexus.exe"]).output();
-        let _ = Command::new("taskkill.exe").args(["/F", "/IM", "nx.exe"]).output();
+        Self::kill_daemon_processes_only();
         println!("\x1b[32m✓ Nexus Agent background service stopped.\x1b[0m");
         Ok(())
     }
 
     pub fn restart() -> Result<(), Box<dyn std::error::Error>> {
-        let _ = Self::stop();
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        Self::kill_daemon_processes_only();
+        std::thread::sleep(std::time::Duration::from_millis(600));
         Self::start()
     }
 

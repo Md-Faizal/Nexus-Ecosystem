@@ -765,39 +765,15 @@ async fn handle_command(cmd: GuiCommand, tx: &Sender<GuiEvent>) {
 
         GuiCommand::RunDaemonAction(action) => {
             let res = tokio::task::spawn_blocking(move || match action {
-                DaemonAction::Start => {
-                    if let Ok(exe) = std::env::current_exe() {
-                        std::process::Command::new(exe)
-                            .arg("start")
-                            .output()
-                            .map(|_| "Daemon start signal dispatched".to_string())
-                            .map_err(|e| e.to_string())
-                    } else {
-                        Err("Cannot resolve current executable".to_string())
-                    }
-                }
-                DaemonAction::Stop => {
-                    if let Ok(exe) = std::env::current_exe() {
-                        std::process::Command::new(exe)
-                            .arg("stop")
-                            .output()
-                            .map(|_| "Daemon stop signal dispatched".to_string())
-                            .map_err(|e| e.to_string())
-                    } else {
-                        Err("Cannot resolve current executable".to_string())
-                    }
-                }
-                DaemonAction::Restart => {
-                    if let Ok(exe) = std::env::current_exe() {
-                        std::process::Command::new(exe)
-                            .arg("restart")
-                            .output()
-                            .map(|_| "Daemon restart signal dispatched".to_string())
-                            .map_err(|e| e.to_string())
-                    } else {
-                        Err("Cannot resolve current executable".to_string())
-                    }
-                }
+                DaemonAction::Start => ServiceManager::start(false)
+                    .map(|_| "Daemon started".to_string())
+                    .map_err(|e| e.to_string()),
+                DaemonAction::Stop => ServiceManager::stop(false)
+                    .map(|_| "Daemon stopped".to_string())
+                    .map_err(|e| e.to_string()),
+                DaemonAction::Restart => ServiceManager::restart(false)
+                    .map(|_| "Daemon restarted".to_string())
+                    .map_err(|e| e.to_string()),
                 DaemonAction::InstallService => ServiceManager::install(false)
                     .map(|_| "OS background service installed".to_string())
                     .map_err(|e| e.to_string()),
