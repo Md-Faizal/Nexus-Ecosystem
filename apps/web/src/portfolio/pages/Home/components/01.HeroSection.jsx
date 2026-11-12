@@ -312,8 +312,6 @@ export default function HeroSection({
       const cur = state.target;
       // Only evaluate if within intermediate scrub zone
       if (cur > 0.01 && cur < 0.99) {
-        const SCROLL_THRESHOLD = 0.40;
-        const REVERSE_THRESHOLD = 0.70;
         const SCROLL_THRESHOLD = 0.35;
         const REVERSE_THRESHOLD = 0.88;
 
@@ -333,7 +331,6 @@ export default function HeroSection({
             state.target = 1.0;
           }
         } else {
-          state.target = cur >= 0.40 ? 1.0 : 0.0;
           state.target = cur >= 0.35 ? 1.0 : 0.0;
         }
       }
@@ -392,7 +389,6 @@ export default function HeroSection({
           window.lenis?.stop();
           state.isLocked = true;
 
-          const speed = 0.00095;
           const speed = 0.0016;
           state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
           scheduleThresholdSnap(e.deltaY > 0 ? 'down' : 'up');
@@ -405,7 +401,6 @@ export default function HeroSection({
         window.lenis?.stop();
         state.isLocked = true;
 
-        const speed = 0.00095;
         const speed = 0.0024;
         state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
         scheduleThresholdSnap('up');

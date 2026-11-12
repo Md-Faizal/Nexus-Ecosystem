@@ -83,7 +83,6 @@ export default function AmberVaultHeroCanvas({
     for (let i = 0; i < TOTAL_SCROLL_FRAMES; i++) {
       const img = new Image();
       const numStr = String(i).padStart(2, '0');
-      img.src = `/sequence/frame_${numStr}.webp`;
       img.src = `/sequence/frame_${numStr}.webp?v=${ASSET_CACHE_BUST}`;
 
       img.onload = () => {
@@ -96,8 +95,6 @@ export default function AmberVaultHeroCanvas({
 
       img.onerror = () => {
         if (isCancelled) return;
-        if (!img.src.endsWith('.jpg')) {
-          img.src = `/sequence/frame_${numStr}.jpg`;
         if (!img.src.includes('.jpg')) {
           img.src = `/sequence/frame_${numStr}.jpg?v=${ASSET_CACHE_BUST}`;
         }
