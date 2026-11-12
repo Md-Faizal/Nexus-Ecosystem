@@ -213,7 +213,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                             .config
                             .features
                             .insert("ai_bridge".to_string(), state.pref_ai_relay);
-                        state.config.save();
+                        let _ = state.config.save();
 
                         let _ = state.cmd_tx.send(GuiCommand::RefreshCluster {
                             hub_url: state.hub_url_input.clone(),

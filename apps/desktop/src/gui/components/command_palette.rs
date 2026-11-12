@@ -312,7 +312,7 @@ pub fn render_command_palette(ctx: &egui::Context, state: &mut GuiState) {
             "act_toggle_cadence" => {
                 state.pref_high_cadence = !state.pref_high_cadence;
                 state.config.active_poll_interval_secs = if state.pref_high_cadence { 1 } else { 5 };
-                state.config.save();
+                let _ = state.config.save();
                 state.set_toast(
                     if state.pref_high_cadence {
                         "High-cadence 1s polling enabled"
