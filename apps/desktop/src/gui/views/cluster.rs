@@ -1,4 +1,5 @@
 use crate::gui::components::charts::render_topology_canvas;
+use crate::gui::components::icons::{icon_button, icon_label_button, IconKind};
 use crate::gui::state::{GuiCommand, GuiState, LogLevel};
 use crate::gui::theme::*;
 use eframe::egui;
@@ -20,9 +21,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
                 let refresh_lbl = if state.cluster_loading {
                     "Syncing…"
                 } else {
-                    "↻ Sync Mesh"
+                    "Sync Mesh"
                 };
-                if action_button(ui, refresh_lbl).clicked() && !state.cluster_loading {
+                if icon_label_button(ui, IconKind::Refresh, refresh_lbl).clicked()
+                    && !state.cluster_loading
+                {
                     state.cluster_loading = true;
                     let _ = state.cmd_tx.send(GuiCommand::RefreshCluster {
                         hub_url: state.hub_url_input.clone(),
@@ -227,7 +230,15 @@ fn render_remote_services_card(ui: &mut egui::Ui, state: &mut GuiState, tier: La
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if !tier.is_compact() {
-                                if action_button(ui, "↻").clicked() {
+                                if icon_button(
+                                    ui,
+                                    IconKind::Refresh,
+                                    26.0,
+                                    TEXT_2,
+                                    "Restart service",
+                                )
+                                .clicked()
+                                {
                                     action_to_dispatch =
                                         Some((svc.id.clone(), "restart".to_string()));
                                 }
@@ -272,7 +283,7 @@ fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState) {
                     .color(TEXT_2),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if action_button(ui, "↻ Scan").clicked() {
+                if icon_label_button(ui, IconKind::Refresh, "Scan").clicked() {
                     let _ = state.cmd_tx.send(GuiCommand::RefreshDocker);
                 }
             });
@@ -301,7 +312,15 @@ fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState) {
                                 .color(TEXT_1),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if action_button(ui, "↻").clicked() {
+                            if icon_button(
+                                ui,
+                                IconKind::Refresh,
+                                26.0,
+                                TEXT_2,
+                                "Restart container",
+                            )
+                            .clicked()
+                            {
                                 docker_cmd = Some((c.name.clone(), "restart".to_string()));
                             }
                             let act = if running { "stop" } else { "start" };

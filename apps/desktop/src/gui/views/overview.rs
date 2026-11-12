@@ -1,4 +1,5 @@
 use crate::gui::components::charts::{render_area_sparkline, render_fitness_arc};
+use crate::gui::components::icons::{icon_label_button, IconKind};
 use crate::gui::state::{DaemonAction, GuiCommand, GuiRoute, GuiState, LogLevel};
 use crate::gui::theme::*;
 use eframe::egui;
@@ -378,23 +379,23 @@ fn render_tricore_actions_card(ui: &mut egui::Ui, state: &mut GuiState, tier: La
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(10.0, 8.0);
 
-            if action_button(ui, "↻ Restart Daemon").clicked() {
+            if icon_label_button(ui, IconKind::Refresh, "Restart Daemon").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::Restart));
                 state.set_toast("Restarting Nexus daemon...", LogLevel::Info, "Daemon");
             }
-            if action_button(ui, "⬡ Inspect Fleet").clicked() {
+            if icon_label_button(ui, IconKind::Cluster, "Inspect Fleet").clicked() {
                 state.route = GuiRoute::Cluster;
             }
-            if action_button(ui, "✦ Launch AI Studio").clicked() {
+            if icon_label_button(ui, IconKind::AiStudio, "Launch AI Studio").clicked() {
                 state.route = GuiRoute::AiStudio;
             }
-            if action_button(ui, "↗ Cloud Admin").clicked() {
+            if icon_label_button(ui, IconKind::External, "Cloud Admin").clicked() {
                 open_url_browser("https://faizal.uk/admin.html");
                 state.set_toast("Opening Cloud Admin Console...", LogLevel::Info, "Browser");
             }
-            if action_button(ui, "⌘ Command Palette").clicked() {
+            if icon_label_button(ui, IconKind::Command, "Command Palette").clicked() {
                 state.show_command_palette = true;
             }
         });

@@ -1,3 +1,6 @@
+use crate::gui::components::icons::{
+    accent_icon_button, icon_button, icon_label_button, primary_icon_button, IconKind,
+};
 use crate::gui::state::{DaemonAction, GuiCommand, GuiState, LogLevel};
 use crate::gui::theme::*;
 use eframe::egui;
@@ -68,27 +71,27 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
         ui.add_space(10.0);
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
-            if action_button(ui, "▶ Start").clicked() {
+            if icon_label_button(ui, IconKind::Play, "Start").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::Start));
             }
-            if action_button(ui, "↻ Restart").clicked() {
+            if icon_label_button(ui, IconKind::Refresh, "Restart").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::Restart));
             }
-            if action_button(ui, "■ Stop").clicked() {
+            if icon_label_button(ui, IconKind::Stop, "Stop").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::Stop));
             }
-            if action_button(ui, "⚙ Install OS Service").clicked() {
+            if icon_label_button(ui, IconKind::Settings, "Install OS Service").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::InstallService));
             }
-            if action_button(ui, "✕ Uninstall Service").clicked() {
+            if icon_label_button(ui, IconKind::Trash, "Uninstall Service").clicked() {
                 let _ = state
                     .cmd_tx
                     .send(GuiCommand::RunDaemonAction(DaemonAction::UninstallService));
@@ -106,7 +109,9 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
         let manifest_url = "https://faizal.uk/releases/latest.json".to_string();
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
-            if action_button(ui, "↻ Check Updates").clicked() && !state.update_checking {
+            if icon_label_button(ui, IconKind::Refresh, "Check Updates").clicked()
+                && !state.update_checking
+            {
                 state.update_checking = true;
                 state.last_update_check = Some(std::time::Instant::now());
                 let _ = state.cmd_tx.send(GuiCommand::CheckUpdates {
@@ -114,7 +119,7 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
                 });
             }
 
-            if accent_button(ui, "⚡ Force Update", ACCENT_AMBER).clicked() {
+            if accent_icon_button(ui, IconKind::Bolt, "Force Update", ACCENT_AMBER).clicked() {
                 let _ = state.cmd_tx.send(GuiCommand::ForceUpdate {
                     manifest_url: manifest_url.clone(),
                 });
@@ -132,7 +137,7 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
                         &format!("v{} AVAILABLE", info.latest_version),
                         ACCENT_EMERALD,
                     );
-                    if primary_button(ui, "⬇ Install Update").clicked() {
+                    if primary_icon_button(ui, IconKind::Download, "Install Update").clicked() {
                         let _ = state.cmd_tx.send(GuiCommand::InstallUpdate {
                             manifest_url: manifest_url.clone(),
                         });
@@ -207,7 +212,15 @@ fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState) {
                         Err(e) => state.set_toast(e.to_string(), LogLevel::Error, "CrashVault"),
                     }
                 }
-                if action_button(ui, "↻").clicked() {
+                if icon_button(
+                    ui,
+                    IconKind::Refresh,
+                    26.0,
+                    TEXT_2,
+                    "Refresh crash vault",
+                )
+                .clicked()
+                {
                     state.refresh_crashes();
                 }
             });

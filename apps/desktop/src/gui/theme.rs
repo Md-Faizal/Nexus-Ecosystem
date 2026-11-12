@@ -12,7 +12,6 @@ pub const BG_SHEET: Color32 = Color32::from_rgb(9, 9, 12);
 
 pub const BORDER_SUBTLE: Color32 = Color32::from_rgb(26, 26, 33);
 pub const BORDER_STRONG: Color32 = Color32::from_rgb(48, 48, 58);
-pub const BORDER_FOCUS: Color32 = Color32::from_rgb(86, 86, 104);
 
 pub const TEXT_1: Color32 = Color32::from_rgb(250, 250, 252);
 pub const TEXT_2: Color32 = Color32::from_rgb(161, 161, 175);
@@ -125,6 +124,11 @@ pub fn configure_obsidian_theme(ctx: &egui::Context) {
     visuals.widgets.active.rounding = Rounding::same(8.0);
 
     ctx.set_visuals(visuals);
+
+    let mut style = (*ctx.style()).clone();
+    style.spacing.button_padding = Vec2::new(12.0, 6.0);
+    style.spacing.item_spacing = Vec2::new(8.0, 6.0);
+    ctx.set_style(style);
 }
 
 pub fn card_frame() -> Frame {

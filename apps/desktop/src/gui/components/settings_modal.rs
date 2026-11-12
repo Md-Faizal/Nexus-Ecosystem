@@ -1,3 +1,4 @@
+use crate::gui::components::icons::{icon_button, IconKind};
 use crate::gui::state::{GuiCommand, GuiState, LogLevel, SettingsTab};
 use crate::gui::theme::*;
 use eframe::egui;
@@ -62,7 +63,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                     );
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if action_button(ui, "✕").clicked() {
+                    if icon_button(ui, IconKind::Close, 28.0, TEXT_2, "Close (Esc)").clicked() {
                         close = true;
                     }
                 });

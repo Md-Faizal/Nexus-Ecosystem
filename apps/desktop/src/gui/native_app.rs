@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use sysinfo::System;
 
 use crate::config::AgentConfig;
+use crate::gui::components::icons::{icon_button, icon_label_button, IconKind};
 use crate::gui::components::{command_palette, settings_modal, sidebar};
 use crate::gui::state::{
     spawn_background_worker, GuiCommand, GuiEvent, GuiRoute, GuiState, LogLevel, ProcessEntry,
@@ -464,38 +465,22 @@ impl NodeMonitorApp {
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 // Settings Gear
-                let (gear_rect, gear_resp) =
-                    ui.allocate_exact_size(Vec2::new(32.0, 32.0), Sense::click());
-                ui.painter().circle(
-                    gear_rect.center(),
-                    15.5,
-                    if gear_resp.hovered() {
-                        Color32::from_rgba_unmultiplied(255, 255, 255, 24)
-                    } else {
-                        Color32::from_rgba_unmultiplied(255, 255, 255, 10)
-                    },
-                    Stroke::new(1.0, BORDER_STRONG),
-                );
-                ui.painter().text(
-                    gear_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "⚙",
-                    FontId::proportional(14.0),
-                    TEXT_2,
-                );
-                if gear_resp.clicked() {
+                if icon_button(ui, IconKind::Settings, 32.0, TEXT_2, "Preferences (Ctrl+,)")
+                    .clicked()
+                {
                     self.state.show_settings = true;
                 }
 
                 ui.add_space(8.0);
 
                 // Command Palette Trigger Pill
-                let cmd_lbl = if is_compact_viewport {
-                    "⌘"
+                let cmd_clicked = if is_compact_viewport {
+                    icon_button(ui, IconKind::Command, 32.0, TEXT_2, "Command Palette (Ctrl+K)")
+                        .clicked()
                 } else {
-                    "⌘ Search / Commands  ^K"
+                    icon_label_button(ui, IconKind::Command, "Search / Commands  ^K").clicked()
                 };
-                if action_button(ui, cmd_lbl).clicked() {
+                if cmd_clicked {
                     self.state.show_command_palette = true;
                     self.state.palette_query.clear();
                     self.state.palette_selected = 0;

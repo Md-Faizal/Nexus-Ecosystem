@@ -1,7 +1,18 @@
+use crate::gui::components::icons::{icon_button, paint_icon, IconKind};
 use crate::gui::state::{DaemonAction, GuiCommand, GuiRoute, GuiState, LogLevel};
 use crate::gui::theme::*;
 use eframe::egui;
-use egui::{Color32, FontId, Frame, Margin, Rounding, Sense, Stroke, Vec2};
+use egui::{Color32, FontId, Frame, Margin, Rect, Rounding, Sense, Stroke, Vec2};
+
+fn route_icon(route: GuiRoute) -> IconKind {
+    match route {
+        GuiRoute::Overview => IconKind::Overview,
+        GuiRoute::Telemetry => IconKind::Telemetry,
+        GuiRoute::Cluster => IconKind::Cluster,
+        GuiRoute::AiStudio => IconKind::AiStudio,
+        GuiRoute::Diagnostics => IconKind::Diagnostics,
+    }
+}
 
 pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_viewport: bool) {
     if is_compact_viewport {
@@ -26,16 +37,26 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
                             Color32::TRANSPARENT
                         };
                         let stroke = if active { BORDER_STRONG } else { Color32::TRANSPARENT };
-                        let resp = ui.add_sized(
-                            Vec2::new(item_w, 38.0),
-                            egui::Button::new(
-                                egui::RichText::new(format!("{} {}", route.icon(), route.short_title()))
-                                    .font(FontId::proportional(11.5))
-                                    .color(if active { TEXT_1 } else { TEXT_2 }),
-                            )
-                            .fill(fill)
-                            .stroke(Stroke::new(1.0, stroke))
-                            .rounding(Rounding::same(8.0)),
+                        let (btn_rect, resp) =
+                            ui.allocate_exact_size(Vec2::new(item_w, 38.0), Sense::click());
+                        ui.painter()
+                            .rect(btn_rect, Rounding::same(8.0), fill, Stroke::new(1.0_f32, stroke));
+                        let icon_r = Rect::from_center_size(
+                            egui::Pos2::new(btn_rect.center().x, btn_rect.top() + 13.0),
+                            Vec2::splat(14.0),
+                        );
+                        paint_icon(
+                            ui.painter(),
+                            icon_r,
+                            route_icon(route),
+                            if active { ACCENT_CYAN } else { TEXT_2 },
+                        );
+                        ui.painter().text(
+                            egui::Pos2::new(btn_rect.center().x, btn_rect.bottom() - 9.0),
+                            egui::Align2::CENTER_CENTER,
+                            route.short_title(),
+                            FontId::proportional(10.0),
+                            if active { TEXT_1 } else { TEXT_2 },
                         );
                         if resp.clicked() {
                             state.route = route;
@@ -67,19 +88,12 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
                     );
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let toggle_txt = if state.sidebar_collapsed { "»" } else { "«" };
-                    let resp = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new(toggle_txt)
-                                .font(FontId::monospace(12.0))
-                                .color(TEXT_2),
-                        )
-                        .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 8))
-                        .stroke(Stroke::new(1.0, BORDER_SUBTLE))
-                        .rounding(Rounding::same(6.0))
-                        .min_size(Vec2::new(26.0, 22.0)),
-                    );
-                    if resp.clicked() {
+                    let toggle_icon = if state.sidebar_collapsed {
+                        IconKind::ChevronRight
+                    } else {
+                        IconKind::ChevronLeft
+                    };
+                    if icon_button(ui, toggle_icon, 24.0, TEXT_2, "Toggle sidebar").clicked() {
                         state.sidebar_collapsed = !state.sidebar_collapsed;
                     }
                 });
@@ -89,17 +103,6 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
 
             for route in GuiRoute::ALL {
                 let active = state.route == route;
-                let fill = if active {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 16)
-                } else {
-                    Color32::TRANSPARENT
-                };
-                let stroke = if active {
-                    BORDER_STRONG
-                } else {
-                    Color32::TRANSPARENT
-                };
-
                 let btn_w = ui.available_width();
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(btn_w, 36.0), Sense::click());
                 let hover_t = ui.ctx().animate_bool_with_time(resp.id, resp.hovered() && !active, 0.14);
@@ -127,20 +130,23 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
                 }
 
                 if state.sidebar_collapsed {
-                    ui.painter().text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        route.icon(),
-                        FontId::proportional(15.0),
-                        if active { TEXT_1 } else { TEXT_2 },
+                    let icon_r = Rect::from_center_size(rect.center(), Vec2::splat(16.0));
+                    paint_icon(
+                        ui.painter(),
+                        icon_r,
+                        route_icon(route),
+                        if active { ACCENT_CYAN } else { TEXT_2 },
                     );
                     resp.clone().on_hover_text(format!("{} (Ctrl+{})", route.title(), route.shortcut_num()));
                 } else {
-                    ui.painter().text(
-                        egui::Pos2::new(rect.left() + 14.0, rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        route.icon(),
-                        FontId::proportional(14.0),
+                    let icon_r = Rect::from_center_size(
+                        egui::Pos2::new(rect.left() + 20.0, rect.center().y),
+                        Vec2::splat(15.0),
+                    );
+                    paint_icon(
+                        ui.painter(),
+                        icon_r,
+                        route_icon(route),
                         if active { ACCENT_CYAN } else { TEXT_2 },
                     );
                     ui.painter().text(

@@ -1,3 +1,4 @@
+use crate::gui::components::icons::{paint_icon, IconKind};
 use crate::gui::state::{DaemonAction, GuiCommand, GuiRoute, GuiState, LogLevel};
 use crate::gui::theme::*;
 use eframe::egui;
@@ -191,16 +192,13 @@ pub fn render_command_palette(ctx: &egui::Context, state: &mut GuiState) {
         )
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("⌘")
-                        .font(FontId::proportional(15.0))
-                        .color(ACCENT_CYAN),
-                );
+                let (icon_r, _) = ui.allocate_exact_size(Vec2::splat(18.0), Sense::hover());
+                paint_icon(ui.painter(), icon_r, IconKind::Command, ACCENT_CYAN);
                 let resp = ui.add(
                     egui::TextEdit::singleline(&mut state.palette_query)
                         .hint_text("Type a command or jump to a view…")
                         .frame(false)
-                        .desired_width(ui.available_width() - 56.0)
+                        .desired_width(ui.available_width() - 62.0)
                         .font(FontId::proportional(14.0)),
                 );
                 resp.request_focus();

@@ -1,3 +1,6 @@
+use crate::gui::components::icons::{
+    icon_button, icon_label_button, paint_icon, primary_icon_button, IconKind,
+};
 use crate::gui::state::{GuiCommand, GuiState, LogLevel};
 use crate::gui::theme::*;
 use crate::modules::chat_storage::{ChatMessageItem, ChatStorage};
@@ -35,7 +38,7 @@ fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, h: f32) {
                     .color(TEXT_2),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if primary_button(ui, "+ New").clicked() {
+                if primary_icon_button(ui, IconKind::Plus, "New").clicked() {
                     state.start_new_chat();
                     state.set_toast("Started new AI session", LogLevel::Info, "AI Studio");
                 }
@@ -88,16 +91,14 @@ fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, h: f32) {
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if ui
-                                                .add(
-                                                    egui::Button::new(
-                                                        egui::RichText::new("✕")
-                                                            .font(FontId::monospace(10.0))
-                                                            .color(TEXT_3),
-                                                    )
-                                                    .frame(false),
-                                                )
-                                                .clicked()
+                                            if icon_button(
+                                                ui,
+                                                IconKind::Close,
+                                                20.0,
+                                                TEXT_3,
+                                                "Delete session",
+                                            )
+                                            .clicked()
                                             {
                                                 delete_id = Some(meta.id.clone());
                                             }
@@ -153,8 +154,10 @@ fn render_chat_workspace(
         // ─── Top Model & Engine Bar ───
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
+            let (ai_ic_r, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+            paint_icon(ui.painter(), ai_ic_r, IconKind::AiStudio, ACCENT_VIOLET);
             ui.label(
-                egui::RichText::new("✦ AI STUDIO")
+                egui::RichText::new("AI STUDIO")
                     .font(FontId::monospace(10.5))
                     .color(ACCENT_VIOLET),
             );
@@ -178,7 +181,7 @@ fn render_chat_workspace(
                     }
                 });
 
-            if action_button(ui, "↻ Models").clicked() {
+            if icon_label_button(ui, IconKind::Refresh, "Models").clicked() {
                 let _ = state.cmd_tx.send(GuiCommand::RefreshOllama {
                     endpoint: state.ai_endpoint_input.clone(),
                 });
@@ -204,11 +207,11 @@ fn render_chat_workspace(
                 }
             }
 
-            if action_button(ui, "⚙ Params").clicked() {
+            if icon_label_button(ui, IconKind::Sliders, "Params").clicked() {
                 state.show_ai_params = !state.show_ai_params;
             }
 
-            if tier.is_compact() && action_button(ui, "+ New").clicked() {
+            if tier.is_compact() && icon_label_button(ui, IconKind::Plus, "New").clicked() {
                 state.start_new_chat();
             }
         });
@@ -330,8 +333,10 @@ fn render_chat_workspace(
             }
 
             ui.vertical(|ui| {
-                let send_lbl = if state.ai_streaming { "…" } else { "Send ↑" };
-                if primary_button(ui, send_lbl).clicked() && !state.ai_streaming {
+                let send_lbl = if state.ai_streaming { "…" } else { "Send" };
+                if primary_icon_button(ui, IconKind::Send, send_lbl).clicked()
+                    && !state.ai_streaming
+                {
                     trigger_send = true;
                 }
                 if !state.active_chat.messages.is_empty() && action_button(ui, "Export").clicked() {
