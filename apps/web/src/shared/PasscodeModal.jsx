@@ -90,7 +90,7 @@ export default function PasscodeModal({ isOpen, onClose, onSuccess }) {
         localStorage.setItem('faizal_admin_pin', code);
         setIsSuccess(true);
         setTimeout(() => {
-          onSuccess ? onSuccess() : (window.location.href = '/admin');
+          onSuccess ? onSuccess() : (window.location.href = '/admin.html');
         }, 600);
       } else {
         setErrorShake(true);

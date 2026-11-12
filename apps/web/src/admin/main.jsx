@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import Admin from './pages/Admin/Admin';
-import PasscodeModal from './components/common/PasscodeModal';
+import Admin from './Admin';
+import PasscodeModal from '../shared/PasscodeModal';
 import './admin.css';
 
 function StandaloneAdminApp() {

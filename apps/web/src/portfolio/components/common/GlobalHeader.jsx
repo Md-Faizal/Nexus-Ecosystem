@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { m as motion } from 'framer-motion';
-import { monogramComplete } from '../../assets';
+import { monogramComplete } from '../../../assets';
 
 const CLIP_PATH_SLANTED = 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)';
 

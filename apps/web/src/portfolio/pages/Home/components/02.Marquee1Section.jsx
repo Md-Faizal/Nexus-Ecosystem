@@ -8,6 +8,7 @@ const FEATURED_PROJECTS = [
     description: "Full desktop-grade browser interface, window manager, and responsive application shell.",
     year: "2026",
     status: "LIVE PORTAL",
+    image: "/projects/macos_web.png",
     accent: "#f59e0b"
   },
   {
@@ -17,6 +18,7 @@ const FEATURED_PROJECTS = [
     description: "Cinematic ray-traced spatial environment with volumetric dust scattering and interactive camera dolly.",
     year: "2026",
     status: "HERO SPACE",
+    image: "/projects/amber_vault.png",
     accent: "#e88a38"
   },
   {
@@ -26,6 +28,7 @@ const FEATURED_PROJECTS = [
     description: "GPU-accelerated vector deformation, inertia scroll controllers, and micro-interaction frameworks.",
     year: "2025",
     status: "SYSTEM",
+    image: "/projects/vector_motion.png",
     accent: "#f59e0b"
   },
   {
@@ -35,13 +38,14 @@ const FEATURED_PROJECTS = [
     description: "Procedural geometry system, kinetic identity guidelines, and editorial web layout benchmarks.",
     year: "2025",
     status: "ARCHIVE",
+    image: "/projects/cyber_monogram.webp",
     accent: "#d97706"
   }
 ];
 
 export default function Marquee1Section({ onNavigate }) {
   return (
-    <div className="w-screen relative z-10 overflow-hidden bg-[#0a0a0e] pt-12 md:pt-20 pb-24 text-white">
+    <div className="w-screen relative z-10 overflow-hidden bg-[#0a0a0e] pt-0 pb-24 text-white">
       {/* 1. SEAMLESS MARQUEE TICKER */}
       <div className="w-full border-y border-white/10 py-4 md:py-6 overflow-hidden bg-[#0d0d13]/80 backdrop-blur-md">
         <div className="flex w-max animate-marquee select-none whitespace-nowrap">
@@ -113,6 +117,17 @@ export default function Marquee1Section({ onNavigate }) {
                 <p className="mt-3 text-sm font-light text-white/60 leading-relaxed">
                   {project.description}
                 </p>
+
+                {/* Editorial Visual Preview Box */}
+                <div className="relative w-full h-48 md:h-60 mt-6 rounded-xl overflow-hidden bg-black/40 border border-white/5">
+                  <img
+                    src={project.image}
+                    alt={project.title}
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#121218]/90 via-transparent to-transparent opacity-60" />
+                </div>
               </div>
 
               <div className="pt-8 flex items-center justify-between text-xs font-mono text-white/40">

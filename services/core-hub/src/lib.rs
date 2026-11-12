@@ -132,6 +132,7 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
             "/admin-assets",
             ServeDir::new(config.public_dir.join("admin-assets")),
         )
+        .route_service("/admin", ServeFile::new(&admin_file))
         .route_service("/admin.html", ServeFile::new(&admin_file))
         .fallback_service(spa_service)
         .layer(from_fn_with_state(

@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 const TOTAL_SCROLL_FRAMES = 40;
-const TOTAL_PARALLAX_FRAMES = 7;
 const TOTAL_INTRO_FRAMES = 16;
+const ASSET_CACHE_BUST = 'v4k_clean_4';
 
 export default function AmberVaultHeroCanvas({
   isRevealed = true,
@@ -17,7 +17,6 @@ export default function AmberVaultHeroCanvas({
 
   // Frame image buffers
   const scrollFramesRef = useRef([]);
-  const parallaxFramesRef = useRef([]);
   const introFramesRef = useRef([]);
 
   // Timing state for intro dolly-out
@@ -85,6 +84,7 @@ export default function AmberVaultHeroCanvas({
       const img = new Image();
       const numStr = String(i).padStart(2, '0');
       img.src = `/sequence/frame_${numStr}.webp`;
+      img.src = `/sequence/frame_${numStr}.webp?v=${ASSET_CACHE_BUST}`;
 
       img.onload = () => {
         if (isCancelled) return;
@@ -98,6 +98,8 @@ export default function AmberVaultHeroCanvas({
         if (isCancelled) return;
         if (!img.src.endsWith('.jpg')) {
           img.src = `/sequence/frame_${numStr}.jpg`;
+        if (!img.src.includes('.jpg')) {
+          img.src = `/sequence/frame_${numStr}.jpg?v=${ASSET_CACHE_BUST}`;
         }
       };
 
@@ -115,33 +117,7 @@ export default function AmberVaultHeroCanvas({
     };
   }, [drawCoverImage, isReady]);
 
-  // 3. Preload Parallax Sequence (7 Frames)
-  useEffect(() => {
-    let isCancelled = false;
-    const images = [];
-
-    for (let i = 0; i < TOTAL_PARALLAX_FRAMES; i++) {
-      const img = new Image();
-      const numStr = String(i).padStart(2, '0');
-      img.src = `/sequence/parallax/parallax_${numStr}.webp`;
-
-      img.onerror = () => {
-        if (isCancelled) return;
-        if (!img.src.endsWith('.jpg')) {
-          img.src = `/sequence/parallax/parallax_${numStr}.jpg`;
-        }
-      };
-
-      images.push(img);
-    }
-    parallaxFramesRef.current = images;
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  // 4. Preload Intro Dolly-Out Sequence (16 Frames)
+  // 3. Preload Intro Dolly-Out Sequence (16 Frames)
   useEffect(() => {
     let isCancelled = false;
     const images = [];
@@ -167,15 +143,26 @@ export default function AmberVaultHeroCanvas({
     };
   }, []);
 
-  // 5. Trigger Intro Dolly-Out when portal opens
+  // 4. Synchronized Timing Controller
+  // Stage 1 (video-portal): Hold camera firmly on close monitor view (intro_00)
+  // Stage 2 (video-fullscreen): Trigger dolly-out IN SYNCHRONIZATION with expanding concentric rings
   useEffect(() => {
-    if (heroStage === 'video-portal' && !introState.current.startTime) {
-      introState.current.startTime = performance.now();
+    if (heroStage === 'logo') {
+      introState.current.startTime = null;
+      introState.current.isComplete = false;
+      introState.current.progress = 0;
+    } else if (heroStage === 'video-portal') {
+      // Hold firmly on close view inside circular aperture
+      introState.current.startTime = null;
       introState.current.isComplete = false;
       introState.current.progress = 0;
     } else if (heroStage === 'video-fullscreen') {
-      introState.current.isComplete = true;
-      introState.current.progress = 1;
+      // Concentric rings unmask outward -> start dolly-out pullback simultaneously
+      if (!introState.current.startTime) {
+        introState.current.startTime = performance.now();
+        introState.current.isComplete = false;
+        introState.current.progress = 0;
+      }
     }
   }, [heroStage]);
 
@@ -235,36 +222,40 @@ export default function AmberVaultHeroCanvas({
       const ms = mouseState.current;
       const container = containerRef.current;
       const scrollFrames = scrollFramesRef.current;
-      const parallaxFrames = parallaxFramesRef.current;
       const introFrames = introFramesRef.current;
 
-      // Smooth mouse lerp
+      // Smooth mouse lerp with responsive damping
       ms.x += (ms.targetX - ms.x) * 0.08;
       ms.y += (ms.targetY - ms.y) * 0.08;
 
-      // Compute intro dolly-out progress
+      // Compute intro dolly-out progress (Synchronized with concentric aperture unmasking)
       if (introState.current.startTime && !introState.current.isComplete) {
         const elapsed = timestamp - introState.current.startTime;
-        const dur = 1250; // 1.25s smooth dolly-out
+        const dur = 1200; // Synchronized with radial aperture expansion
         const t = Math.min(1, elapsed / dur);
-        // Cubic ease-out
+        // Cinematic cubic ease-out
         introState.current.progress = 1.0 - Math.pow(1.0 - t, 3.0);
         if (t >= 1) {
           introState.current.isComplete = true;
         }
       }
 
-      const isIntroActive = (heroStage === 'video-portal') && !introState.current.isComplete;
       const isScrolled = scrollProgress > 0.01;
+      const isPortalHold = (heroStage === 'video-portal');
+      const isIntroActive = (heroStage === 'video-fullscreen') && !introState.current.isComplete;
 
-      // Apply container 3D perspective tilt
+      // Apply container 3D perspective tilt (Fluid 120Hz spatial orbit)
       if (container) {
         const zoomDamping = Math.max(0, 1 - scrollProgress * 1.5);
-        const rotY = ms.x * 2.0 * zoomDamping;
-        const rotX = -ms.y * 1.2 * zoomDamping;
-        const transX = ms.x * -10 * zoomDamping;
-        const transY = ms.y * -6 * zoomDamping;
-        container.style.transform = `perspective(1200px) rotateY(${rotY}deg) rotateX(${rotX}deg) translate3d(${transX}px, ${transY}px, 0px) scale(${1.02 + scrollProgress * 0.02})`;
+        const rotY = ms.x * 2.2 * zoomDamping;
+        const rotX = -ms.y * 1.4 * zoomDamping;
+        const transX = ms.x * -12 * zoomDamping;
+        const transY = ms.y * -8 * zoomDamping;
+        container.style.transform = `perspective(1400px) rotateY(${rotY}deg) rotateX(${rotX}deg) translate3d(${transX}px, ${transY}px, 0px) scale(${1.02 + scrollProgress * 0.02})`;
+        const targetScale = scrollProgress >= 0.85 
+          ? 1.02 - ((scrollProgress - 0.85) / 0.15) * 0.02 
+          : 1.02;
+        container.style.transform = `perspective(1400px) rotateY(${rotY}deg) rotateX(${rotX}deg) translate3d(${transX}px, ${transY}px, 0px) scale(${targetScale})`;
       }
 
       // ========================================================
@@ -299,17 +290,29 @@ export default function AmberVaultHeroCanvas({
       }
 
       // ========================================================
-      // SCENARIO 2: INTRO DOLLY-OUT (Inside circular portal)
-      // Camera dollies backward from close desk view to wide vault
+      // SCENARIO 2: PORTAL HOLD (Camera held near monitor)
+      // Clearly reveals the monitor UI & glowing desk inside circle
+      // ========================================================
+      if (isPortalHold) {
+        let img = introFrames[0];
+        if (!img || !img.complete || img.naturalWidth === 0) {
+          img = scrollFrames[28] || scrollFrames[0];
+        }
+        if (img) {
+          drawCoverImage(img);
+        }
+        return;
+      }
+
+      // ========================================================
+      // SCENARIO 3: SYNCHRONIZED APERTURE DOLLY-OUT
+      // Camera pulls back in exact lockstep as circles expand
       // ========================================================
       if (isIntroActive) {
         const p = introState.current.progress;
-
-        // Try primary intro sequence (intro_00 to intro_15)
         const introIdx = Math.min(TOTAL_INTRO_FRAMES - 1, Math.floor(p * TOTAL_INTRO_FRAMES));
         let img = introFrames[introIdx];
 
-        // Graceful fallback to reverse scroll frames (frame 28 -> frame 0)
         if (!img || !img.complete || img.naturalWidth === 0) {
           const fallbackIdx = Math.max(0, Math.round((1.0 - p) * 28));
           img = scrollFrames[fallbackIdx] || scrollFrames[0];
@@ -322,23 +325,12 @@ export default function AmberVaultHeroCanvas({
       }
 
       // ========================================================
-      // SCENARIO 3: IDLE INTERACTIVE STATE (Multi-Angle Parallax)
-      // True 3D camera viewpoints orbiting desk horizontally
-      // Crisp single-angle snapping prevents ghosting/double-exposure
+      // SCENARIO 4: IDLE RESTING STATE (Pristine 4K Base Frame)
+      // Silky-smooth 120Hz hardware 2.5D perspective tracking
       // ========================================================
-      const rawAngle = 3 + ms.x * 3.0; // [-1, +1] maps to [0, 6]
-      const clampedAngle = Math.max(0, Math.min(TOTAL_PARALLAX_FRAMES - 1, rawAngle));
-      const targetIdx = Math.round(clampedAngle);
-
-      let img = parallaxFrames[targetIdx];
-
-      // Fallback if parallax frame is still loading
-      if (!img || !img.complete || img.naturalWidth === 0) {
-        img = scrollFrames[0];
-      }
-
-      if (img) {
-        drawCoverImage(img, 1.0);
+      const baseFrame = scrollFrames[0] || introFrames[TOTAL_INTRO_FRAMES - 1];
+      if (baseFrame && baseFrame.complete && baseFrame.naturalWidth > 0) {
+        drawCoverImage(baseFrame, 1.0);
       }
     };
 
@@ -362,9 +354,12 @@ export default function AmberVaultHeroCanvas({
       />
 
       {/* Dynamic Specular Lens Sheen responding to cursor */}
+      {/* Dynamic Specular Lens Sheen responding to cursor (fades out as camera approaches screen) */}
       <div
         className="absolute inset-0 pointer-events-none mix-blend-screen opacity-25 transition-opacity duration-300"
+        className="absolute inset-0 pointer-events-none mix-blend-screen transition-opacity duration-300"
         style={{
+          opacity: Math.max(0, 0.25 * (1 - scrollProgress * 1.4)),
           background: `radial-gradient(circle at ${50 + mouseState.current.x * 20}% ${50 + mouseState.current.y * 20}%, rgba(255, 220, 160, 0.22) 0%, rgba(220, 140, 40, 0.04) 45%, transparent 70%)`
         }}
       />

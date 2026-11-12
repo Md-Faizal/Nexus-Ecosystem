@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import PageHeader from '../../../components/common/PageHeader';
 import AmberVaultHeroCanvas from './AmberVaultHeroCanvas';
+import Marquee1Section from './02.Marquee1Section';
 
 const THEME_COLOR = '#A30033'; // Deep crimson red matching the logo
 
@@ -12,8 +12,8 @@ const MONOGRAM_PATHS = {
   centerWhite: "M128.13,20.73l-6.84,16.67-40.73,18.92-4,1.86,4.41.05,31.28.34-4.57,10.78-62.4-.05,6.16-15.86,40.77-18.88,3.96-1.83-4.36-.07-31.37-.53,4.64-10.68,63.06-.71M129.63,19.71l-65.22.74-5.49,12.65,32.87.55-41.14,19.05-6.83,17.6,64.52.05,5.42-12.76-32.78-.36,41.09-19.08,7.56-18.43h0Z"
 };
 
-function ConcentricBackground({ 
-  isRevealed = true, 
+function ConcentricBackground({
+  isRevealed = true,
   isTransitioning = false,
   heroStage = 'logo' // 'logo' | 'video-portal' | 'video-fullscreen'
 }) {
@@ -21,7 +21,7 @@ function ConcentricBackground({
   const isStableView = isTransitioning;
   const isFullscreenVideo = !isTransitioning && heroStage === 'video-fullscreen';
   const isPortalActive = !isTransitioning && (heroStage === 'video-portal' || heroStage === 'video-fullscreen');
-  
+
   const centerX = 400, centerY = 400;
   const ringCount = 40;
   const maxRadius = 390;
@@ -56,11 +56,11 @@ function ConcentricBackground({
   }
 
   return (
-    <div 
+    <div
       className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden flex items-center justify-center"
     >
-      <svg 
-        viewBox="0 0 800 800" 
+      <svg
+        viewBox="0 0 800 800"
         className="absolute pointer-events-none"
         style={{
           top: '50%',
@@ -167,8 +167,8 @@ function ConcentricBackground({
         </g>
 
         {/* 2. THE 40 CONCENTRIC DEPTH RINGS (Carved onto Porcelain Surface) */}
-        <g 
-          fill="none" 
+        <g
+          fill="none"
           filter="url(#groove-shadow)"
           style={{
             animation: 'heroSpin 40s linear infinite',
@@ -223,29 +223,43 @@ function ConcentricBackground({
   );
 }
 
-export default function HeroSection({ 
-  isRevealed, 
-  onOpenMenu, 
-  isMenuOpen, 
-  onNavigate, 
-  onLogoClick, 
-  isTransitioning = false, 
-  isPageReady = true 
+export default function HeroSection({
+  isRevealed,
+  onOpenMenu,
+  isMenuOpen,
+  onNavigate,
+  onLogoClick,
+  isTransitioning = false,
+  isPageReady = true,
+  onHeaderStageChange
 }) {
   const [heroStage, setHeroStage] = useState('logo');
   const [headerLogoStage, setHeaderLogoStage] = useState('hidden'); // 'hidden' | 'red' | 'lime'
   const sectionRef = useRef(null);
+  const monitorPortalRef = useRef(null);
   const [scrollProgress, setScrollProgress] = useState(0);
 
-  // Dedicated progress reference for active scroll locking
+  // Dedicated progress reference for active scroll locking & threshold snapping
   const progressState = useRef({
     current: 0,
     target: 0,
     isLocked: true,
-    lastTouchY: 0
+    lastTouchY: 0,
+    snapTimer: null
   });
 
-  // 1. Stage Timeline Sequence
+  // If page loads already scrolled down, jump directly to full frame
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.scrollY > 50) {
+      setHeroStage('video-fullscreen');
+      setHeaderLogoStage('lime');
+      progressState.current.current = 1.0;
+      progressState.current.target = 1.0;
+      setScrollProgress(1.0);
+    }
+  }, []);
+
+  // 1. Stage Timeline Sequence (Harmonized Portal Hold & Aperture Reveal)
   useEffect(() => {
     if (!isRevealed || isTransitioning) {
       setHeroStage('logo');
@@ -253,7 +267,7 @@ export default function HeroSection({
       return;
     }
 
-    // T = 0.5s: Center logo disappears, portal opens revealing photorealistic 3D vault
+    // T = 0.5s: Center logo disappears, portal opens revealing close-up monitor view
     const portalTimer = setTimeout(() => {
       setHeroStage('video-portal');
       setHeaderLogoStage('red');
@@ -264,10 +278,11 @@ export default function HeroSection({
       setHeaderLogoStage('lime');
     }, 1000);
 
-    // T = 1.75s: Concentric circles unmask outward into full photorealistic frame
+    // T = 1.6s: Concentric circles unmask outward into full frame
+    // Held for 1.1s so user clearly sees the monitor UI before the synchronous dolly-out starts
     const fullscreenVideoTimer = setTimeout(() => {
       setHeroStage('video-fullscreen');
-    }, 1750);
+    }, 1600);
 
     return () => {
       clearTimeout(portalTimer);
@@ -276,37 +291,128 @@ export default function HeroSection({
     };
   }, [isRevealed, isTransitioning]);
 
-  // 2. Active Scroll-Lock Mechanism: Intercept wheel/touch until camera zoom completes
+  const isFullscreen = !isTransitioning && heroStage === 'video-fullscreen';
+  const showCenterLogo = !isFullscreen && heroStage === 'logo';
+  const showTopLeftLogo = isRevealed && !isTransitioning && (headerLogoStage === 'red' || headerLogoStage === 'lime');
+
+  // Notify parent Home component of header stage changes
+  useEffect(() => {
+    onHeaderStageChange?.({
+      showLogo: showTopLeftLogo,
+      stage: headerLogoStage === 'lime' ? 'lime' : 'red'
+    });
+  }, [showTopLeftLogo, headerLogoStage, onHeaderStageChange]);
+
+  // 2. Threshold Snap & Bounce-back Evaluator
+  const scheduleThresholdSnap = useCallback((direction) => {
+    const state = progressState.current;
+    if (state.snapTimer) clearTimeout(state.snapTimer);
+
+    state.snapTimer = setTimeout(() => {
+      const cur = state.target;
+      // Only evaluate if within intermediate scrub zone
+      if (cur > 0.01 && cur < 0.99) {
+        const SCROLL_THRESHOLD = 0.40;
+        const REVERSE_THRESHOLD = 0.70;
+        const SCROLL_THRESHOLD = 0.35;
+        const REVERSE_THRESHOLD = 0.88;
+
+        if (direction === 'down') {
+          if (cur >= SCROLL_THRESHOLD) {
+            // Threshold exceeded -> auto-commit all the way forward into Section 2 (1.0)
+            state.target = 1.0;
+          } else {
+            // Below threshold -> bounce back smoothly to wide vault view (0.0)
+            state.target = 0.0;
+          }
+        } else if (direction === 'up') {
+          if (cur <= REVERSE_THRESHOLD) {
+            // Reverse threshold exceeded -> auto-complete pullback to wide vault view (0.0)
+            state.target = 0.0;
+          } else {
+            state.target = 1.0;
+          }
+        } else {
+          state.target = cur >= 0.40 ? 1.0 : 0.0;
+          state.target = cur >= 0.35 ? 1.0 : 0.0;
+        }
+      }
+    }, 140);
+  }, []);
+
+  // 3. Bidirectional Scrollbar Event Listeners ('hero-zoom-set', 'hero-zoom-snap')
+  useEffect(() => {
+    const handleHeroZoomSet = (e) => {
+      const targetZoom = Number(e.detail?.zoom);
+      if (!isNaN(targetZoom)) {
+        progressState.current.target = Math.min(1, Math.max(0, targetZoom));
+        if (targetZoom < 0.999) {
+          progressState.current.isLocked = true;
+          window.lenis?.stop();
+        }
+      }
+    };
+
+    const handleHeroZoomSnap = (e) => {
+      const snapTarget = Number(e.detail?.target);
+      if (!isNaN(snapTarget)) {
+        progressState.current.target = snapTarget;
+        if (snapTarget >= 0.999) {
+          progressState.current.isLocked = false;
+          window.lenis?.start();
+        } else {
+          progressState.current.isLocked = true;
+          window.lenis?.stop();
+        }
+      }
+    };
+
+    window.addEventListener('hero-zoom-set', handleHeroZoomSet);
+    window.addEventListener('hero-zoom-snap', handleHeroZoomSnap);
+
+    return () => {
+      window.removeEventListener('hero-zoom-set', handleHeroZoomSet);
+      window.removeEventListener('hero-zoom-snap', handleHeroZoomSnap);
+    };
+  }, []);
+
+  // 4. Active Scroll-Lock Mechanism: Intercept wheel/touch with threshold snapping
   useEffect(() => {
     const state = progressState.current;
 
     const handleWheel = (e) => {
-      if (heroStage !== 'video-fullscreen') return;
+      if (heroStage !== 'video-fullscreen' || isMenuOpen) return;
 
-      const isAtTop = window.scrollY <= 15;
+      const isAtTop = window.scrollY <= 10;
 
-      // Hero scrub zone (progress 0.0 to 0.985)
-      if (isAtTop && state.current < 0.985) {
-        if (e.deltaY > 0 || state.current > 0.01) {
+      // Phase 1: In Hero scrub zone (progress 0.0 to 0.999) while at top of page: Lock page & zoom into monitor
+      if (isAtTop && state.current < 0.999) {
+        if (e.deltaY > 0 || state.current > 0.005) {
           e.preventDefault();
           window.lenis?.stop();
           state.isLocked = true;
 
-          const speed = 0.00085;
+          const speed = 0.00095;
+          const speed = 0.0016;
           state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
+          scheduleThresholdSnap(e.deltaY > 0 ? 'down' : 'up');
         }
-      } 
-      // Scrolling up while at the very top of Section 02 -> re-engage hero scrub
-      else if (isAtTop && state.current >= 0.985 && e.deltaY < 0) {
+      }
+      // Phase 2: Zoom complete (progress >= 0.999) and user scrolls UP while at top of page:
+      // Re-engage zoom-out pullback into the 3D room!
+      else if (isAtTop && state.current >= 0.999 && e.deltaY < 0) {
         e.preventDefault();
         window.lenis?.stop();
         state.isLocked = true;
 
-        const speed = 0.00085;
+        const speed = 0.00095;
+        const speed = 0.0024;
         state.target = Math.min(1, Math.max(0, state.target + e.deltaY * speed));
-      } 
-      // Zoom 100% complete and scrolling down -> unlock native page scroll
-      else if (state.current >= 0.985 && e.deltaY > 0) {
+        scheduleThresholdSnap('up');
+      }
+      // Phase 3: Zoom complete (progress >= 0.999) and user scrolls DOWN:
+      // Normal page scrolling proceeds smoothly through downstream sections!
+      else if (state.current >= 0.999) {
         state.isLocked = false;
         window.lenis?.start();
       }
@@ -319,28 +425,31 @@ export default function HeroSection({
     };
 
     const handleTouchMove = (e) => {
-      if (heroStage !== 'video-fullscreen') return;
+      if (heroStage !== 'video-fullscreen' || isMenuOpen) return;
       if (e.touches.length === 0) return;
 
       const curY = e.touches[0].clientY;
       const deltaY = state.lastTouchY - curY;
       state.lastTouchY = curY;
 
-      const isAtTop = window.scrollY <= 15;
+      const isAtTop = window.scrollY <= 10;
 
-      if (isAtTop && state.current < 0.985) {
-        if (deltaY > 0 || state.current > 0.01) {
+      if (isAtTop && state.current < 0.999) {
+        if (deltaY > 0 || state.current > 0.005) {
           e.preventDefault();
           window.lenis?.stop();
           state.isLocked = true;
           state.target = Math.min(1, Math.max(0, state.target + deltaY * 0.0022));
+          scheduleThresholdSnap(deltaY > 0 ? 'down' : 'up');
         }
-      } else if (isAtTop && state.current >= 0.985 && deltaY < 0) {
+      } else if (isAtTop && state.current >= 0.999 && deltaY < 0) {
         e.preventDefault();
         window.lenis?.stop();
         state.isLocked = true;
         state.target = Math.min(1, Math.max(0, state.target + deltaY * 0.0022));
-      } else if (state.current >= 0.985 && deltaY > 0) {
+        state.target = Math.min(1, Math.max(0, state.target + deltaY * 0.0032));
+        scheduleThresholdSnap('up');
+      } else if (state.current >= 0.999) {
         state.isLocked = false;
         window.lenis?.start();
       }
@@ -354,11 +463,12 @@ export default function HeroSection({
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
+      if (state.snapTimer) clearTimeout(state.snapTimer);
       window.lenis?.start();
     };
-  }, [heroStage]);
+  }, [heroStage, isMenuOpen, scheduleThresholdSnap]);
 
-  // 3. Smooth Damping Render Loop for Frame Scrubbing
+  // 5. Smooth Damping Render Loop for Frame Scrubbing (60/120Hz)
   useEffect(() => {
     let animId;
     const state = progressState.current;
@@ -367,9 +477,14 @@ export default function HeroSection({
       animId = requestAnimationFrame(tick);
 
       const diff = state.target - state.current;
-      if (Math.abs(diff) > 0.0001) {
-        state.current += diff * 0.12;
+      if (Math.abs(diff) > 0.0004) {
+        state.current += diff * 0.14;
         setScrollProgress(state.current);
+        window.dispatchEvent(new CustomEvent('hero-zoom', { detail: { progress: state.current } }));
+      } else if (state.current !== state.target) {
+        state.current = state.target;
+        setScrollProgress(state.current);
+        window.dispatchEvent(new CustomEvent('hero-zoom', { detail: { progress: state.current } }));
       }
     };
 
@@ -377,15 +492,19 @@ export default function HeroSection({
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  const isFullscreen = !isTransitioning && heroStage === 'video-fullscreen';
-  const showCenterLogo = !isFullscreen && heroStage === 'logo';
-  const showTopLeftLogo = isRevealed && !isTransitioning && (headerLogoStage === 'red' || headerLogoStage === 'lime');
+  // Compute Monitor Screen Zoom & Power-On Parameters
+  const portalScale = 0.26 + Math.pow(scrollProgress, 1.15) * 0.74;
+  const screenContentOpacity = Math.min(1, Math.max(0, (scrollProgress - 0.05) / 0.11));
+  const edgeTaper = scrollProgress >= 0.82 ? Math.max(0, 1 - (scrollProgress - 0.82) / 0.18) : 1;
+  const portalBorderRadius = 12 * edgeTaper;
+  const portalBorderWidth = 3 * edgeTaper;
+  const portalGlow = (screenContentOpacity > 0 ? 1 : 0.3) * edgeTaper;
 
   return (
     <section
       ref={sectionRef}
       id="section-hero"
-      className="relative w-screen h-svh md:h-screen flex items-center justify-center overflow-hidden bg-[#E5E8ED]"
+      className="relative w-screen h-svh md:h-screen flex items-center justify-center overflow-hidden bg-[#0a0a0e]"
       style={{
         position: 'relative',
         width: '100vw',
@@ -393,46 +512,121 @@ export default function HeroSection({
         backgroundColor: '#0a0a0e'
       }}
     >
-      {/* 1. PHOTOREALISTIC 1080p CYCLES FRAME CANVAS (At z-0, visible behind aperture) */}
+      {/* 1. PHOTOREALISTIC 4K CYCLES FRAME CANVAS (At z-0, visible behind aperture) */}
       <div
         className="absolute inset-0 w-full h-full z-0 flex items-center justify-center overflow-hidden pointer-events-none"
       >
-        <AmberVaultHeroCanvas 
-          isRevealed={isRevealed} 
+        <AmberVaultHeroCanvas
+          isRevealed={isRevealed}
           heroStage={heroStage}
           scrollProgress={scrollProgress}
         />
       </div>
 
       {/* 2. CONCENTRIC PORCELAIN BACKGROUND & DEPTH CIRCLES WITH STEP-BY-STEP APERTURE MASK */}
-      <div 
+      <div
         className="absolute inset-0 w-full h-full z-10 pointer-events-none transition-opacity duration-500"
         style={{ opacity: isFullscreen ? (scrollProgress > 0.02 ? Math.max(0, 1 - scrollProgress * 4.0) : 1) : 1 }}
       >
-        <ConcentricBackground 
-          isRevealed={isRevealed} 
+        <ConcentricBackground
+          isRevealed={isRevealed}
           isTransitioning={isTransitioning}
           heroStage={heroStage}
         />
       </div>
 
+      {/* 3. MONITOR SCREEN PORTAL - POWERS ON & ZOOMS IN FROM DESK TO FULLSCREEN */}
+      {heroStage === 'video-fullscreen' && (
+        <div
+          ref={monitorPortalRef}
+          className="absolute pointer-events-none z-25 will-change-transform flex items-center justify-center"
+          style={{
+            left: '50%',
+            top: '50%',
+            width: '100vw',
+            height: '100vh',
+            transform: `translate(-50%, -50%) scale(${portalScale})`,
+            transformOrigin: 'center center',
+            borderRadius: `${portalBorderRadius}px`,
+            border: portalBorderWidth > 0 ? `${portalBorderWidth}px solid rgba(26, 26, 34, 0.95)` : 'none',
+            boxShadow: portalGlow > 0 ? `0 0 ${portalGlow * 40}px rgba(245, 158, 11, ${portalGlow * 0.35}), 0 0 ${portalGlow * 80}px rgba(245, 158, 11, ${portalGlow * 0.12})` : 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Inner Screen Surface */}
+          <div className="relative w-full h-full bg-[#0a0a0e] overflow-hidden">
+            {/* A. Live Section 2 View (Fades in when powered on) */}
+            <div
+              className="w-full h-full overflow-hidden"
+              style={{
+                opacity: screenContentOpacity,
+                filter: screenContentOpacity < 1 ? `brightness(${0.8 + screenContentOpacity * 0.3})` : 'none',
+                pointerEvents: scrollProgress >= 0.999 ? 'auto' : 'none'
+              }}
+            >
+              <Marquee1Section onNavigate={onNavigate} />
+            </div>
+
+            {/* B. Standby Glossy Glass Surface (Active when monitor is off) */}
+            {screenContentOpacity < 0.99 && (
+              <div
+                className="absolute inset-0 pointer-events-none transition-opacity duration-200"
+                style={{
+                  opacity: 1 - screenContentOpacity,
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 40%, rgba(0,0,0,0.7) 100%)'
+                }}
+              >
+                {/* Subtle amber standby pulse indicator in bottom right */}
+                <div className="absolute bottom-4 right-4 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#f59e0b] shadow-[0_0_8px_#f59e0b] animate-pulse" />
+                </div>
+              </div>
+            )}
+
+            {/* C. Power-On Boot Beam / Scanline Flash */}
+            {scrollProgress >= 0.05 && scrollProgress < 0.20 && (
+              <div
+                className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center"
+                style={{
+                  opacity: Math.sin(((scrollProgress - 0.05) / 0.15) * Math.PI)
+                }}
+              >
+                <div className="w-full h-[2px] bg-[#f59e0b] shadow-[0_0_20px_#f59e0b,0_0_40px_#f59e0b]" />
+              </div>
+            )}
+
+            {/* D. CRT Scanline Texture overlay while on the desk (fades out as camera approaches) */}
+            {scrollProgress < 0.80 && screenContentOpacity > 0 && (
+              <div
+                className="absolute inset-0 pointer-events-none z-20 mix-blend-overlay"
+                style={{
+                  opacity: Math.max(0, 0.35 * (1 - scrollProgress / 0.8)),
+                  backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.2) 0px, rgba(0,0,0,0.2) 1px, transparent 1px, transparent 3px)'
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. MAIN CENTER RED MONOGRAM LOGO */}
       {/* 3. MAIN CENTER RED MONOGRAM LOGO */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 1, scale: 1, y: 0 }}
-        animate={{ 
-          opacity: showCenterLogo ? 1 : 0, 
+        animate={{
+          opacity: showCenterLogo ? 1 : 0,
           scale: showCenterLogo ? 1 : 0.92,
           y: showCenterLogo ? 0 : -8
         }}
-        transition={{ 
-          duration: showCenterLogo ? (isTransitioning ? 0 : 0.4) : 0.45, 
-          ease: [0.16, 1, 0.3, 1] 
+        transition={{
+          duration: showCenterLogo ? (isTransitioning ? 0 : 0.4) : 0.45,
+          ease: [0.16, 1, 0.3, 1]
         }}
-        style={{ 
-          position: 'relative', 
-          zIndex: 30, 
-          display: 'flex', 
-          flexDirection: 'column', 
+        style={{
+          position: 'relative',
+          zIndex: 30,
+          display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           pointerEvents: showCenterLogo ? 'auto' : 'none'
         }}
@@ -446,35 +640,6 @@ export default function HeroSection({
           </svg>
         </div>
       </motion.div>
-
-      {/* 4. SEAMLESS MONITOR PORTAL CROSSFADE OVERLAY (Transitions at the very edge of the monitor screen) */}
-      <div
-        className="absolute inset-0 pointer-events-none z-35 transition-opacity duration-300"
-        style={{
-          opacity: scrollProgress >= 0.94 ? Math.min(1, (scrollProgress - 0.94) / 0.055) : 0,
-          backgroundColor: '#0a0a0e'
-        }}
-      />
-
-      {/* 5. PAGE HEADER (Top-Left Brand Logo & Menu Button) */}
-      <div 
-        className="absolute top-0 left-0 w-full z-50 pointer-events-none transition-opacity duration-300"
-        style={{ opacity: scrollProgress > 0.88 ? Math.max(0, 1 - (scrollProgress - 0.88) / 0.10) : 1 }}
-      >
-        <div className="pointer-events-auto">
-          <PageHeader 
-            isMenuOpen={isMenuOpen}
-            onOpenMenu={onOpenMenu}
-            onNavigate={onNavigate}
-            onLogoClick={onLogoClick}
-            currentPage="home"
-            isTransitioning={isTransitioning}
-            isPageReady={isPageReady}
-            showHomeLogo={showTopLeftLogo}
-            logoColorStage={headerLogoStage === 'lime' ? 'lime' : 'red'}
-          />
-        </div>
-      </div>
     </section>
   );
 }

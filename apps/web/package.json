@@ -5,9 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:portfolio": "vite --host",
+    "dev:admin": "vite --config vite.admin.config.js --host",
     "build": "vite build",
+    "build:portfolio": "vite build",
+    "build:admin": "vite build --config vite.admin.config.js",
+    "build:all": "npm run build:portfolio && npm run build:admin",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:admin": "vite preview --config vite.admin.config.js"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

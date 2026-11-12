@@ -3,7 +3,7 @@
 /* Melodrama Variable Font (All Weights 300-700 in ONE Ultra-Fast 40KB Modern WOFF2) */
 @font-face {
   font-family: 'Melodrama';
-  src: url('./assets/fonts/Melodrama-Variable.woff2') format('woff2');
+  src: url('../assets/fonts/Melodrama-Variable.woff2') format('woff2');
   font-weight: 300 700;
   font-display: swap;
   font-style: normal;

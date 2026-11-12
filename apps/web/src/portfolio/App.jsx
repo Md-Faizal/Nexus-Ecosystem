@@ -11,10 +11,9 @@ const About = lazy(() => import('./pages/About/About'));
 const Work = lazy(() => import('./pages/Work/Work'));
 const Services = lazy(() => import('./pages/Services/Services'));
 const Contact = lazy(() => import('./pages/Contact/Contact'));
-const Admin = lazy(() => import('./pages/Admin/Admin'));
 
 import NavigationMenu from './components/common/NavigationMenu';
-import PasscodeModal from './components/common/PasscodeModal';
+import PasscodeModal from '../shared/PasscodeModal';
 import CustomScrollbar from './components/common/CustomScrollbar';
 
 // Initialize Part 2 chunk readiness
@@ -99,15 +98,6 @@ function App() {
   const logoClickCountRef = useRef(0);
   const logoClickTimerRef = useRef(null);
 
-  // Auto-detect /admin route on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.pathname === '/admin.html')) {
-      setIntroDone(true);
-      setHeroRevealed(true);
-      setIsPasscodeOpen(true);
-    }
-  }, []);
-
   const handleHomeLogoClick = useCallback(() => {
     logoClickCountRef.current += 1;
     if (logoClickTimerRef.current) clearTimeout(logoClickTimerRef.current);
@@ -131,8 +121,7 @@ function App() {
       about: 'About - Mohammad Faizal',
       work: 'Work - Mohammad Faizal',
       services: 'Services - Mohammad Faizal',
-      contact: 'Contact - Mohammad Faizal',
-      admin: 'Cluster Admin Console - Mohammad Faizal'
+      contact: 'Contact - Mohammad Faizal'
     };
     document.title = pageTitles[activePage] || 'Mohammad Faizal';
   }, [activePage]);
@@ -552,15 +541,6 @@ function App() {
             isPageReady={isLoaded}
           />
         );
-      case 'admin':
-        return (
-          <Admin 
-            onExit={() => {
-              setActivePage('home');
-              window.history.pushState({}, '', '/');
-            }} 
-          />
-        );
       case 'home':
       default:
         return (
@@ -634,19 +614,10 @@ function App() {
         {/* 5. 4-DIGIT SECURITY PASSCODE DRAWER MODAL */}
         <PasscodeModal
           isOpen={isPasscodeOpen}
-          onClose={() => {
-            setIsPasscodeOpen(false);
-            if (activePage === 'admin') {
-              setActivePage('home');
-              window.history.pushState({}, '', '/');
-            }
-          }}
+          onClose={() => setIsPasscodeOpen(false)}
           onSuccess={() => {
             setIsPasscodeOpen(false);
-            setIntroDone(true);
-            setHeroRevealed(true);
-            setActivePage('admin');
-            window.history.pushState({}, '', '/admin');
+            window.location.href = '/admin.html';
           }}
         />
 

@@ -1,13 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
 @import "tailwindcss";
 
-@source "../**/*.{jsx,js,html}";
+@source "../../admin.html";
 @source "./**/*.{jsx,js,html}";
+@source "../shared/**/*.{jsx,js,html}";
 
 /* Melodrama Variable Font */
 @font-face {
   font-family: 'Melodrama';
-  src: url('./assets/fonts/Melodrama-Variable.woff2') format('woff2');
+  src: url('../assets/fonts/Melodrama-Variable.woff2') format('woff2');
   font-weight: 300 700;
   font-display: swap;
   font-style: normal;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, m as motion } from 'framer-motion';
-import { monogramComplete } from '../../assets';
+import { monogramComplete } from '../../../assets';
 
 // 2 Slanted Corners Geometry (top-left & bottom-right beveled)
 const CLIP_PATH_SLANTED_CARD = 'polygon(24px 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%, 0 24px)';
