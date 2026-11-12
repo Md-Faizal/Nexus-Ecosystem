@@ -1104,7 +1104,7 @@ echo "Your node will automatically appear on https://faizal.uk/admin.html immedi
 }
 
 pub async fn serve_install_ps1() -> impl IntoResponse {
-    let script = r#"# Nexus Fleet Agent — Universal Zero-Token 1-Command Installer (Windows)
+    let script = r#"# Nexus Fleet Agent - Universal Zero-Token 1-Command Installer (Windows)
 $ErrorActionPreference = "Stop"
 
 $HubUrl = if ($env:NEXUS_HUB) { $env:NEXUS_HUB } else { "https://faizal.uk" }
@@ -1177,12 +1177,13 @@ if ($env:Path -notlike "*$TargetDir*") {
 }
 
 Write-Host "Registering Nexus background service and startup daemon..." -ForegroundColor Gray
+schtasks /delete /tn "NexusAgent" /f 2>$null | Out-Null
 if ($IsAdmin) {
     & $DestExe service install
 } else {
     # Non-admin startup registry registration
     try {
-        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run" -Force
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run --silent" -Force
     } catch {}
     # Launch hidden background worker immediately so telemetry is active
     Start-Process "$NexusAlias" -ArgumentList "run" -WindowStyle Hidden
