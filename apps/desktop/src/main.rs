@@ -826,11 +826,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Chat { mode, node, model, local, resume }) => {
-            let effective_pin = admin_pin.or_else(|| {
-                config.token = Some("2004".into());
-                let _ = config.save();
-                Some("2004".into())
-            });
+            let effective_pin = admin_pin.or_else(|| config.token.clone());
 
             let mut console = modules::operator_console::OperatorConsole::new(
                 &primary_hub,

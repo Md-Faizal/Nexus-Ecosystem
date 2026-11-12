@@ -135,7 +135,7 @@ impl ChatRenderer {
         println!("│    \x1b[1;32m/mc\x1b[0m / \x1b[1;32m/mc status\x1b[0m         Inspect local Minecraft server PID, RSS RAM & health");
         println!("│    \x1b[1;32m/system [prompt]\x1b[0m       Inspect or set custom system instructions");
         println!("│    \x1b[1;32m/temp <0.0 - 1.0>\x1b[0m      Adjust model creativity / temperature");
-        println!("│    \x1b[1;32m/pin <pin>\x1b[0m             Authenticate operator PIN (Default: 2004)");
+        println!("│    \x1b[1;32m/pin <pin>\x1b[0m             Authenticate operator PIN");
         println!("│    \x1b[1;32m/mode chat\x1b[0m             Switch to Fleet Broadcast & Device Messaging");
         println!("│    \x1b[1;32m/exit\x1b[0m / \x1b[1;32m/bye\x1b[0m           Save & exit terminal REPL session");
         println!("\x1b[1;36m╰─────────────────────────────────────────────────────────────────────────────╯\x1b[0m\n");

@@ -130,7 +130,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.admin_pin_input)
                                 .password(true)
-                                .hint_text("e.g. 2004 (or uses NEXUS_ADMIN_PIN env)")
+                                .hint_text("Enter cluster Admin PIN (or uses NEXUS_ADMIN_PIN env)")
                                 .desired_width(ui.available_width())
                                 .font(FontId::monospace(12.0)),
                         );
@@ -218,6 +218,12 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                             .config
                             .features
                             .insert("ai_bridge".to_string(), state.pref_ai_relay);
+                        let pin_trimmed = state.admin_pin_input.trim().to_string();
+                        state.config.token = if pin_trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(pin_trimmed)
+                        };
                         let _ = state.config.save();
 
                         let _ = state.cmd_tx.send(GuiCommand::RefreshCluster {

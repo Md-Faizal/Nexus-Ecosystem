@@ -432,6 +432,7 @@ pub fn render_core_heatmap(ui: &mut egui::Ui, cores: &[f32]) {
 
 pub fn render_topology_canvas(
     ui: &mut egui::Ui,
+    local_node_id: &str,
     local_hostname: &str,
     local_cpu_pct: f32,
     nodes: &[RemoteNodeInfo],
@@ -514,38 +515,17 @@ pub fn render_topology_canvas(
         );
     }
 
-    // Outer Orbit: Local Node + All Remote Nodes
-    let mut outer_items: Vec<(String, String, bool, Option<String>)> = Vec::new();
-    outer_items.push((
-        format!("{} (THIS)", truncate_label(local_hostname, 10)),
-        format!("CPU {:.0}%", local_cpu_pct),
-        true,
-        None,
-    ));
-    for n in nodes.iter().take(10) {
-        let cpu = n
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("cpu"))
-            .and_then(|c| c.get("usage_pct"))
-            .and_then(|v| v.as_f64())
-            .map(|v| format!("{} • {:.0}%", n.os, v))
-            .unwrap_or_else(|| n.os.clone());
-        outer_items.push((
-            truncate_label(&n.hostname, 12),
-            cpu,
-            n.status == "online",
-            Some(n.node_id.clone()),
-        ));
-    }
+    // Outer Orbit: Deduplicated Local Node + Remote Nodes
+    let outer_items =
+        build_topology_outer_items(local_node_id, local_hostname, local_cpu_pct, nodes);
 
     let total_outer = outer_items.len().max(1);
-    for (i, (label, sub, online, node_id_opt)) in outer_items.iter().enumerate() {
+    for (i, (label, sub, online, node_id_opt, is_this_pc)) in outer_items.iter().enumerate() {
         let angle = (i as f32 / total_outer as f32) * 2.0 * PI - PI * 0.5;
         let rx = (w * 0.41).clamp(115.0, 330.0);
         let ry = 108.0;
         let pos = Pos2::new(center.x + angle.cos() * rx, center.y + angle.sin() * ry);
-        let color = if node_id_opt.is_none() {
+        let color = if *is_this_pc {
             ACCENT_CYAN
         } else if *online {
             ACCENT_EMERALD
@@ -614,5 +594,99 @@ pub fn render_topology_canvas(
         FontId::monospace(8.5),
         ACCENT_CYAN,
     );
+}
+
+fn build_topology_outer_items(
+    local_node_id: &str,
+    local_hostname: &str,
+    local_cpu_pct: f32,
+    nodes: &[RemoteNodeInfo],
+) -> Vec<(String, String, bool, Option<String>, bool)> {
+    let mut outer_items: Vec<(String, String, bool, Option<String>, bool)> = Vec::new();
+    let mut local_seen_in_remote = false;
+
+    for n in nodes.iter().take(10) {
+        let is_this_pc = (!local_node_id.is_empty() && n.node_id == local_node_id)
+            || (!local_hostname.is_empty() && n.hostname.eq_ignore_ascii_case(local_hostname));
+        if is_this_pc {
+            if local_seen_in_remote {
+                continue;
+            }
+            local_seen_in_remote = true;
+        }
+        let cpu = n
+            .telemetry
+            .as_ref()
+            .and_then(|t| t.get("cpu"))
+            .and_then(|c| c.get("usage_pct"))
+            .and_then(|v| v.as_f64())
+            .map(|v| format!("{} • {:.0}%", n.os, v))
+            .unwrap_or_else(|| n.os.clone());
+        let label = if is_this_pc {
+            format!("{} (THIS)", truncate_label(&n.hostname, 10))
+        } else {
+            truncate_label(&n.hostname, 12)
+        };
+        outer_items.push((
+            label,
+            cpu,
+            n.status == "online",
+            Some(n.node_id.clone()),
+            is_this_pc,
+        ));
+    }
+
+    if !local_seen_in_remote {
+        outer_items.insert(
+            0,
+            (
+                format!("{} (THIS)", truncate_label(local_hostname, 10)),
+                format!("CPU {:.0}%", local_cpu_pct),
+                true,
+                None,
+                true,
+            ),
+        );
+    }
+
+    outer_items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mk_node(id: &str, hostname: &str) -> RemoteNodeInfo {
+        RemoteNodeInfo {
+            node_id: id.to_string(),
+            hostname: hostname.to_string(),
+            os: "windows".to_string(),
+            arch: "x86_64".to_string(),
+            status: "online".to_string(),
+            last_seen_secs: 2,
+            telemetry: None,
+            models: vec![],
+        }
+    }
+
+    #[test]
+    fn topology_deduplicates_this_pc_when_pin_unset_and_set() {
+        // PIN unset -> remote nodes empty -> local PC appears exactly once
+        let items_no_pin = build_topology_outer_items("win-1", "POTATO-PRO", 12.0, &[]);
+        assert_eq!(items_no_pin.len(), 1);
+        assert!(items_no_pin[0].4);
+        assert!(items_no_pin[0].0.contains("(THIS)"));
+
+        // PIN set -> remote nodes include local PC + peer (+ stale duplicate) -> local PC still appears once
+        let remote = vec![
+            mk_node("win-1", "POTATO-PRO"),
+            mk_node("lin-2", "rida-260-P0"),
+            mk_node("win-stale", "potato-pro"),
+        ];
+        let items_with_pin = build_topology_outer_items("win-1", "POTATO-PRO", 42.0, &remote);
+        let this_count = items_with_pin.iter().filter(|item| item.4).count();
+        assert_eq!(this_count, 1);
+        assert_eq!(items_with_pin.len(), 2);
+    }
 }
 

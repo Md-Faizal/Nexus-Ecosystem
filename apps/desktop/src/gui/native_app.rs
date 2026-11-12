@@ -101,6 +101,7 @@ impl NodeMonitorApp {
         let chat_sessions = ChatStorage::list_sessions();
         let active_chat = ChatStorage::new_session("local", &config.hostname, "", None, 0.7);
         let crashes = crate::modules::crash::list_recent_crashes(50);
+        let admin_pin_input = config.token.clone().unwrap_or_default();
 
         let mut state = GuiState {
             config,
@@ -158,7 +159,7 @@ impl NodeMonitorApp {
             show_settings: false,
             settings_tab: SettingsTab::Mesh,
             hub_url_input: hub_url_input.clone(),
-            admin_pin_input: String::new(),
+            admin_pin_input,
             ai_endpoint_input: ai_endpoint_input.clone(),
             pref_coordinator,
             pref_high_cadence,

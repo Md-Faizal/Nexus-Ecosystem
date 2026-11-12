@@ -1,6 +1,6 @@
 use crate::gui::components::charts::render_topology_canvas;
 use crate::gui::components::icons::{icon_button, icon_label_button, IconKind};
-use crate::gui::state::{GuiCommand, GuiState, LogLevel};
+use crate::gui::state::{GuiCommand, GuiState, LogLevel, SettingsTab};
 use crate::gui::theme::*;
 use eframe::egui;
 use egui::FontId;
@@ -46,6 +46,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
             .unwrap_or(0.0);
         render_topology_canvas(
             ui,
+            &state.config.node_id,
             &state.config.hostname,
             local_cpu,
             &state.remote_nodes,
@@ -82,23 +83,34 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
 
     ui.add_space(gap);
 
+    let locked = is_cluster_locked(state);
+
     // ─── Edge Workstations ───
     card_frame().show(ui, |ui| {
         ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "02 // CONNECTED EDGE WORKSTATIONS",
-            &format!("{} Nodes", state.remote_nodes.len()),
-            ACCENT_CYAN,
+            if locked {
+                "LOCKED".to_string()
+            } else {
+                format!("{} Nodes", state.remote_nodes.len())
+            }
+            .as_str(),
+            if locked { ACCENT_AMBER } else { ACCENT_CYAN },
         );
 
-        if state.remote_nodes.is_empty() {
+        if locked {
+            render_cluster_lock_panel(
+                ui,
+                state,
+                "Configure a valid Admin PIN in Preferences -> Mesh & Hub to view remote edge workstations.",
+            );
+        } else if state.remote_nodes.is_empty() {
             ui.label(
-                egui::RichText::new(
-                    "No remote edge nodes reported (or Hub PIN required in Preferences).",
-                )
-                .font(FontId::proportional(12.5))
-                .color(TEXT_3),
+                egui::RichText::new("No remote edge nodes reported.")
+                    .font(FontId::proportional(12.5))
+                    .color(TEXT_3),
             );
         } else if tier.is_compact() {
             for node in &state.remote_nodes {
@@ -188,17 +200,57 @@ fn render_node_tile(ui: &mut egui::Ui, node: &crate::modules::cluster_ops::Remot
     });
 }
 
+fn is_cluster_locked(state: &GuiState) -> bool {
+    state.effective_pin().is_none()
+        || state
+            .cluster_error
+            .as_deref()
+            .is_some_and(|e| e.contains("403"))
+}
+
+fn render_cluster_lock_panel(ui: &mut egui::Ui, state: &mut GuiState, message: &str) {
+    tile_frame().show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal_wrapped(|ui| {
+            pill_badge(ui, "LOCKED // ADMIN PIN REQUIRED", ACCENT_AMBER);
+        });
+        ui.add_space(6.0);
+        ui.label(
+            egui::RichText::new(message)
+                .font(FontId::proportional(12.5))
+                .color(TEXT_2),
+        );
+        ui.add_space(8.0);
+        if icon_label_button(ui, IconKind::Settings, "Unlock with Admin PIN").clicked() {
+            state.show_settings = true;
+            state.settings_tab = SettingsTab::Mesh;
+        }
+    });
+}
+
 fn render_remote_services_card(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
+    let locked = is_cluster_locked(state);
     card_frame().show(ui, |ui| {
         ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "03 // CLUSTER SERVICES",
-            &format!("{} Units", state.remote_services.len()),
-            ACCENT_EMERALD,
+            if locked {
+                "LOCKED".to_string()
+            } else {
+                format!("{} Units", state.remote_services.len())
+            }
+            .as_str(),
+            if locked { ACCENT_AMBER } else { ACCENT_EMERALD },
         );
 
-        if state.remote_services.is_empty() {
+        if locked {
+            render_cluster_lock_panel(
+                ui,
+                state,
+                "Cluster service controls are locked. Enter a valid Admin PIN in Preferences -> Mesh & Hub.",
+            );
+        } else if state.remote_services.is_empty() {
             ui.label(
                 egui::RichText::new("No remote cluster services loaded.")
                     .font(FontId::proportional(12.0))

@@ -368,14 +368,7 @@ impl GuiState {
     }
 
     pub fn effective_pin(&self) -> Option<String> {
-        let trimmed = self.admin_pin_input.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-        std::env::var("NEXUS_ADMIN_PIN")
-            .or_else(|_| std::env::var("FAIZAL_ADMIN_PIN"))
-            .ok()
-            .filter(|s| !s.trim().is_empty())
+        resolve_effective_pin(&self.admin_pin_input, self.config.token.as_deref())
     }
 
     pub fn refresh_chat_sessions(&mut self) {
@@ -454,17 +447,25 @@ pub fn spawn_background_worker(ctx: egui::Context) -> (Sender<GuiCommand>, Recei
 async fn handle_command(cmd: GuiCommand, tx: &Sender<GuiEvent>) {
     match cmd {
         GuiCommand::RefreshCluster { hub_url, pin } => {
-            let pin_ref = pin.as_deref();
-            let (nodes, services, latency_ms) = tokio::join!(
-                ClusterOps::fetch_nodes(&hub_url, pin_ref),
-                ClusterOps::fetch_services(&hub_url, pin_ref),
-                ClusterOps::measure_hub_latency(&hub_url)
-            );
-            let _ = tx.send(GuiEvent::ClusterUpdated {
-                nodes,
-                services,
-                latency_ms,
-            });
+            if let Some(pin_val) = pin.as_deref() {
+                let (nodes, services, latency_ms) = tokio::join!(
+                    ClusterOps::fetch_nodes(&hub_url, Some(pin_val)),
+                    ClusterOps::fetch_services(&hub_url, Some(pin_val)),
+                    ClusterOps::measure_hub_latency(&hub_url)
+                );
+                let _ = tx.send(GuiEvent::ClusterUpdated {
+                    nodes,
+                    services,
+                    latency_ms,
+                });
+            } else {
+                let latency_ms = ClusterOps::measure_hub_latency(&hub_url).await;
+                let _ = tx.send(GuiEvent::ClusterUpdated {
+                    nodes: Err("Admin PIN required to unlock cluster nodes.".to_string()),
+                    services: Err("Admin PIN required to unlock cluster services.".to_string()),
+                    latency_ms,
+                });
+            }
         }
 
         GuiCommand::DispatchServiceAction {
@@ -473,6 +474,15 @@ async fn handle_command(cmd: GuiCommand, tx: &Sender<GuiEvent>) {
             service_id,
             action,
         } => {
+            if pin.is_none() {
+                let _ = tx.send(GuiEvent::Toast {
+                    msg: "Cluster service action locked: configure Admin PIN in Preferences."
+                        .to_string(),
+                    level: LogLevel::Warn,
+                    source: "Cluster".to_string(),
+                });
+                return;
+            }
             match ClusterOps::dispatch_service_action(&hub_url, pin.as_deref(), &service_id, &action).await {
                 Ok(msg) => {
                     let _ = tx.send(GuiEvent::Toast {
@@ -824,6 +834,23 @@ async fn handle_command(cmd: GuiCommand, tx: &Sender<GuiEvent>) {
     }
 }
 
+pub fn resolve_effective_pin(admin_pin_input: &str, config_token: Option<&str>) -> Option<String> {
+    let trimmed = admin_pin_input.trim();
+    if !trimmed.is_empty() {
+        return Some(trimmed.to_string());
+    }
+    if let Some(tok) = config_token {
+        let t = tok.trim();
+        if !t.is_empty() {
+            return Some(t.to_string());
+        }
+    }
+    std::env::var("NEXUS_ADMIN_PIN")
+        .or_else(|_| std::env::var("FAIZAL_ADMIN_PIN"))
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -839,6 +866,19 @@ mod tests {
         assert_eq!(rb.as_vec(), vec![50.0, 25.0, 80.0]);
         assert_eq!(rb.min_max(), (25.0, 80.0));
         assert_eq!(rb.latest(), Some(&80.0));
+    }
+
+    #[test]
+    fn effective_pin_is_none_without_configured_secret() {
+        if std::env::var("NEXUS_ADMIN_PIN").is_err() && std::env::var("FAIZAL_ADMIN_PIN").is_err() {
+            assert_eq!(resolve_effective_pin("", None), None);
+            assert_eq!(resolve_effective_pin("   ", Some("  ")), None);
+        }
+        assert_eq!(resolve_effective_pin("", Some("9988")).as_deref(), Some("9988"));
+        assert_eq!(
+            resolve_effective_pin("4455", Some("9988")).as_deref(),
+            Some("4455")
+        );
     }
 }
 

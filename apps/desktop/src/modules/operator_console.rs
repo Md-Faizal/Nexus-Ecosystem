@@ -227,12 +227,12 @@ impl OperatorConsole {
         println!("│ Channel: \x1b[1;32m#{}\x1b[0m | Hub: \x1b[36m{}\x1b[0m", active_channel, self.http_hub);
         if self.pin.is_none() {
             println!("│ \x1b[1;33m⚠️  No Admin PIN provided. Hub access restricted (HTTP 403 Forbidden).     \x1b[0m│");
-            println!("│ \x1b[90mTip: Type '/pin 2004' (or run 'nexus --pin 2004 chat') to unlock.          \x1b[0m│");
+            println!("│ \x1b[90mTip: Type '/pin <PIN>' (or run 'nexus --pin <PIN> chat') to unlock.        \x1b[0m│");
         }
         println!("│ Type a message and press Enter. Available commands:                      │");
         println!("│   \x1b[1;33m/join <#channel or @node>\x1b[0m  Switch active channel                         │");
         println!("│   \x1b[1;33m/channels\x1b[0m                  List #global & online fleet devices           │");
-        println!("│   \x1b[1;33m/pin <PIN>\x1b[0m                 Authenticate / unlock cluster chat (e.g. 2004)│");
+        println!("│   \x1b[1;33m/pin <PIN>\x1b[0m                 Authenticate / unlock cluster chat            │");
         println!("│   \x1b[1;33m/refresh\x1b[0m                   Fetch latest message updates                  │");
         println!("│   \x1b[1;33m/mode ai\x1b[0m                   Switch to Distributed AI Studio               │");
         println!("│   \x1b[1;33m/clear\x1b[0m                     Clear terminal screen                         │");
@@ -339,7 +339,7 @@ impl OperatorConsole {
                 }
                 Ok(res) if res.status() == reqwest::StatusCode::FORBIDDEN => {
                     println!("\x1b[31m[Failed to send message: HTTP 403 Forbidden — Admin PIN required]\x1b[0m");
-                    println!("\x1b[1;33mTip: Type '/pin 2004' (or your cluster PIN) here to authenticate and retry.\x1b[0m");
+                    println!("\x1b[1;33mTip: Type '/pin <PIN>' here to authenticate and retry.\x1b[0m");
                 }
                 Ok(res) => {
                     println!("\x1b[31m[Failed to send message: HTTP {}]\x1b[0m", res.status());
@@ -379,7 +379,7 @@ impl OperatorConsole {
                 }
             }
             Ok(res) if res.status() == reqwest::StatusCode::FORBIDDEN => {
-                println!("\x1b[33m[Chat history locked (HTTP 403 Forbidden). Type '/pin 2004' to unlock]\x1b[0m\n");
+                println!("\x1b[33m[Chat history locked (HTTP 403 Forbidden). Type '/pin <PIN>' to unlock]\x1b[0m\n");
             }
             _ => {
                 println!("\x1b[90m(Unable to fetch message history from hub)\x1b[0m\n");
