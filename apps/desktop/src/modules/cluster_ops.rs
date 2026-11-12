@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 pub struct RemoteNodeInfo {
     pub node_id: String,
@@ -15,7 +15,7 @@ pub struct RemoteNodeInfo {
     pub telemetry: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 pub struct RemoteServiceInfo {
     pub id: String,
@@ -40,7 +40,7 @@ impl ClusterOps {
             .unwrap_or_default()
     }
 
-    fn hub_base_url(raw_hub: &str) -> String {
+    pub fn hub_base_url(raw_hub: &str) -> String {
         let trimmed = raw_hub.trim_end_matches('/');
         if trimmed.starts_with("wss://") {
             trimmed.replace("wss://", "https://").replace("/api/mesh/ws", "")
@@ -50,6 +50,116 @@ impl ClusterOps {
             format!("https://{}", trimmed)
         } else {
             trimmed.to_string()
+        }
+    }
+
+    pub async fn fetch_nodes(raw_hub: &str, pin: Option<&str>) -> Result<Vec<RemoteNodeInfo>, String> {
+        let base = Self::hub_base_url(raw_hub);
+        let url = format!("{}/api/fleet/nodes", base);
+        let client = Self::get_client();
+
+        let mut req = client.get(&url);
+        if let Some(p) = pin.filter(|s| !s.trim().is_empty()) {
+            req = req
+                .header("Authorization", format!("Bearer {}", p))
+                .header("x-admin-pin", p);
+        }
+
+        let res = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+        if res.status().as_u16() == 403 {
+            return Err("403 Forbidden (Set Admin PIN in Preferences)".to_string());
+        }
+        if !res.status().is_success() {
+            return Err(format!("HTTP {}", res.status()));
+        }
+        res.json::<Vec<RemoteNodeInfo>>()
+            .await
+            .map_err(|e| format!("JSON parse error: {}", e))
+    }
+
+    pub async fn fetch_services(raw_hub: &str, pin: Option<&str>) -> Result<Vec<RemoteServiceInfo>, String> {
+        let base = Self::hub_base_url(raw_hub);
+        let url = format!("{}/api/services", base);
+        let client = Self::get_client();
+
+        let mut req = client.get(&url);
+        if let Some(p) = pin.filter(|s| !s.trim().is_empty()) {
+            req = req
+                .header("Authorization", format!("Bearer {}", p))
+                .header("x-admin-pin", p);
+        }
+
+        let res = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+        if res.status().as_u16() == 403 {
+            return Err("403 Forbidden (Set Admin PIN in Preferences)".to_string());
+        }
+        if !res.status().is_success() {
+            return Err(format!("HTTP {}", res.status()));
+        }
+        res.json::<Vec<RemoteServiceInfo>>()
+            .await
+            .map_err(|e| format!("JSON parse error: {}", e))
+    }
+
+    pub async fn dispatch_service_action(
+        raw_hub: &str,
+        pin: Option<&str>,
+        service_id: &str,
+        action: &str,
+    ) -> Result<String, String> {
+        let base = Self::hub_base_url(raw_hub);
+        let url = format!("{}/api/services/{}/action", base, service_id);
+        let client = Self::get_client();
+
+        let mut req = client.post(&url).json(&serde_json::json!({ "action": action }));
+        if let Some(p) = pin.filter(|s| !s.trim().is_empty()) {
+            req = req
+                .header("Authorization", format!("Bearer {}", p))
+                .header("x-admin-pin", p);
+        }
+
+        let res = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+        if res.status().as_u16() == 403 {
+            return Err("403 Forbidden (Invalid or missing Admin PIN)".to_string());
+        }
+        if !res.status().is_success() {
+            return Err(format!("HTTP {}", res.status()));
+        }
+        Ok(format!("Executed '{}' on {}", action, service_id))
+    }
+
+    pub async fn fetch_health_report(raw_hub: &str, pin: Option<&str>) -> Result<serde_json::Value, String> {
+        let base = Self::hub_base_url(raw_hub);
+        let url = format!("{}/api/health-report/data", base);
+        let client = Self::get_client();
+
+        let mut req = client.get(&url);
+        if let Some(p) = pin.filter(|s| !s.trim().is_empty()) {
+            req = req
+                .header("Authorization", format!("Bearer {}", p))
+                .header("x-admin-pin", p);
+        }
+
+        let res = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+        if !res.status().is_success() {
+            return Err(format!("HTTP {}", res.status()));
+        }
+        res.json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("JSON parse error: {}", e))
+    }
+
+    pub async fn measure_hub_latency(raw_hub: &str) -> Option<u64> {
+        let base = Self::hub_base_url(raw_hub);
+        let url = format!("{}/api/health", base);
+        let client = Client::builder()
+            .timeout(Duration::from_secs(3))
+            .build()
+            .ok()?;
+        let start = std::time::Instant::now();
+        match client.get(&url).send().await {
+            Ok(_) => Some(start.elapsed().as_millis() as u64),
+            Err(_) => None,
         }
     }
 
