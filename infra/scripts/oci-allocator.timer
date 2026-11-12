@@ -1,10 +1,10 @@
 [Unit]
-Description=OCI Stack Auto-Allocator Timer (Every 3m after completion)
+Description=OCI Stack Auto-Allocator Timer (Every 5m after completion)
 
 [Timer]
 OnBootSec=1min
-OnUnitInactiveSec=180s
-AccuracySec=10s
+OnUnitInactiveSec=300s
+AccuracySec=15s
 
 [Install]
 WantedBy=timers.target

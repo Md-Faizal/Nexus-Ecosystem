@@ -67,6 +67,8 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         .route("/health-report/status", get(routes::health_api::get_health_status))
         .route("/health-report/config", post(routes::health_api::update_health_config))
         .route("/health-report/errors", get(routes::health_api::get_health_errors))
+        .route("/oci-allocator/status", get(routes::health_api::get_oci_status))
+        .route("/oci-allocator/trigger", post(routes::health_api::trigger_oci_check))
         .route("/oci-allocator/send-mail", post(routes::health_api::send_oci_digest))
         .route("/fleet/nodes", get(routes::mesh_api::list_nodes))
         .route("/fleet/telemetry/bedrock", get(routes::health_api::get_bedrock_telemetry))

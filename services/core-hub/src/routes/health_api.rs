@@ -684,3 +684,68 @@ pub async fn send_oci_digest(
         }
     }
 }
+
+pub async fn get_oci_status() -> impl IntoResponse {
+    let state_paths = [
+        "/home/ubuntu/stack/ops/oci_state.json",
+        "/home/ubuntu/stack/apps/personal-site/public/assets/oci_state.json",
+        "public/assets/oci_state.json",
+    ];
+    for path in state_paths {
+        if let Ok(content) = tokio::fs::read_to_string(path).await {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                return (axum::http::StatusCode::OK, Json(val)).into_response();
+            }
+        }
+    }
+    (
+        axum::http::StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "NOT_CONFIGURED",
+            "message": "OCI state file not yet initialized"
+        })),
+    ).into_response()
+}
+
+pub async fn trigger_oci_check(
+    State(_state): State<SharedState>,
+) -> impl IntoResponse {
+    let script_path = "/home/ubuntu/stack/ops/scripts/oci_stack_allocator.py";
+    if std::path::Path::new(script_path).exists() {
+        let output = tokio::process::Command::new("python3")
+            .arg(script_path)
+            .output()
+            .await;
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                Json(serde_json::json!({
+                    "success": true,
+                    "message": "OCI Allocator check executed successfully.",
+                    "output": stdout
+                }))
+            }
+            Ok(out) => {
+                let err = String::from_utf8_lossy(&out.stderr).to_string();
+                let out_str = String::from_utf8_lossy(&out.stdout).to_string();
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": if err.is_empty() { out_str } else { err }
+                }))
+            }
+            Err(e) => {
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": e.to_string()
+                }))
+            }
+        }
+    } else {
+        Json(serde_json::json!({
+            "success": false,
+            "error": "OCI allocator script not found on host"
+        }))
+    }
+}
+

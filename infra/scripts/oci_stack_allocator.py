@@ -2,19 +2,22 @@
 """
 Ultra-lean OCI Resource Manager Stack Auto-Allocator
 Runs as a periodic one-shot job via systemd timer (0 MB idle RAM).
+Hardened for adaptive rate-limiting, exponential backoff, and deduplicated state tracking.
 """
 
 import os
 import sys
 import json
 import time
+import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 try:
     import oci
+    from oci.retry import RetryStrategyBuilder
 except ImportError:
     print("[ERROR] OCI SDK not installed. Please install via: pip3 install --break-system-packages oci")
     sys.exit(1)
@@ -26,6 +29,7 @@ STACK_OCID = os.environ.get(
 )
 REGION = os.environ.get("OCI_REGION", "ap-hyderabad-1")
 STATE_FILE = os.environ.get("OCI_STATE_FILE", "/home/ubuntu/stack/ops/oci_state.json")
+PUBLIC_STATE_FILE = os.environ.get("OCI_PUBLIC_STATE_FILE", "/home/ubuntu/stack/apps/personal-site/public/assets/oci_state.json")
 
 # SMTP Relay Config (Defaults match production docker-compose Brevo relay)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp-relay.brevo.com")
@@ -36,6 +40,27 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "reports@faizal.uk")
 RECIPIENTS = [
     email.strip() for email in os.environ.get("RECIPIENTS", "me@faizal.uk,mohammad0faizal@gmail.com").split(",") if email.strip()
 ]
+
+# ── Helper: Retry Strategy Builder ────────────────────────────────────────────
+def get_retry_strategy():
+    """Builds an exponential backoff retry strategy for transient 429 and 5xx errors."""
+    try:
+        return (
+            RetryStrategyBuilder()
+            .add_handled_status_code_intercept(429)
+            .add_handled_status_code_intercept(500)
+            .add_handled_status_code_intercept(502)
+            .add_handled_status_code_intercept(503)
+            .add_handled_status_code_intercept(504)
+            .exponential_backoff_base(2)
+            .exponential_backoff_factor_seconds(2)
+            .maximum_wait_time_seconds(30)
+            .total_elapsed_time_seconds(60)
+            .build()
+        )
+    except Exception as e:
+        print(f"[WARN] Failed building RetryStrategyBuilder, fallback to default: {e}")
+        return getattr(oci.retry, "DEFAULT_RETRY_STRATEGY", None)
 
 # ── Helper: State Management ──────────────────────────────────────────────────
 def load_state():
@@ -56,6 +81,10 @@ def load_state():
         "last_status": "NONE",
         "last_message": "Initialized, waiting for first check.",
         "last_job_ocid": None,
+        "last_created_job_ocid": None,
+        "last_recorded_failed_job_ocid": None,
+        "consecutive_rate_limits": 0,
+        "rate_limited_until": None,
         "last_daily_email_date": None,
         "allocated_at": None,
         "recent_attempts": []
@@ -68,6 +97,14 @@ def record_attempt(state, status, message, job_ocid=None):
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     short_job = job_ocid[-10:] if job_ocid else "N/A"
     
+    # Avoid duplicate identical consecutive attempts
+    if state["recent_attempts"]:
+        latest_att = state["recent_attempts"][0]
+        if latest_att.get("status") == status and latest_att.get("job_id") == short_job:
+            latest_att["time"] = timestamp
+            latest_att["message"] = message
+            return
+
     state["recent_attempts"].insert(0, {
         "time": timestamp,
         "status": status,
@@ -76,8 +113,6 @@ def record_attempt(state, status, message, job_ocid=None):
     })
     # Keep up to the 10 most recent attempts
     state["recent_attempts"] = state["recent_attempts"][:10]
-
-PUBLIC_STATE_FILE = os.environ.get("OCI_PUBLIC_STATE_FILE", "/home/ubuntu/stack/apps/personal-site/public/assets/oci_state.json")
 
 def save_state(state):
     for fpath in [STATE_FILE, PUBLIC_STATE_FILE]:
@@ -114,19 +149,27 @@ def send_email(subject, html_content):
 
 # ── Helper: OCI Client Setup ──────────────────────────────────────────────────
 def get_rm_client():
+    retry_strat = get_retry_strategy()
+
     # Priority 1: ~/.oci/config file
     oci_config_path = os.path.expanduser("~/.oci/config")
     if os.path.exists(oci_config_path):
         try:
             cfg = oci.config.from_file(oci_config_path)
-            return oci.resource_manager.ResourceManagerClient(cfg)
+            kwargs = {}
+            if retry_strat:
+                kwargs["retry_strategy"] = retry_strat
+            return oci.resource_manager.ResourceManagerClient(cfg, **kwargs)
         except Exception as e:
             print(f"[WARN] Failed loading ~/.oci/config: {e}")
 
     # Priority 2: Instance Principals
     try:
         signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
-        return oci.resource_manager.ResourceManagerClient(config={"region": REGION}, signer=signer)
+        kwargs = {}
+        if retry_strat:
+            kwargs["retry_strategy"] = retry_strat
+        return oci.resource_manager.ResourceManagerClient(config={"region": REGION}, signer=signer, **kwargs)
     except Exception as e:
         print(f"[WARN] Failed loading Instance Principals: {e}")
 
@@ -135,7 +178,8 @@ def get_rm_client():
 # ── Main Run Cycle ────────────────────────────────────────────────────────────
 def run():
     state = load_state()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
 
     # Reset today counter if UTC day rolled over
     if state.get("today_date") != today:
@@ -147,15 +191,33 @@ def run():
         print("[INFO] Stack already ALLOCATED. Stopping.")
         sys.exit(0)
 
-    # Rate-limit guard: Ensure at least 150s elapsed between create-job API requests
+    # 1. Rate-Limit Backoff Check: If in cooldown, wait safely
+    rate_limited_until_str = state.get("rate_limited_until")
+    if rate_limited_until_str:
+        try:
+            rl_until = datetime.fromisoformat(rate_limited_until_str)
+            if now < rl_until:
+                remaining_sec = int((rl_until - now).total_seconds())
+                print(f"[COOLDOWN] OCI rate-limit active. Backing off for {remaining_sec}s remaining. Skipping cycle.")
+                state["status"] = "RATE_LIMIT"
+                state["last_message"] = f"OCI 429 Too Many Requests (cooling down, {remaining_sec}s left)"
+                save_state(state)
+                sys.exit(0)
+            else:
+                state.pop("rate_limited_until", None)
+                print("[INFO] Rate-limit cooldown expired. Resuming evaluation.")
+        except Exception as e:
+            print(f"[WARN] Failed to parse rate_limited_until: {e}")
+            state.pop("rate_limited_until", None)
+
+    # 2. Minimum pacing guard between job creation attempts (min 180s)
     last_attempt_str = state.get("last_attempt_at")
     if last_attempt_str:
         try:
-            # Parse '2026-10-19 08:52:10 UTC'
             last_dt = datetime.strptime(last_attempt_str.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            elapsed_sec = (datetime.now(timezone.utc) - last_dt).total_seconds()
-            if elapsed_sec < 150:
-                print(f"[COOLDOWN] Only {int(elapsed_sec)}s elapsed since last job attempt (min 150s). Skipping to protect rate-limit.")
+            elapsed_sec = (now - last_dt).total_seconds()
+            if elapsed_sec < 180:
+                print(f"[PACING] Only {int(elapsed_sec)}s elapsed since last job attempt (min 180s). Skipping to protect rate-limit.")
                 sys.exit(0)
         except Exception as e:
             print(f"[WARN] Failed to parse last_attempt_at: {e}")
@@ -169,16 +231,22 @@ def run():
         save_state(state)
         sys.exit(1)
 
-    # 1. Fetch recent jobs
+    # 3. Fetch recent jobs
     try:
-        jobs_response = rm.list_jobs(stack_id=STACK_OCID, sort_by="TIMECREATED", sort_order="DESC", limit=3)
+        jobs_response = rm.list_jobs(stack_id=STACK_OCID, sort_by="TIMECREATED", sort_order="DESC", limit=5)
         jobs = jobs_response.data
     except Exception as e:
         print(f"[OCI ERROR] Failed to query stack jobs: {e}")
         err_str = str(e)
+        state["last_attempt_at"] = now.strftime("%Y-%m-%d %H:%M:%S UTC")
         if "429" in err_str or "TooManyRequests" in err_str:
-            clean_msg = "OCI 429 Too Many Requests (waiting for cooldown)"
+            consecutive_rl = state.get("consecutive_rate_limits", 0) + 1
+            state["consecutive_rate_limits"] = consecutive_rl
+            backoff_sec = min(300 * consecutive_rl, 1200) + random.randint(15, 45)
+            state["rate_limited_until"] = (now + timedelta(seconds=backoff_sec)).isoformat()
+            clean_msg = f"OCI 429 Too Many Requests (waiting {backoff_sec // 60}m cooldown)"
             state["status"] = "RATE_LIMIT"
+            record_attempt(state, "RATE_LIMIT", clean_msg)
         else:
             clean_msg = err_str[:120]
             state["status"] = "API_ERROR"
@@ -186,7 +254,7 @@ def run():
         save_state(state)
         sys.exit(1)
 
-    # 2. Check for active/running job
+    # 4. Check for active/running job
     active_job = None
     for j in jobs:
         if j.lifecycle_state in ["ACCEPTED", "IN_PROGRESS", "CANCELING"]:
@@ -201,18 +269,19 @@ def run():
         save_state(state)
         sys.exit(0)
 
-    # 3. Inspect latest completed job
+    # 5. Inspect latest completed job
     if jobs:
         latest = jobs[0]
         state["last_job_ocid"] = latest.id
 
         if latest.lifecycle_state == "SUCCEEDED":
-            alloc_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            alloc_time = now.strftime("%Y-%m-%d %H:%M:%S UTC")
             print(f"[SUCCESS] Stack apply job SUCCEEDED! Allocation confirmed at {alloc_time}")
             state["status"] = "ALLOCATED"
             state["allocated_at"] = alloc_time
             state["last_status"] = "SUCCEEDED"
             state["last_message"] = "Capacity acquired! Stack applied successfully."
+            record_attempt(state, "SUCCEEDED", "Capacity acquired! Stack applied successfully.", latest.id)
             save_state(state)
 
             # Send FINAL SUCCESS ALERT
@@ -244,12 +313,13 @@ def run():
             state["last_status"] = "FAILED"
             msg = getattr(latest, "lifecycle_details", "") or "Out of host capacity (or execution error)"
             state["last_message"] = msg
-            print(f"[RETRY] Last job failed ({msg}). Triggering next attempt...")
-            # If the latest job hasn't been recorded in recent_attempts yet
-            if not state.get("recent_attempts") or state["recent_attempts"][0].get("job_id") != latest.id[-10:]:
+            print(f"[RETRY] Last job failed ({msg}). Preparing next attempt...")
+            # Deduplicate: only record failure once per unique job OCID
+            if state.get("last_recorded_failed_job_ocid") != latest.id:
                 record_attempt(state, "FAILED", msg, latest.id)
+                state["last_recorded_failed_job_ocid"] = latest.id
 
-    # 4. Trigger New Apply Job
+    # 6. Trigger New Apply Job
     try:
         from oci.resource_manager.models import CreateJobDetails, CreateApplyJobOperationDetails
         
@@ -265,8 +335,11 @@ def run():
         new_job = rm.create_job(job_details).data
         state["total_attempts"] += 1
         state["attempts_today"] += 1
-        state["last_attempt_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        state["last_attempt_at"] = now.strftime("%Y-%m-%d %H:%M:%S UTC")
         state["last_job_ocid"] = new_job.id
+        state["last_created_job_ocid"] = new_job.id
+        state["consecutive_rate_limits"] = 0
+        state.pop("rate_limited_until", None)
         state["status"] = "SEARCHING"
         state["last_message"] = f"Created apply job {new_job.id[-8:]} (Waiting for result)"
         record_attempt(state, "TRIGGERED", "Apply job created, waiting for OCI capacity evaluation", new_job.id)
@@ -274,18 +347,28 @@ def run():
     except Exception as e:
         print(f"[TRIGGER ERROR] Failed to create job: {e}")
         err_msg = str(e)
+        state["last_attempt_at"] = now.strftime("%Y-%m-%d %H:%M:%S UTC")
         if "429" in err_msg or "TooManyRequests" in err_msg:
-            clean_msg = "OCI 429 Too Many Requests (waiting for cooldown)"
+            consecutive_rl = state.get("consecutive_rate_limits", 0) + 1
+            state["consecutive_rate_limits"] = consecutive_rl
+            backoff_sec = min(300 * consecutive_rl, 1200) + random.randint(15, 45)
+            state["rate_limited_until"] = (now + timedelta(seconds=backoff_sec)).isoformat()
+            clean_msg = f"OCI 429 Too Many Requests (waiting {backoff_sec // 60}m cooldown)"
+            state["status"] = "RATE_LIMIT"
+            record_attempt(state, "RATE_LIMIT", clean_msg)
         elif "Out of host capacity" in err_msg:
             clean_msg = "Out of host capacity in ap-hyderabad-1"
+            state["status"] = "FAILED"
+            record_attempt(state, "FAILED", clean_msg)
         else:
             clean_msg = err_msg[:120]
+            state["status"] = "API_ERROR"
+            record_attempt(state, "ERROR", clean_msg)
         state["last_message"] = clean_msg
-        record_attempt(state, "RATE_LIMIT" if "429" in err_msg else "ERROR", clean_msg)
 
-    # 5. Daily Email Check (Once per calendar day)
+    # 7. Daily Email Check (Once per calendar day)
     if state.get("last_daily_email_date") != today:
-        now_hour = datetime.now(timezone.utc).hour
+        now_hour = now.hour
         # Send once per day (preferred around 08:00 UTC or if first run of the day)
         if now_hour >= 8 or state.get("last_daily_email_date") is None:
             subject = f"⏳ [OCI Capacity] Daily Status: {state['total_attempts']} attempts ({REGION})"
@@ -303,7 +386,7 @@ def run():
                     <tr><td style="color: #888; padding: 6px 0;">Last Attempt:</td><td style="color: #aaa;">{state.get('last_attempt_at', 'N/A')}</td></tr>
                 </table>
                 <div style="background-color: #121418; border-left: 3px solid #f59e0b; padding: 12px; font-size: 12px; color: #c5c6c7;">
-                    The lean runner continues every 2 minutes. You will receive an immediate notification as soon as an instance is successfully provisioned.
+                    The lean runner continues every 5 minutes. You will receive an immediate notification as soon as an instance is successfully provisioned.
                 </div>
             </div>
             """
@@ -314,7 +397,6 @@ def run():
 
 def send_manual_digest():
     state = load_state()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     subject = f"⏳ [OCI Capacity] Manual Status Digest: {state['total_attempts']} attempts ({REGION})"
     html = f"""
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0c10; color: #f0f0f0; padding: 24px; border-radius: 12px; border: 1px solid #1f2833; max-width: 600px; margin: 0 auto;">

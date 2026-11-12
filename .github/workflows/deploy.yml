@@ -414,6 +414,21 @@ jobs:
             sudo systemctl restart stack-service-runner.service 2>/dev/null || true
           fi
 
+          # Synchronize OCI Stack Allocator agent and systemd timer
+          echo "🤖 Syncing OCI Stack Allocator agent and systemd units..."
+          mkdir -p /home/ubuntu/stack/ops/scripts
+          if [ -f "$TARGET_DIR/scripts/oci_stack_allocator.py" ]; then
+            cp -f "$TARGET_DIR/scripts/oci_stack_allocator.py" /home/ubuntu/stack/ops/scripts/oci_stack_allocator.py
+            chmod +x /home/ubuntu/stack/ops/scripts/oci_stack_allocator.py
+          fi
+          if [ -f "$TARGET_DIR/scripts/oci-allocator.service" ] && [ -f "$TARGET_DIR/scripts/oci-allocator.timer" ]; then
+            sudo cp -f "$TARGET_DIR/scripts/oci-allocator.service" /etc/systemd/system/oci-allocator.service
+            sudo cp -f "$TARGET_DIR/scripts/oci-allocator.timer" /etc/systemd/system/oci-allocator.timer
+            sudo systemctl daemon-reload 2>/dev/null || true
+            sudo systemctl enable --now oci-allocator.timer 2>/dev/null || true
+            sudo systemctl restart oci-allocator.timer 2>/dev/null || true
+          fi
+
           # Ensure public web assets are world-readable and directories traversable for Nginx (www-data)
           chmod -R a+rX "$TARGET_DIR/public" "$TARGET_DIR/frontend/dist" 2>/dev/null || true
           chmod a+rx "$TARGET_DIR" /home/ubuntu /home/ubuntu/stack /home/ubuntu/stack/apps 2>/dev/null || true

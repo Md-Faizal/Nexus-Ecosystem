@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Radio, RefreshCw, Send, CheckCircle2, AlertTriangle, Clock, Layers, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { Radio, RefreshCw, Send, Play, CheckCircle2, AlertTriangle, Clock, Layers, ChevronDown, ChevronUp, History } from 'lucide-react';
 
 export default function OciProvisionerCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sendingMail, setSendingMail] = useState(false);
+  const [triggeringCheck, setTriggeringCheck] = useState(false);
   const [mailFeedback, setMailFeedback] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -63,17 +64,47 @@ export default function OciProvisionerCard() {
     }
   };
 
+  const handleTriggerCheck = async () => {
+    setTriggeringCheck(true);
+    setMailFeedback(null);
+    try {
+      const pin = localStorage.getItem('faizal_admin_pin') || '2004';
+      const res = await fetch('/api/oci-allocator/trigger', {
+        method: 'POST',
+        headers: {
+          'Authorization': pin,
+          'Content-Type': 'application/json'
+        }
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData.success) {
+        setMailFeedback({ type: 'success', text: 'OCI check cycle executed successfully!' });
+        setTimeout(fetchStatus, 1500);
+      } else {
+        setMailFeedback({ type: 'error', text: resData.error || 'Failed to trigger check.' });
+      }
+    } catch (err) {
+      setMailFeedback({ type: 'error', text: err.message || 'Trigger error' });
+    } finally {
+      setTriggeringCheck(false);
+      setTimeout(() => setMailFeedback(null), 5000);
+    }
+  };
+
   if (loading && !data) return null;
   if (!data || data.status === 'NOT_CONFIGURED') return null;
 
   const isAllocated = data.status === 'ALLOCATED';
   const isAuthError = data.status === 'AUTH_ERROR';
   const isInProgress = data.status === 'JOB_IN_PROGRESS';
+  const isRateLimit = data.status === 'RATE_LIMIT';
 
   const badgeColor = isAllocated
     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
     : isAuthError
     ? 'bg-red-500/20 text-red-400 border-red-500/30'
+    : isRateLimit
+    ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
     : isInProgress
     ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
     : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
@@ -82,6 +113,8 @@ export default function OciProvisionerCard() {
     ? 'ALLOCATED ✅'
     : isAuthError
     ? 'AUTH REQUIRED ⚠️'
+    : isRateLimit
+    ? 'RATE LIMIT COOLDOWN ⏳'
     : isInProgress
     ? 'APPLY IN PROGRESS'
     : 'SEARCHING CAPACITY';
@@ -123,6 +156,15 @@ export default function OciProvisionerCard() {
           <span className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold border ${badgeColor}`}>
             {statusLabel}
           </span>
+          <button
+            onClick={handleTriggerCheck}
+            disabled={triggeringCheck}
+            title="Execute check cycle immediately"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-mono font-semibold transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Play className={`w-3.5 h-3.5 ${triggeringCheck ? 'animate-spin' : ''}`} />
+            <span>{triggeringCheck ? 'Checking...' : 'Check Now'}</span>
+          </button>
           <button
             onClick={handleSendMail}
             disabled={sendingMail}
@@ -215,10 +257,14 @@ export default function OciProvisionerCard() {
                 >
                   <div className="flex items-center gap-2">
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                      att.status === 'TRIGGERED'
+                      att.status === 'SUCCEEDED'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : att.status === 'TRIGGERED'
                         ? 'bg-blue-500/20 text-blue-400'
                         : att.status === 'FAILED'
                         ? 'bg-amber-500/20 text-amber-400'
+                        : att.status === 'RATE_LIMIT'
+                        ? 'bg-orange-500/20 text-orange-400'
                         : 'bg-red-500/20 text-red-400'
                     }`}>
                       {att.status}
