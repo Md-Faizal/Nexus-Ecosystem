@@ -6,27 +6,26 @@ use eframe::egui;
 use egui::{Color32, FontId, Frame, Margin, Rounding, Stroke, Vec2};
 
 pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
-    let avail_w = ui.available_width().max(300.0);
     let avail_h = ui.available_height().max(380.0);
     let gap = 14.0;
 
     if tier.is_compact() {
-        render_chat_workspace(ui, state, avail_w, avail_h, tier);
+        render_chat_workspace(ui, state, avail_h, tier);
     } else {
-        let drawer_w = 230.0;
-        let main_w = (avail_w - drawer_w - gap).max(320.0);
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            render_session_drawer(ui, state, drawer_w, avail_h);
-            render_chat_workspace(ui, state, main_w, avail_h, tier);
-        });
+        split_columns_weighted(
+            ui,
+            state,
+            0.27,
+            gap,
+            |left_ui, st| render_session_drawer(left_ui, st, avail_h),
+            |right_ui, st| render_chat_workspace(right_ui, st, avail_h, tier),
+        );
     }
 }
 
-fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, w: f32, h: f32) {
-    let inner_w = (w - 40.0).max(160.0);
+fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, h: f32) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.set_min_height((h - 42.0).max(240.0));
 
         ui.horizontal(|ui| {
@@ -69,11 +68,11 @@ fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, w: f32, h: f32
 
                         Frame::none()
                             .fill(fill)
-                            .stroke(Stroke::new(1.0, stroke))
+                            .stroke(Stroke::new(1.0_f32, stroke))
                             .rounding(Rounding::same(8.0))
                             .inner_margin(Margin::same(10.0))
                             .show(ui, |ui| {
-                                ui.set_width((inner_w - 22.0).max(130.0));
+                                ui.set_width(ui.available_width());
                                 ui.horizontal(|ui| {
                                     let title_btn = ui.add(
                                         egui::Button::new(
@@ -144,13 +143,11 @@ fn render_session_drawer(ui: &mut egui::Ui, state: &mut GuiState, w: f32, h: f32
 fn render_chat_workspace(
     ui: &mut egui::Ui,
     state: &mut GuiState,
-    w: f32,
     h: f32,
     tier: LayoutTier,
 ) {
-    let inner_w = (w - 40.0).max(240.0);
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.set_min_height((h - 42.0).max(320.0));
 
         // ─── Top Model & Engine Bar ───
@@ -241,7 +238,7 @@ fn render_chat_workspace(
         if state.show_ai_params {
             ui.add_space(8.0);
             tile_frame().show(ui, |ui| {
-                ui.set_width((inner_w - 28.0).max(180.0));
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("TEMPERATURE")
@@ -295,7 +292,7 @@ fn render_chat_workspace(
                 }
 
                 for msg in &state.active_chat.messages {
-                    render_message_bubble(ui, msg, inner_w);
+                    render_message_bubble(ui, msg);
                     ui.add_space(8.0);
                 }
 
@@ -310,7 +307,7 @@ fn render_chat_workspace(
                         timestamp: 0,
                         metrics: None,
                     };
-                    render_message_bubble(ui, &streaming_item, inner_w);
+                    render_message_bubble(ui, &streaming_item);
                 }
             });
 
@@ -319,7 +316,7 @@ fn render_chat_workspace(
         // ─── Prompt Input Bar ───
         let mut trigger_send = false;
         ui.horizontal(|ui| {
-            let input_w = (inner_w - 94.0).max(120.0);
+            let input_w = (ui.available_width() - 94.0).max(120.0);
             let resp = ui.add(
                 egui::TextEdit::multiline(&mut state.chat_input)
                     .desired_rows(2)
@@ -396,7 +393,7 @@ fn render_chat_workspace(
     });
 }
 
-fn render_message_bubble(ui: &mut egui::Ui, msg: &ChatMessageItem, max_w: f32) {
+fn render_message_bubble(ui: &mut egui::Ui, msg: &ChatMessageItem) {
     let is_user = msg.role == "user";
     let fill = if is_user {
         Color32::from_rgba_unmultiplied(56, 189, 248, 16)
@@ -411,11 +408,11 @@ fn render_message_bubble(ui: &mut egui::Ui, msg: &ChatMessageItem, max_w: f32) {
 
     Frame::none()
         .fill(fill)
-        .stroke(Stroke::new(1.0, stroke))
+        .stroke(Stroke::new(1.0_f32, stroke))
         .rounding(Rounding::same(10.0))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
-            ui.set_width((max_w - 32.0).max(160.0));
+            ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(if is_user { "OPERATOR" } else { "NEXUS AI" })

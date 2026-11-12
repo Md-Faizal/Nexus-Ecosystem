@@ -5,13 +5,11 @@ use eframe::egui;
 use egui::FontId;
 
 pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
-    let avail_w = ui.available_width().max(300.0);
     let gap = 16.0;
 
     // ─── Topology Canvas ───
     card_frame().show(ui, |ui| {
-        let inner_w = (avail_w - 40.0).max(220.0);
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("01 // FLEET MESH TOPOLOGY")
@@ -55,8 +53,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
 
     // ─── Edge Workstations ───
     card_frame().show(ui, |ui| {
-        let inner_w = (avail_w - 40.0).max(220.0);
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "02 // CONNECTED EDGE WORKSTATIONS",
@@ -66,77 +63,22 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
 
         if state.remote_nodes.is_empty() {
             ui.label(
-                egui::RichText::new("No remote edge nodes reported (or Hub PIN required in Preferences).")
-                    .font(FontId::proportional(12.5))
-                    .color(TEXT_3),
+                egui::RichText::new(
+                    "No remote edge nodes reported (or Hub PIN required in Preferences).",
+                )
+                .font(FontId::proportional(12.5))
+                .color(TEXT_3),
             );
+        } else if tier.is_compact() {
+            for node in &state.remote_nodes {
+                render_node_tile(ui, node);
+                ui.add_space(10.0);
+            }
         } else {
-            let cols = if tier.is_compact() { 1 } else { 2 };
-            let card_item_w = (inner_w - gap * (cols - 1) as f32) / cols as f32;
-            for chunk in state.remote_nodes.chunks(cols) {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = gap;
-                    for node in chunk {
-                        let online = node.status == "online";
-                        let status_col = if online { ACCENT_EMERALD } else { ACCENT_CRIMSON };
-                        tile_frame().show(ui, |ui| {
-                            ui.set_width((card_item_w - 28.0).max(150.0));
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(&node.hostname)
-                                        .font(FontId::proportional(13.5))
-                                        .strong()
-                                        .color(TEXT_1),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        pill_badge(
-                                            ui,
-                                            if online { "ONLINE" } else { "OFFLINE" },
-                                            status_col,
-                                        );
-                                    },
-                                );
-                            });
-                            ui.add_space(4.0);
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} / {} • seen {}s ago",
-                                    node.os, node.arch, node.last_seen_secs
-                                ))
-                                .font(FontId::monospace(10.0))
-                                .color(TEXT_3),
-                            );
-
-                            let cpu_pct = node
-                                .telemetry
-                                .as_ref()
-                                .and_then(|t| t.get("cpu"))
-                                .and_then(|c| c.get("usage_pct"))
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0);
-                            let ram_pct = node
-                                .telemetry
-                                .as_ref()
-                                .and_then(|t| t.get("memory"))
-                                .and_then(|m| m.get("used_pct"))
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0);
-
-                            ui.add_space(8.0);
-                            ui.horizontal_wrapped(|ui| {
-                                pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
-                                pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
-                                if !node.models.is_empty() {
-                                    pill_badge(
-                                        ui,
-                                        &format!("{} AI Models", node.models.len()),
-                                        ACCENT_AMBER,
-                                    );
-                                }
-                            });
-                        });
+            for chunk in state.remote_nodes.chunks(2) {
+                ui.columns(2, |cols| {
+                    for (idx, node) in chunk.iter().enumerate() {
+                        render_node_tile(&mut cols[idx], node);
                     }
                 });
                 ui.add_space(10.0);
@@ -146,30 +88,78 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
 
     ui.add_space(gap);
 
-    // ─── Remote Services & Local Docker (2-col on Wide, 1-col on Medium/Compact) ───
+    // ─── Remote Services & Local Docker ───
     if matches!(tier, LayoutTier::Wide) {
-        let half_w = ((avail_w - gap) * 0.5).max(320.0);
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            render_remote_services_card(ui, state, half_w, tier);
-            render_docker_card(ui, state, half_w);
+        ui.columns(2, |cols| {
+            render_remote_services_card(&mut cols[0], state, tier);
+            render_docker_card(&mut cols[1], state);
         });
     } else {
-        render_remote_services_card(ui, state, avail_w, tier);
+        render_remote_services_card(ui, state, tier);
         ui.add_space(gap);
-        render_docker_card(ui, state, avail_w);
+        render_docker_card(ui, state);
     }
 }
 
-fn render_remote_services_card(
-    ui: &mut egui::Ui,
-    state: &mut GuiState,
-    card_w: f32,
-    tier: LayoutTier,
-) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_node_tile(ui: &mut egui::Ui, node: &crate::modules::cluster_ops::RemoteNodeInfo) {
+    let online = node.status == "online";
+    let status_col = if online { ACCENT_EMERALD } else { ACCENT_CRIMSON };
+    tile_frame().show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(&node.hostname)
+                    .font(FontId::proportional(13.5))
+                    .strong()
+                    .color(TEXT_1),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                pill_badge(ui, if online { "ONLINE" } else { "OFFLINE" }, status_col);
+            });
+        });
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(format!(
+                "{} / {} • seen {}s ago",
+                node.os, node.arch, node.last_seen_secs
+            ))
+            .font(FontId::monospace(10.0))
+            .color(TEXT_3),
+        );
+
+        let cpu_pct = node
+            .telemetry
+            .as_ref()
+            .and_then(|t| t.get("cpu"))
+            .and_then(|c| c.get("usage_pct"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let ram_pct = node
+            .telemetry
+            .as_ref()
+            .and_then(|t| t.get("memory"))
+            .and_then(|m| m.get("used_pct"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+
+        ui.add_space(8.0);
+        ui.horizontal_wrapped(|ui| {
+            pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
+            pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
+            if !node.models.is_empty() {
+                pill_badge(
+                    ui,
+                    &format!("{} AI Models", node.models.len()),
+                    ACCENT_AMBER,
+                );
+            }
+        });
+    });
+}
+
+fn render_remote_services_card(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "03 // CLUSTER SERVICES",
@@ -189,7 +179,7 @@ fn render_remote_services_card(
                 let running = svc.status == "running" || svc.status == "active";
                 let col = if running { ACCENT_EMERALD } else { ACCENT_CRIMSON };
                 row_frame().show(ui, |ui| {
-                    ui.set_width((inner_w - 28.0).max(160.0));
+                    ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
                             ui.label(
@@ -220,11 +210,7 @@ fn render_remote_services_card(
                                         Some((svc.id.clone(), toggle_act.to_string()));
                                 }
                             }
-                            pill_badge(
-                                ui,
-                                if running { "RUNNING" } else { "STOPPED" },
-                                col,
-                            );
+                            pill_badge(ui, if running { "RUNNING" } else { "STOPPED" }, col);
                         });
                     });
                 });
@@ -248,10 +234,9 @@ fn render_remote_services_card(
     });
 }
 
-fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("04 // LOCAL DOCKER SUPERVISOR")
@@ -268,9 +253,11 @@ fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
 
         if state.docker_containers.is_empty() {
             ui.label(
-                egui::RichText::new("No local Docker containers detected (or Docker Engine offline).")
-                    .font(FontId::proportional(12.0))
-                    .color(TEXT_3),
+                egui::RichText::new(
+                    "No local Docker containers detected (or Docker Engine offline).",
+                )
+                .font(FontId::proportional(12.0))
+                .color(TEXT_3),
             );
         } else {
             let mut docker_cmd: Option<(String, String)> = None;
@@ -278,7 +265,7 @@ fn render_docker_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
                 let running = c.status == "running";
                 let col = if running { ACCENT_EMERALD } else { TEXT_3 };
                 row_frame().show(ui, |ui| {
-                    ui.set_width((inner_w - 28.0).max(160.0));
+                    ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new(c.name.strip_prefix("docker:").unwrap_or(&c.name))

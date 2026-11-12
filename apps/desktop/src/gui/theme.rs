@@ -25,22 +25,22 @@ pub const ACCENT_VIOLET: Color32 = Color32::from_rgb(167, 139, 250);
 pub const ACCENT_AMBER: Color32 = Color32::from_rgb(245, 158, 11);
 pub const ACCENT_CRIMSON: Color32 = Color32::from_rgb(239, 68, 68);
 
-/// Responsive layout breakpoints computed from viewport width.
+/// Responsive layout breakpoints computed from available content width.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutTier {
-    /// < 840px: Icon-only rail or bottom bar, 1-column cards, stacked tiles
+    /// < 680px content width: 1-column cards, stacked tiles
     Compact,
-    /// 840px .. 1260px: Standard rail, 2-column cards, 2x2 tiles
+    /// 680px .. 1040px content width: 2-column cards, 2x2 tiles
     Medium,
-    /// >= 1260px: Full rail, multi-column mission control grids
+    /// >= 1040px content width: multi-column mission control grids
     Wide,
 }
 
 impl LayoutTier {
     pub fn from_width(width: f32) -> Self {
-        if width < 840.0 {
+        if width < 680.0 {
             Self::Compact
-        } else if width < 1260.0 {
+        } else if width < 1040.0 {
             Self::Medium
         } else {
             Self::Wide
@@ -50,6 +50,48 @@ impl LayoutTier {
     pub fn is_compact(self) -> bool {
         matches!(self, Self::Compact)
     }
+}
+
+/// Renders two side-by-side columns with an exact `left_fraction` split and `gap`,
+/// advancing the parent cursor to the taller of the two columns.
+pub fn split_columns_weighted<S>(
+    ui: &mut egui::Ui,
+    state: &mut S,
+    left_fraction: f32,
+    gap: f32,
+    left_fn: impl FnOnce(&mut egui::Ui, &mut S),
+    right_fn: impl FnOnce(&mut egui::Ui, &mut S),
+) {
+    let avail = ui.available_rect_before_wrap();
+    let total_w = avail.width().max(200.0);
+    let left_w = ((total_w - gap) * left_fraction).max(100.0);
+    let right_w = (total_w - gap - left_w).max(100.0);
+
+    let left_rect = egui::Rect::from_min_size(avail.min, Vec2::new(left_w, avail.height().max(2000.0)));
+    let right_rect = egui::Rect::from_min_size(
+        egui::Pos2::new(avail.min.x + left_w + gap, avail.min.y),
+        Vec2::new(right_w, avail.height().max(2000.0)),
+    );
+
+    let mut left_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(left_rect)
+            .layout(egui::Layout::top_down(egui::Align::LEFT)),
+    );
+    left_fn(&mut left_ui, state);
+    let left_used = left_ui.min_rect();
+
+    let mut right_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(right_rect)
+            .layout(egui::Layout::top_down(egui::Align::LEFT)),
+    );
+    right_fn(&mut right_ui, state);
+    let right_used = right_ui.min_rect();
+
+    let max_bottom = left_used.bottom().max(right_used.bottom());
+    let combined = egui::Rect::from_min_max(avail.min, egui::Pos2::new(avail.right(), max_bottom));
+    ui.advance_cursor_after_rect(combined);
 }
 
 pub fn configure_obsidian_theme(ctx: &egui::Context) {
@@ -217,14 +259,13 @@ pub fn accent_button(ui: &mut egui::Ui, label: &str, color: Color32) -> egui::Re
 
 pub fn render_metric_tile(
     ui: &mut egui::Ui,
-    width: f32,
     label: &str,
     value: &str,
     sub: &str,
     accent: Color32,
 ) {
     tile_frame().show(ui, |ui| {
-        ui.set_width((width - 28.0).max(100.0));
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             let (dot_rect, _) = ui.allocate_exact_size(Vec2::new(7.0, 7.0), Sense::hover());
             ui.painter().circle_filled(dot_rect.center(), 2.8, accent);
@@ -252,13 +293,13 @@ pub fn render_metric_tile(
 
 pub fn render_hairline_bar(
     ui: &mut egui::Ui,
-    width: f32,
     label: &str,
     right_label: &str,
     pct: f32,
     color: Color32,
 ) {
     let clamped = pct.clamp(0.0, 100.0);
+    let width = ui.available_width().max(80.0);
     ui.vertical(|ui| {
         ui.set_width(width);
         ui.horizontal(|ui| {

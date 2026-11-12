@@ -106,9 +106,8 @@ pub fn render_area_sparkline(
     height: f32,
     unit: &str,
 ) {
-    let w = ui.available_width().max(120.0);
     tile_frame().show(ui, |ui| {
-        ui.set_width((w - 28.0).max(90.0));
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(title)

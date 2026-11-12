@@ -3,8 +3,8 @@ use crate::gui::theme::*;
 use eframe::egui;
 use egui::{Color32, FontId, Frame, Margin, Rounding, Sense, Stroke, Vec2};
 
-pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, tier: LayoutTier) {
-    if tier.is_compact() {
+pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_viewport: bool) {
+    if is_compact_viewport {
         // Ultra-responsive bottom navigation bar on narrow viewports (< 840px)
         egui::TopBottomPanel::bottom("compact_nav_bar")
             .frame(

@@ -4,16 +4,14 @@ use crate::gui::components::charts::{
 use crate::gui::state::{GuiState, ProcessSort};
 use crate::gui::theme::*;
 use eframe::egui;
-use egui::{FontId, Vec2};
+use egui::FontId;
 
 pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
-    let avail_w = ui.available_width().max(300.0);
     let gap = 16.0;
 
-    // ─── CPU Cores & Memory Breakdown ───
+    // ─── CPU Cores & Load ───
     card_frame().show(ui, |ui| {
-        let inner_w = (avail_w - 40.0).max(220.0);
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         let load_str = state
             .telemetry
             .as_ref()
@@ -30,17 +28,15 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
 
     ui.add_space(gap);
 
-    // ─── Network & Storage (2-col on Wide/Medium, 1-col on Compact) ───
+    // ─── Network & Storage ───
     if tier.is_compact() {
-        render_network_card(ui, state, avail_w);
+        render_network_card(ui, state);
         ui.add_space(gap);
-        render_storage_card(ui, state, avail_w);
+        render_storage_card(ui, state);
     } else {
-        let half_w = ((avail_w - gap) * 0.5).max(260.0);
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            render_network_card(ui, state, half_w);
-            render_storage_card(ui, state, half_w);
+        ui.columns(2, |cols| {
+            render_network_card(&mut cols[0], state);
+            render_storage_card(&mut cols[1], state);
         });
     }
 
@@ -55,18 +51,17 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
             .and_then(|th| th.cpu_temp_c)
             .is_some()
     {
-        render_gpu_thermals_card(ui, state, avail_w, tier);
+        render_gpu_thermals_card(ui, state, tier);
         ui.add_space(gap);
     }
 
     // ─── Live Process Inspector ───
-    render_processes_card(ui, state, avail_w, tier);
+    render_processes_card(ui, state, tier);
 }
 
-fn render_network_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(200.0);
+fn render_network_card(ui: &mut egui::Ui, state: &GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         let (rx_rate, tx_rate, total_rx_gb, total_tx_gb) = state
             .telemetry
             .as_ref()
@@ -92,17 +87,16 @@ fn render_network_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
         render_dual_network_chart(ui, &rx_vals, &tx_vals, 130.0);
 
         ui.add_space(10.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             pill_badge(ui, &format!("RX {:.2} GB", total_rx_gb), ACCENT_CYAN);
             pill_badge(ui, &format!("TX {:.2} GB", total_tx_gb), ACCENT_VIOLET);
         });
     });
 }
 
-fn render_storage_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(200.0);
+fn render_storage_card(ui: &mut egui::Ui, state: &GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         let disks = state
             .telemetry
             .as_ref()
@@ -130,7 +124,6 @@ fn render_storage_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
                 };
                 render_hairline_bar(
                     ui,
-                    inner_w,
                     &format!("{} ({})", truncate_label(&d.mount_point, 18), d.fs_type),
                     &format!("{:.1} / {:.1} GB ({:.0}%)", used_gb, total_gb, d.used_pct),
                     d.used_pct,
@@ -142,10 +135,9 @@ fn render_storage_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
     });
 }
 
-fn render_gpu_thermals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: LayoutTier) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_gpu_thermals_card(ui: &mut egui::Ui, state: &GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(ui, "04 // GPU & THERMAL SENSORS", "LIVE", ACCENT_AMBER);
 
         if let Some(ref g) = state.gpu {
@@ -167,38 +159,29 @@ fn render_gpu_thermals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, ti
             });
             ui.add_space(10.0);
             let temp_vals = state.gpu_temp_history.as_vec();
-            let gap = 12.0;
             if !tier.is_compact() {
-                let half = ((inner_w - gap) * 0.5).max(160.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = gap;
-                    ui.allocate_ui(Vec2::new(half, 100.0), |ui| {
-                        render_hairline_bar(
-                            ui,
-                            half,
-                            "VRAM ALLOCATION",
-                            &format!("{:.1}%", vram_pct),
-                            vram_pct,
-                            ACCENT_VIOLET,
-                        );
-                    });
-                    ui.allocate_ui(Vec2::new(half, 100.0), |ui| {
-                        render_area_sparkline(
-                            ui,
-                            "GPU TEMPERATURE",
-                            &format!("{:.0}°C", g.temperature_c.unwrap_or(0.0)),
-                            &temp_vals,
-                            Some(100.0),
-                            ACCENT_AMBER,
-                            56.0,
-                            "°C",
-                        );
-                    });
+                ui.columns(2, |cols| {
+                    render_hairline_bar(
+                        &mut cols[0],
+                        "VRAM ALLOCATION",
+                        &format!("{:.1}%", vram_pct),
+                        vram_pct,
+                        ACCENT_VIOLET,
+                    );
+                    render_area_sparkline(
+                        &mut cols[1],
+                        "GPU TEMPERATURE",
+                        &format!("{:.0}°C", g.temperature_c.unwrap_or(0.0)),
+                        &temp_vals,
+                        Some(100.0),
+                        ACCENT_AMBER,
+                        56.0,
+                        "°C",
+                    );
                 });
             } else {
                 render_hairline_bar(
                     ui,
-                    inner_w,
                     "VRAM ALLOCATION",
                     &format!("{:.1}%", vram_pct),
                     vram_pct,
@@ -228,10 +211,9 @@ fn render_gpu_thermals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, ti
     });
 }
 
-fn render_processes_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32, tier: LayoutTier) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_processes_card(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "05 // LIVE PROCESS INSPECTOR",
@@ -240,16 +222,16 @@ fn render_processes_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32, t
         );
 
         ui.horizontal_wrapped(|ui| {
+            let search_w = if tier.is_compact() {
+                ui.available_width()
+            } else {
+                240.0
+            };
             ui.add(
                 egui::TextEdit::singleline(&mut state.process_search)
                     .hint_text("Filter process name or PID…")
-                    .desired_width(if tier.is_compact() {
-                        inner_w
-                    } else {
-                        240.0
-                    }),
+                    .desired_width(search_w),
             );
-            ui.add_space(8.0);
             for (sort, label) in [
                 (ProcessSort::Cpu, "Sort: CPU%"),
                 (ProcessSort::Memory, "Sort: RAM"),
@@ -297,7 +279,7 @@ fn render_processes_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32, t
 
         for p in filtered.iter().take(18) {
             row_frame().show(ui, |ui| {
-                ui.set_width((inner_w - 28.0).max(160.0));
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new(format!("{:<6}", p.pid))
@@ -305,17 +287,16 @@ fn render_processes_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32, t
                             .color(TEXT_3),
                     );
                     ui.label(
-                        egui::RichText::new(truncate_label(&p.name, if tier.is_compact() { 18 } else { 32 }))
-                            .font(FontId::proportional(12.0))
-                            .strong()
-                            .color(TEXT_1),
+                        egui::RichText::new(truncate_label(
+                            &p.name,
+                            if tier.is_compact() { 16 } else { 32 },
+                        ))
+                        .font(FontId::proportional(12.0))
+                        .strong()
+                        .color(TEXT_1),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        pill_badge(
-                            ui,
-                            &format!("{:.1} MB", p.memory_mb),
-                            ACCENT_VIOLET,
-                        );
+                        pill_badge(ui, &format!("{:.1} MB", p.memory_mb), ACCENT_VIOLET);
                         pill_badge(
                             ui,
                             &format!("{:.1}% CPU", p.cpu_pct),

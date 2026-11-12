@@ -6,39 +6,38 @@ use egui::{FontId, Vec2};
 use sysinfo::System;
 
 pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
-    let avail_w = ui.available_width().max(300.0);
     let gap = 16.0;
 
     // ─── Top Hero: Fitness Arc + Live Telemetry Sparklines ───
     if tier.is_compact() {
-        render_fitness_card(ui, state, avail_w);
+        render_fitness_card(ui, state);
         ui.add_space(gap);
-        render_live_sparklines_card(ui, state, avail_w, tier);
+        render_live_sparklines_card(ui, state, tier);
     } else {
-        let left_w = (avail_w * 0.36).clamp(280.0, 390.0);
-        let right_w = (avail_w - left_w - gap).max(300.0);
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            render_fitness_card(ui, state, left_w);
-            render_live_sparklines_card(ui, state, right_w, tier);
-        });
+        split_columns_weighted(
+            ui,
+            state,
+            0.35,
+            gap,
+            |left_ui, st| render_fitness_card(left_ui, st),
+            |right_ui, st| render_live_sparklines_card(right_ui, st, tier),
+        );
     }
 
     ui.add_space(gap);
 
     // ─── System Vitals Matrix ───
-    render_vitals_card(ui, state, avail_w, tier);
+    render_vitals_card(ui, state, tier);
 
     ui.add_space(gap);
 
     // ─── Tri-Core Cluster & Quick Actions ───
-    render_tricore_actions_card(ui, state, avail_w, tier);
+    render_tricore_actions_card(ui, state, tier);
 }
 
-fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "01 // COMPUTE FITNESS",
@@ -53,13 +52,13 @@ fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
         ui.vertical_centered(|ui| {
             render_fitness_arc(
                 ui,
-                168.0,
+                164.0,
                 state.fitness.fitness_pct.round() as u32,
                 &state.fitness.tier,
             );
         });
 
-        ui.add_space(10.0);
+        ui.add_space(12.0);
         let ram_pct = state
             .telemetry
             .as_ref()
@@ -78,7 +77,6 @@ fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
 
         render_hairline_bar(
             ui,
-            inner_w,
             "CPU LOAD",
             &format!("{:.1}%", cpu_pct),
             cpu_pct,
@@ -87,7 +85,6 @@ fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
         ui.add_space(10.0);
         render_hairline_bar(
             ui,
-            inner_w,
             "MEMORY PRESSURE",
             &format!("{:.1}%", ram_pct),
             ram_pct,
@@ -99,27 +96,18 @@ fn render_fitness_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32) {
         } else {
             "N/A".to_string()
         };
-        render_hairline_bar(
-            ui,
-            inner_w,
-            "GPU COMPUTE",
-            &gpu_right_lbl,
-            gpu_pct,
-            ACCENT_EMERALD,
-        );
+        render_hairline_bar(ui, "GPU COMPUTE", &gpu_right_lbl, gpu_pct, ACCENT_EMERALD);
     });
 }
 
-fn render_live_sparklines_card(
-    ui: &mut egui::Ui,
-    state: &GuiState,
-    card_w: f32,
-    tier: LayoutTier,
-) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_live_sparklines_card(ui: &mut egui::Ui, state: &GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
-        let cadence = if state.pref_high_cadence { "1s LIVE" } else { "5s ECO" };
+        ui.set_width(ui.available_width());
+        let cadence = if state.pref_high_cadence {
+            "1s LIVE"
+        } else {
+            "5s ECO"
+        };
         render_section_header(ui, "02 // REAL-TIME TELEMETRY STREAM", cadence, ACCENT_CYAN);
 
         let cpu_vals = state.cpu_history.as_vec();
@@ -132,15 +120,7 @@ fn render_live_sparklines_card(
         let cur_rx = rx_vals.last().copied().unwrap_or(0.0);
         let cur_gpu = gpu_vals.last().copied().unwrap_or(0.0);
 
-        let gap = 12.0;
-        let cols = if tier.is_compact() { 1 } else { 2 };
-        let cell_w = if cols == 1 {
-            inner_w
-        } else {
-            ((inner_w - gap) * 0.5).max(140.0)
-        };
-
-        if cols == 1 {
+        if tier.is_compact() {
             render_area_sparkline(
                 ui,
                 "CPU UTILIZATION",
@@ -148,10 +128,10 @@ fn render_live_sparklines_card(
                 &cpu_vals,
                 Some(100.0),
                 ACCENT_CYAN,
-                74.0,
+                72.0,
                 "%",
             );
-            ui.add_space(gap);
+            ui.add_space(10.0);
             render_area_sparkline(
                 ui,
                 "MEMORY USAGE",
@@ -159,10 +139,10 @@ fn render_live_sparklines_card(
                 &ram_vals,
                 Some(100.0),
                 ACCENT_VIOLET,
-                74.0,
+                72.0,
                 "%",
             );
-            ui.add_space(gap);
+            ui.add_space(10.0);
             render_area_sparkline(
                 ui,
                 "NETWORK INGRESS",
@@ -170,73 +150,62 @@ fn render_live_sparklines_card(
                 &rx_vals,
                 None,
                 ACCENT_EMERALD,
-                74.0,
+                72.0,
                 " KB/s",
             );
         } else {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = gap;
-                ui.allocate_ui(Vec2::new(cell_w, 120.0), |ui| {
-                    render_area_sparkline(
-                        ui,
-                        "CPU UTILIZATION",
-                        &format!("{:.1}%", cur_cpu),
-                        &cpu_vals,
-                        Some(100.0),
-                        ACCENT_CYAN,
-                        82.0,
-                        "%",
-                    );
-                });
-                ui.allocate_ui(Vec2::new(cell_w, 120.0), |ui| {
-                    render_area_sparkline(
-                        ui,
-                        "MEMORY USAGE",
-                        &format!("{:.1}%", cur_ram),
-                        &ram_vals,
-                        Some(100.0),
-                        ACCENT_VIOLET,
-                        82.0,
-                        "%",
-                    );
-                });
+            ui.columns(2, |cols| {
+                render_area_sparkline(
+                    &mut cols[0],
+                    "CPU UTILIZATION",
+                    &format!("{:.1}%", cur_cpu),
+                    &cpu_vals,
+                    Some(100.0),
+                    ACCENT_CYAN,
+                    78.0,
+                    "%",
+                );
+                render_area_sparkline(
+                    &mut cols[1],
+                    "MEMORY USAGE",
+                    &format!("{:.1}%", cur_ram),
+                    &ram_vals,
+                    Some(100.0),
+                    ACCENT_VIOLET,
+                    78.0,
+                    "%",
+                );
             });
-            ui.add_space(gap);
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = gap;
-                ui.allocate_ui(Vec2::new(cell_w, 120.0), |ui| {
-                    render_area_sparkline(
-                        ui,
-                        "NETWORK INGRESS",
-                        &format!("{:.1} KB/s", cur_rx),
-                        &rx_vals,
-                        None,
-                        ACCENT_EMERALD,
-                        82.0,
-                        " KB/s",
-                    );
-                });
-                ui.allocate_ui(Vec2::new(cell_w, 120.0), |ui| {
-                    render_area_sparkline(
-                        ui,
-                        "GPU UTILIZATION",
-                        &format!("{:.0}%", cur_gpu),
-                        &gpu_vals,
-                        Some(100.0),
-                        ACCENT_AMBER,
-                        82.0,
-                        "%",
-                    );
-                });
+            ui.add_space(12.0);
+            ui.columns(2, |cols| {
+                render_area_sparkline(
+                    &mut cols[0],
+                    "NETWORK INGRESS",
+                    &format!("{:.1} KB/s", cur_rx),
+                    &rx_vals,
+                    None,
+                    ACCENT_EMERALD,
+                    78.0,
+                    " KB/s",
+                );
+                render_area_sparkline(
+                    &mut cols[1],
+                    "GPU UTILIZATION",
+                    &format!("{:.0}%", cur_gpu),
+                    &gpu_vals,
+                    Some(100.0),
+                    ACCENT_AMBER,
+                    78.0,
+                    "%",
+                );
             });
         }
     });
 }
 
-fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: LayoutTier) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         let uptime = System::uptime();
         let h = uptime / 3600;
         let m = (uptime % 3600) / 60;
@@ -252,7 +221,7 @@ fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: La
                 format!("{:.1}%", t.cpu.usage_pct),
                 format!(
                     "{} • {}C/{}T",
-                    truncate_label(&t.cpu.model, 22),
+                    truncate_label(&t.cpu.model, 20),
                     t.cpu.physical_cores,
                     t.cpu.logical_cores
                 ),
@@ -274,7 +243,7 @@ fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: La
 
         let (gpu_val, gpu_sub) = if let Some(ref g) = state.gpu {
             (
-                truncate_label(&g.name, 20),
+                truncate_label(&g.name, 18),
                 format!(
                     "{:.1} GB VRAM • {:.0}°C",
                     g.vram_total_mb as f64 / 1024.0,
@@ -282,7 +251,7 @@ fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: La
                 ),
             )
         } else {
-            ("Integrated".into(), "No discrete GPU detected".into())
+            ("Integrated".into(), "No discrete GPU".into())
         };
 
         let relay_val = if let Some(ms) = state.hub_latency_ms {
@@ -298,14 +267,6 @@ fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: La
             state.remote_nodes.len()
         );
 
-        let gap = 12.0;
-        let cols = match tier {
-            LayoutTier::Compact => 1,
-            LayoutTier::Medium => 2,
-            LayoutTier::Wide => 4,
-        };
-        let tile_w = (inner_w - gap * (cols - 1) as f32) / cols as f32;
-
         let tiles = [
             ("PROCESSOR", cpu_val, cpu_sub, ACCENT_CYAN),
             ("MEMORY", mem_val, mem_sub, ACCENT_VIOLET),
@@ -313,27 +274,40 @@ fn render_vitals_card(ui: &mut egui::Ui, state: &GuiState, card_w: f32, tier: La
             ("HUB LATENCY", relay_val, relay_sub, ACCENT_EMERALD),
         ];
 
-        for chunk in tiles.chunks(cols) {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = gap;
-                for (lbl, val, sub, acc) in chunk {
-                    render_metric_tile(ui, tile_w, lbl, val, sub, *acc);
+        match tier {
+            LayoutTier::Compact => {
+                for (i, (lbl, val, sub, acc)) in tiles.iter().enumerate() {
+                    render_metric_tile(ui, lbl, val, sub, *acc);
+                    if i + 1 < tiles.len() {
+                        ui.add_space(10.0);
+                    }
                 }
-            });
-            ui.add_space(gap);
+            }
+            LayoutTier::Medium => {
+                ui.columns(2, |cols| {
+                    render_metric_tile(&mut cols[0], tiles[0].0, &tiles[0].1, &tiles[0].2, tiles[0].3);
+                    render_metric_tile(&mut cols[1], tiles[1].0, &tiles[1].1, &tiles[1].2, tiles[1].3);
+                });
+                ui.add_space(10.0);
+                ui.columns(2, |cols| {
+                    render_metric_tile(&mut cols[0], tiles[2].0, &tiles[2].1, &tiles[2].2, tiles[2].3);
+                    render_metric_tile(&mut cols[1], tiles[3].0, &tiles[3].1, &tiles[3].2, tiles[3].3);
+                });
+            }
+            LayoutTier::Wide => {
+                ui.columns(4, |cols| {
+                    for (idx, (lbl, val, sub, acc)) in tiles.iter().enumerate() {
+                        render_metric_tile(&mut cols[idx], lbl, val, sub, *acc);
+                    }
+                });
+            }
         }
     });
 }
 
-fn render_tricore_actions_card(
-    ui: &mut egui::Ui,
-    state: &mut GuiState,
-    card_w: f32,
-    tier: LayoutTier,
-) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_tricore_actions_card(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "04 // TRI-CORE CLUSTER & QUICK COMMANDS",
@@ -372,7 +346,7 @@ fn render_tricore_actions_card(
 
         for (title, sub, badge, primary) in rows {
             row_frame().show(ui, |ui| {
-                ui.set_width((inner_w - 28.0).max(160.0));
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     let dot_color = if primary { ACCENT_EMERALD } else { TEXT_3 };
                     let (r, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());

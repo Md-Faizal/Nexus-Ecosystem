@@ -398,7 +398,7 @@ impl NodeMonitorApp {
         });
     }
 
-    fn render_header(&mut self, ui: &mut egui::Ui, tier: LayoutTier) {
+    fn render_header(&mut self, ui: &mut egui::Ui, is_compact_viewport: bool) {
         let hostname = System::host_name()
             .unwrap_or_else(|| self.state.config.hostname.clone())
             .to_uppercase();
@@ -471,7 +471,7 @@ impl NodeMonitorApp {
                 ui.add_space(8.0);
 
                 // Command Palette Trigger Pill
-                let cmd_lbl = if tier.is_compact() {
+                let cmd_lbl = if is_compact_viewport {
                     "⌘"
                 } else {
                     "⌘ Search / Commands  ^K"
@@ -482,7 +482,7 @@ impl NodeMonitorApp {
                     self.state.palette_selected = 0;
                 }
 
-                if !tier.is_compact() {
+                if !is_compact_viewport {
                     ui.add_space(8.0);
                     if let Some(ms) = self.state.hub_latency_ms {
                         pill_badge(ui, &format!("HUB {}ms", ms), ACCENT_EMERALD);
@@ -505,7 +505,7 @@ impl eframe::App for NodeMonitorApp {
         ctx.request_repaint_after(Duration::from_secs(poll_secs));
 
         let viewport_w = ctx.screen_rect().width();
-        let tier = LayoutTier::from_width(viewport_w);
+        let is_compact_viewport = viewport_w < 860.0;
 
         // ─── Top Architectural Header ───
         egui::TopBottomPanel::top("flight_deck_header")
@@ -513,21 +513,21 @@ impl eframe::App for NodeMonitorApp {
                 Frame::none()
                     .fill(BG_VOID)
                     .inner_margin(Margin::symmetric(
-                        if tier.is_compact() { 14.0 } else { 24.0 },
-                        12.0,
+                        if is_compact_viewport { 16.0 } else { 24.0 },
+                        14.0,
                     ))
-                    .stroke(Stroke::new(1.0, BORDER_SUBTLE)),
+                    .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE)),
             )
             .show(ctx, |ui| {
-                self.render_header(ui, tier);
+                self.render_header(ui, is_compact_viewport);
             });
 
         // ─── Responsive Navigation Rail / Bottom Bar ───
-        sidebar::render_sidebar(ctx, &mut self.state, tier);
+        sidebar::render_sidebar(ctx, &mut self.state, is_compact_viewport);
 
         // ─── Main Content Canvas ───
         egui::CentralPanel::default()
-            .frame(Frame::none().fill(BG_VOID).inner_margin(Margin::same(0.0)))
+            .frame(Frame::none().fill(BG_VOID).inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
                 // Subtle top ambient satin glow
                 let rect = ui.max_rect();
@@ -537,37 +537,32 @@ impl eframe::App for NodeMonitorApp {
                     Color32::from_rgba_unmultiplied(255, 255, 255, 6),
                 );
 
-                let pad = if tier.is_compact() { 12.0 } else { 22.0 };
+                let pad = if is_compact_viewport { 16.0 } else { 24.0 };
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        ui.add_space(pad);
-                        ui.horizontal(|ui| {
-                            ui.add_space(pad);
-                            let content_w = (ui.available_width() - pad).max(260.0);
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(content_w, 0.0),
-                                Layout::top_down(Align::LEFT),
-                                |ui| match self.state.route {
+                        Frame::none()
+                            .inner_margin(Margin::symmetric(pad, pad))
+                            .show(ui, |ui| {
+                                let content_tier = LayoutTier::from_width(ui.available_width());
+                                match self.state.route {
                                     GuiRoute::Overview => {
-                                        views::overview::render(ui, &mut self.state, tier);
+                                        views::overview::render(ui, &mut self.state, content_tier);
                                     }
                                     GuiRoute::Telemetry => {
-                                        views::telemetry::render(ui, &mut self.state, tier);
+                                        views::telemetry::render(ui, &mut self.state, content_tier);
                                     }
                                     GuiRoute::Cluster => {
-                                        views::cluster::render(ui, &mut self.state, tier);
+                                        views::cluster::render(ui, &mut self.state, content_tier);
                                     }
                                     GuiRoute::AiStudio => {
-                                        views::ai_studio::render(ui, &mut self.state, tier);
+                                        views::ai_studio::render(ui, &mut self.state, content_tier);
                                     }
                                     GuiRoute::Diagnostics => {
-                                        views::diagnostics::render(ui, &mut self.state, tier);
+                                        views::diagnostics::render(ui, &mut self.state, content_tier);
                                     }
-                                },
-                            );
-                        });
-                        ui.add_space(pad);
+                                }
+                            });
                     });
             });
 

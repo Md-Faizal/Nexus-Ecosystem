@@ -4,30 +4,26 @@ use eframe::egui;
 use egui::{FontId, Vec2};
 
 pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
-    let avail_w = ui.available_width().max(300.0);
     let gap = 16.0;
 
     if tier.is_compact() {
-        render_daemon_updater_card(ui, state, avail_w);
+        render_daemon_updater_card(ui, state);
         ui.add_space(gap);
-        render_crash_vault_card(ui, state, avail_w);
+        render_crash_vault_card(ui, state);
     } else {
-        let half_w = ((avail_w - gap) * 0.5).max(260.0);
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            render_daemon_updater_card(ui, state, half_w);
-            render_crash_vault_card(ui, state, half_w);
+        ui.columns(2, |cols| {
+            render_daemon_updater_card(&mut cols[0], state);
+            render_crash_vault_card(&mut cols[1], state);
         });
     }
 
     ui.add_space(gap);
-    render_event_log_card(ui, state, avail_w);
+    render_event_log_card(ui, state);
 }
 
-fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(200.0);
+fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         render_section_header(
             ui,
             "01 // DAEMON & AUTO-UPDATER",
@@ -36,7 +32,7 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f
         );
 
         row_frame().show(ui, |ui| {
-            ui.set_width((inner_w - 28.0).max(160.0));
+            ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
@@ -135,10 +131,9 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f
     });
 }
 
-fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(200.0);
+fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("02 // CRASH VAULT")
@@ -168,7 +163,7 @@ fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32)
         ui.add_space(10.0);
         if state.crashes.is_empty() {
             row_frame().show(ui, |ui| {
-                ui.set_width((inner_w - 28.0).max(160.0));
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     pill_badge(ui, "CLEAN", ACCENT_EMERALD);
                     ui.label(
@@ -185,7 +180,7 @@ fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32)
                 .show(ui, |ui| {
                     for (uploaded, rec) in state.crashes.iter().take(12) {
                         row_frame().show(ui, |ui| {
-                            ui.set_width((inner_w - 28.0).max(160.0));
+                            ui.set_width(ui.available_width());
                             ui.horizontal(|ui| {
                                 pill_badge(
                                     ui,
@@ -222,10 +217,9 @@ fn render_crash_vault_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32)
     });
 }
 
-fn render_event_log_card(ui: &mut egui::Ui, state: &mut GuiState, card_w: f32) {
-    let inner_w = (card_w - 40.0).max(220.0);
+fn render_event_log_card(ui: &mut egui::Ui, state: &mut GuiState) {
     card_frame().show(ui, |ui| {
-        ui.set_width(inner_w);
+        ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("03 // FLIGHT RECORDER EVENT LOG")
