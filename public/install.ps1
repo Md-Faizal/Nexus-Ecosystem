@@ -1,4 +1,4 @@
-# Nexus Fleet Agent — Universal Zero-Token 1-Command Installer (Windows)
+﻿# Nexus Fleet Agent — Universal Zero-Token 1-Command Installer (Windows)
 $ErrorActionPreference = "Stop"
 
 $HubUrl = if ($env:NEXUS_HUB) { $env:NEXUS_HUB } else { "https://faizal.uk" }
@@ -88,12 +88,13 @@ if ($env:Path -notlike "*$TargetDir*") {
 }
 
 Write-Host "Registering Nexus background service and startup daemon..." -ForegroundColor Gray
+schtasks /delete /tn "NexusAgent" /f 2>$null | Out-Null
 if ($IsAdmin) {
     & $DestExe service install
 } else {
     # Non-admin startup registry registration
     try {
-        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run --foreground" -Force
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "NexusAgent" -Value "`"$NexusAlias`" run --silent" -Force
     } catch {}
     # Launch detached background worker immediately so telemetry is active
     & "$NexusAlias" run

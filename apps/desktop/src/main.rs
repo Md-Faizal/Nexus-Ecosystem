@@ -50,6 +50,10 @@ enum Commands {
         /// Run directly in foreground without detaching into a background worker
         #[arg(short, long)]
         foreground: bool,
+
+        /// Detach from any attached console immediately (used by Windows auto-start)
+        #[arg(long, hide = true)]
+        silent: bool,
     },
 
     /// Run the centralized Nexus Web Hub, REST API & CAN-Bus WebSocket server
@@ -445,7 +449,15 @@ fn enable_virtual_terminal_processing() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
-    enable_virtual_terminal_processing();
+    {
+        if std::env::args().any(|a| a == "--silent") {
+            unsafe {
+                windows_sys::Win32::System::Console::FreeConsole();
+            }
+        } else {
+            enable_virtual_terminal_processing();
+        }
+    }
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -499,8 +511,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| config.token.clone());
 
     match cli.command {
-        Some(Commands::Run { foreground }) => {
-            handle_run_command(config, foreground).await?;
+        Some(Commands::Run { foreground, silent }) => {
+            handle_run_command(config, foreground, silent).await?;
         }
 
         #[cfg(feature = "hub")]
@@ -933,7 +945,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         None => {
             if cli.run {
-                handle_run_command(config, false).await?;
+                handle_run_command(config, false, false).await?;
             } else {
                 modules::banner::print_banner();
 
@@ -1048,13 +1060,15 @@ async fn probe_hub_node_status(config: &AgentConfig) -> (bool, String) {
     }
 }
 
-async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
-    if !foreground {
+async fn handle_run_command(config: config::AgentConfig, foreground: bool, silent: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if !foreground || silent {
         // 1. Check if daemon is already active
         if modules::daemon_lock::is_daemon_running() {
-            println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
-            println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are running.\x1b[0m");
-            println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+            if !silent {
+                println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+                println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are running.\x1b[0m");
+                println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+            }
             return Ok(());
         }
 
@@ -1086,13 +1100,17 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool) -> Re
 
             match child {
                 Ok(p) => {
-                    println!("\x1b[1;32m✓ Nexus Fleet background daemon started successfully (PID: {}).\x1b[0m", p.id());
-                    println!("\x1b[90mTelemetry is streaming. Windows Taskbar Tray icon is active.\x1b[0m");
-                    println!("\x1b[90mYou can safely close this terminal.\x1b[0m");
+                    if !silent {
+                        println!("\x1b[1;32m✓ Nexus Fleet background daemon started successfully (PID: {}).\x1b[0m", p.id());
+                        println!("\x1b[90mTelemetry is streaming. Windows Taskbar Tray icon is active.\x1b[0m");
+                        println!("\x1b[90mYou can safely close this terminal.\x1b[0m");
+                    }
                     return Ok(());
                 }
                 Err(e) => {
-                    eprintln!("\x1b[31mFailed to spawn detached daemon: {}. Falling back to foreground.\x1b[0m", e);
+                    if !silent {
+                        eprintln!("\x1b[31mFailed to spawn detached daemon: {}. Falling back to foreground.\x1b[0m", e);
+                    }
                 }
             }
         }
