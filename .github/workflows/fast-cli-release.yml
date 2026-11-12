@@ -2,6 +2,23 @@ name: "⚡ Fast Release: Nexus Agent CLI (Windows, Linux & macOS)"
 
 on:
   workflow_dispatch:
+    inputs:
+      bump_direction:
+        description: "Version increment direction (auto = 0.1.<commits>, or bump/decrement from latest.json)"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+          - decrement
+      version_override:
+        description: "Optional exact version override (e.g. 0.2.0 or 1.0.0). Leave empty to use bump_direction."
+        required: false
+        default: ""
+        type: string
   push:
     paths:
       - 'apps/desktop/**'
@@ -15,8 +32,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve-version:
+    name: "🏷️ Resolve Release Version"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+    steps:
+      - name: "📥 Checkout Source Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "🔢 Compute Target Version"
+        id: calc
+        run: |
+          OVERRIDE="${{ inputs.version_override }}"
+          OVERRIDE="${OVERRIDE#v}"
+          BUMP="${{ inputs.bump_direction || 'auto' }}"
+
+          if [ -n "$OVERRIDE" ]; then
+            VERSION="$OVERRIDE"
+          elif [ "$BUMP" = "auto" ]; then
+            REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
+            [ "$REV" -le 92 ] && REV=93
+            VERSION="0.1.$REV"
+          else
+            CUR=$(jq -r '.version // "0.1.100"' public/releases/latest.json 2>/dev/null || echo "0.1.100")
+            IFS='.' read -r MAJ MIN PAT <<< "$CUR"
+            MAJ=${MAJ:-0}; MIN=${MIN:-1}; PAT=${PAT:-0}
+            case "$BUMP" in
+              major)     VERSION="$((MAJ + 1)).0.0" ;;
+              minor)     VERSION="${MAJ}.$((MIN + 1)).0" ;;
+              patch)     VERSION="${MAJ}.${MIN}.$((PAT + 1))" ;;
+              decrement) NEW_PAT=$((PAT > 0 ? PAT - 1 : 0)); VERSION="${MAJ}.${MIN}.${NEW_PAT}" ;;
+              *)         VERSION="${MAJ}.${MIN}.$((PAT + 1))" ;;
+            esac
+          fi
+
+          echo "Resolved release version: $VERSION (bump=$BUMP, override=${OVERRIDE:-none})"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   build-linux-agent:
     name: "🐧 Compile Linux Agent Binary"
+    needs: [resolve-version]
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -40,9 +98,7 @@ jobs:
 
       - name: "🚀 Compile & Strip Linux Agent"
         run: |
-          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
-          [ "$REV" -le 92 ] && REV=93
-          VERSION="0.1.$REV"
+          VERSION="${{ needs.resolve-version.outputs.version }}"
           echo "Compiling Linux Nexus Agent version $VERSION"
           export NEXUS_VERSION="$VERSION"
           cargo build --release -p nexus-agent
@@ -68,6 +124,7 @@ jobs:
 
   build-windows-agent:
     name: "🪟 Compile Windows Agent Binary"
+    needs: [resolve-version]
     runs-on: windows-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -86,9 +143,7 @@ jobs:
 
       - name: "🚀 Compile Windows Agent Binary"
         run: |
-          $Rev = (git rev-list --count HEAD)
-          if (-not $Rev -or [int]$Rev -le 92) { $Rev = 93 }
-          $Version = "0.1.$Rev"
+          $Version = "${{ needs.resolve-version.outputs.version }}"
           Write-Host "Compiling Windows Nexus Agent version $Version"
           $env:NEXUS_VERSION = $Version
           cargo build --release -p nexus-agent
@@ -111,6 +166,7 @@ jobs:
 
   build-macos-agent:
     name: "🍎 Compile macOS Agent Binary (Universal / ARM64 & Intel)"
+    needs: [resolve-version]
     runs-on: macos-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -131,9 +187,7 @@ jobs:
 
       - name: "🚀 Compile & Build Universal macOS Binary"
         run: |
-          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
-          [ "$REV" -le 92 ] && REV=93
-          VERSION="0.1.$REV"
+          VERSION="${{ needs.resolve-version.outputs.version }}"
           echo "Compiling macOS Nexus Agent version $VERSION"
           export NEXUS_VERSION="$VERSION"
           cargo build --release -p nexus-agent --target aarch64-apple-darwin
@@ -162,7 +216,7 @@ jobs:
 
   deploy-cli-release:
     name: "🚀 Publish Agent Release to faizal.uk"
-    needs: [build-linux-agent, build-windows-agent, build-macos-agent]
+    needs: [resolve-version, build-linux-agent, build-windows-agent, build-macos-agent]
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Repository"
@@ -190,9 +244,7 @@ jobs:
 
       - name: "🔧 Prepare Release Binaries & Manifest"
         run: |
-          REV=$(git rev-list --count HEAD 2>/dev/null || echo 100)
-          [ "$REV" -le 92 ] && REV=93
-          VERSION="0.1.$REV"
+          VERSION="${{ needs.resolve-version.outputs.version }}"
           echo "Publishing Nexus Agent release v$VERSION"
           mkdir -p public/releases
           
