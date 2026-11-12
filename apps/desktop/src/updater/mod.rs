@@ -27,22 +27,47 @@ pub struct AgentUpdater;
 
 impl AgentUpdater {
     pub async fn run_update(manifest_url: &str, check_only: bool, force: bool) -> Result<(), Box<dyn std::error::Error>> {
+        Self::run_update_internal(manifest_url, check_only, force, false).await
+    }
+
+    async fn run_update_internal(
+        manifest_url: &str,
+        check_only: bool,
+        force: bool,
+        silent_bg: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let current_version = crate::AGENT_VERSION;
-        println!("\x1b[1;36mChecking for Nexus Fleet updates from {}...\x1b[0m", manifest_url);
+        if !silent_bg {
+            println!("\x1b[1;36mChecking for Nexus Fleet updates from {}...\x1b[0m", manifest_url);
+        }
+
+        let cache_buster = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let busted_url = if manifest_url.contains('?') {
+            format!("{}&v={}", manifest_url, cache_buster)
+        } else {
+            format!("{}?v={}", manifest_url, cache_buster)
+        };
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(180))
             .build()?;
 
-        let res = match client.get(manifest_url).send().await {
+        let res = match client.get(&busted_url).header("Cache-Control", "no-cache").send().await {
             Ok(r) if r.status().is_success() => r,
             Ok(r) => {
-                println!("\x1b[31mUpdate check returned HTTP status {}.\x1b[0m", r.status());
+                if !silent_bg {
+                    println!("\x1b[31mUpdate check returned HTTP status {}.\x1b[0m", r.status());
+                }
                 return Ok(());
             }
             Err(e) => {
-                println!("\x1b[31mFailed to reach update manifest at {}: {}\x1b[0m", manifest_url, e);
+                if !silent_bg {
+                    println!("\x1b[31mFailed to reach update manifest at {}: {}\x1b[0m", manifest_url, e);
+                }
                 return Ok(());
             }
         };
@@ -78,6 +103,12 @@ impl AgentUpdater {
 
         // Check if destination directory is writable before attempting update
         if !Self::is_directory_writable(exe_dir) {
+            if silent_bg {
+                return Err(format!(
+                    "Directory '{}' requires elevated privileges; skipping silent background update",
+                    exe_dir.display()
+                ).into());
+            }
             #[cfg(target_os = "windows")]
             {
                 println!("\x1b[1;33m[!] Administrator privileges required to update files in '{}'.\x1b[0m", exe_dir.display());
@@ -158,6 +189,19 @@ impl AgentUpdater {
             let _ = std::io::stdout().flush();
         }
         println!();
+        // Validate downloaded binary size & executable magic header
+        if new_bytes.len() < 1_000_000 {
+            return Err(format!("Downloaded binary too small ({} bytes); aborting update", new_bytes.len()).into());
+        }
+        #[cfg(target_os = "windows")]
+        if !new_bytes.starts_with(b"MZ") {
+            return Err("Downloaded payload is not a valid Windows PE executable".into());
+        }
+        #[cfg(target_os = "linux")]
+        if !new_bytes.starts_with(b"\x7fELF") {
+            return Err("Downloaded payload is not a valid Linux ELF executable".into());
+        }
+
         let temp_exe = current_exe.with_extension("tmp_update");
 
         // Write temp binary
@@ -187,23 +231,21 @@ impl AgentUpdater {
         // Atomic swap
         #[cfg(target_os = "windows")]
         {
-            // Terminate background agent instances to release file locks on aliases
+            use std::os::windows::process::CommandExt;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
+
+            // Terminate other background agent instances silently to release file locks on aliases
             let current_pid = std::process::id();
-            let _ = std::process::Command::new("taskkill")
-                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nexus-agent.exe"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            let _ = std::process::Command::new("taskkill")
-                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nexus.exe"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            let _ = std::process::Command::new("taskkill")
-                .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", "nx.exe"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
+            for img in ["nexus-agent.exe", "nexus.exe", "nx.exe"] {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/FI", &format!("PID ne {}", current_pid), "/IM", img])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+            }
 
             // Wait for OS to fully release mutexes and file locks
             std::thread::sleep(Duration::from_millis(800));
@@ -229,14 +271,9 @@ impl AgentUpdater {
             // Clean up old binary
             let _ = fs::remove_file(&old_exe);
 
-            // Restart background worker cleanly with robust process detachment fallback
-            use std::os::windows::process::CommandExt;
-            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x01000000;
-
+            // Restart background worker cleanly with --wait-lock so it takes over as soon as this process exits
             let _ = std::process::Command::new(&current_exe)
-                .args(["run", "--foreground"])
+                .args(["run", "--foreground", "--wait-lock"])
                 .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB)
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
@@ -244,7 +281,7 @@ impl AgentUpdater {
                 .spawn()
                 .or_else(|_| {
                     std::process::Command::new(&current_exe)
-                        .args(["run", "--foreground"])
+                        .args(["run", "--foreground", "--wait-lock"])
                         .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
                         .stdin(std::process::Stdio::null())
                         .stdout(std::process::Stdio::null())
@@ -372,7 +409,11 @@ impl AgentUpdater {
 
     /// Periodic background auto-update check executed silently by the running daemon
     pub async fn run_auto_update_cycle() {
-        let manifest_url = "https://faizal.uk/releases/latest.json";
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let manifest_url = format!("https://faizal.uk/releases/latest.json?v={}", ts);
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .build()
@@ -381,7 +422,7 @@ impl AgentUpdater {
             Err(_) => return,
         };
 
-        let res = match client.get(manifest_url).send().await {
+        let res = match client.get(&manifest_url).header("Cache-Control", "no-cache").send().await {
             Ok(r) if r.status().is_success() => r,
             _ => return,
         };
@@ -405,7 +446,7 @@ impl AgentUpdater {
                 remote_version,
                 current_version
             );
-            if let Err(e) = Self::run_update(manifest_url, false, false).await {
+            if let Err(e) = Self::run_update_internal(&manifest_url, false, false, true).await {
                 tracing::warn!("[Auto-Update] Silent background update failed: {}", e);
             } else {
                 tracing::info!("[Auto-Update] Successfully upgraded to v{}. Exiting old daemon instance...", remote_version);

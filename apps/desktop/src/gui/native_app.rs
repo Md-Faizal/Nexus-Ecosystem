@@ -26,7 +26,7 @@ const TEXT_1: Color32 = Color32::WHITE;
 const TEXT_2: Color32 = Color32::from_rgb(161, 161, 170);
 const TEXT_3: Color32 = Color32::from_rgb(82, 82, 91);
 
-/// Launch the native Flight Deck GUI window (pixel-exact pure-Rust port of dashboard.html)
+/// Launch the native Nexus Node Monitor GUI window (pure-Rust port of dashboard.html)
 pub fn launch_native_gui() {
     if GUI_RUNNING.swap(true, Ordering::SeqCst) {
         tracing::warn!("Native GUI window is already open.");
@@ -35,20 +35,20 @@ pub fn launch_native_gui() {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 760.0])
-            .with_min_inner_size([900.0, 640.0])
-            .with_title("NEXUS // FLIGHT DECK")
+            .with_inner_size([1180.0, 740.0])
+            .with_min_inner_size([920.0, 620.0])
+            .with_title("Nexus Node Monitor")
             .with_active(true),
         ..Default::default()
     };
 
     let run_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         eframe::run_native(
-            "NEXUS // FLIGHT DECK",
+            "Nexus Node Monitor",
             native_options,
             Box::new(|cc| {
                 configure_obsidian_theme(&cc.egui_ctx);
-                Ok(Box::new(FlightDeckApp::new()))
+                Ok(Box::new(NodeMonitorApp::new()))
             }),
         )
     }));
@@ -90,7 +90,7 @@ fn configure_obsidian_theme(ctx: &egui::Context) {
     ctx.set_visuals(visuals);
 }
 
-pub struct FlightDeckApp {
+pub struct NodeMonitorApp {
     sys: System,
     config: AgentConfig,
     last_refresh: Instant,
@@ -105,7 +105,7 @@ pub struct FlightDeckApp {
     toast_msg: Option<(String, Instant)>,
 }
 
-impl FlightDeckApp {
+impl NodeMonitorApp {
     pub fn new() -> Self {
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -198,7 +198,7 @@ impl FlightDeckApp {
     }
 }
 
-impl eframe::App for FlightDeckApp {
+impl eframe::App for NodeMonitorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.refresh_metrics();
         ctx.request_repaint_after(Duration::from_secs(1));
@@ -276,7 +276,7 @@ impl eframe::App for FlightDeckApp {
     }
 }
 
-impl FlightDeckApp {
+impl NodeMonitorApp {
     fn render_header(&mut self, ui: &mut egui::Ui) {
         let hostname = System::host_name()
             .unwrap_or_else(|| self.config.hostname.clone())
@@ -306,7 +306,7 @@ impl FlightDeckApp {
                 ui.spacing_mut().item_spacing.y = 2.0;
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("NEXUS FLIGHT DECK")
+                        RichText::new("NEXUS NODE MONITOR")
                             .font(FontId::proportional(13.0))
                             .strong()
                             .color(TEXT_1),
@@ -324,7 +324,7 @@ impl FlightDeckApp {
                     ui.painter().circle_filled(dot_rect.center(), 2.8, dot_color);
                 });
                 ui.label(
-                    RichText::new(format!("{} // TIER: {}", hostname, tier))
+                    RichText::new(format!("{}  •  TIER: {}  •  v{}", hostname, tier, crate::AGENT_VERSION))
                         .font(FontId::monospace(10.0))
                         .color(TEXT_3),
                 );
@@ -456,18 +456,18 @@ impl FlightDeckApp {
         Self::card_frame().show(ui, |ui| {
             ui.set_width(inner_w);
             let tier_label = format!("Tier: {}", capitalize(&self.cached_fitness.tier));
-            Self::render_card_header(ui, inner_w, "01 // SYMBIOTE FITNESS", &tier_label, TEXT_3);
+            Self::render_card_header(ui, inner_w, "01 // NODE HEALTH", &tier_label, TEXT_3);
 
-            // Centered 220x220 radial gauge
+            // Centered 200x200 radial gauge
             ui.allocate_ui_with_layout(
-                Vec2::new(inner_w, 220.0),
+                Vec2::new(inner_w, 204.0),
                 Layout::top_down(Align::Center),
                 |ui| {
                     let (rect, _) =
-                        ui.allocate_exact_size(Vec2::new(216.0, 216.0), Sense::hover());
+                        ui.allocate_exact_size(Vec2::new(196.0, 196.0), Sense::hover());
                     let painter = ui.painter();
                     let center = rect.center();
-                    let radius = 94.0;
+                    let radius = 86.0;
 
                     painter.circle_stroke(
                         center,
@@ -569,7 +569,7 @@ impl FlightDeckApp {
             Self::render_card_header(
                 ui,
                 inner_w,
-                "02 // HOST TELEMETRY MATRIX",
+                "02 // SYSTEM TELEMETRY",
                 &format!("Uptime: {}h {}m", h, m),
                 TEXT_3,
             );
@@ -630,7 +630,7 @@ impl FlightDeckApp {
                     tile_w,
                     "PROCESSOR",
                     &format!("{:.1}%", cpu_pct),
-                    &format!("{} • {}C", truncate_label(&cpu_brand, 24), cores),
+                    &format!("{} • {}C", truncate_label(&cpu_brand, 30), cores),
                 );
                 render_tile(
                     ui,
@@ -647,7 +647,7 @@ impl FlightDeckApp {
                     ui,
                     tile_w,
                     "GRAPHICS ENGINE",
-                    &truncate_label(&gpu_val, 18),
+                    &truncate_label(&gpu_val, 24),
                     &gpu_sub,
                 );
                 render_tile(ui, tile_w, "CAN-BUS RELAY", relay_val, &relay_sub);
@@ -662,9 +662,9 @@ impl FlightDeckApp {
             Self::render_card_header(
                 ui,
                 inner_w,
-                "03 // PROTECTED TRI-CORE PAYLOAD",
-                "Survivability: Maximum",
-                TEXT_1,
+                "03 // CLUSTER SERVICES",
+                "All Systems Nominal",
+                TEXT_2,
             );
 
             render_tricore_row(

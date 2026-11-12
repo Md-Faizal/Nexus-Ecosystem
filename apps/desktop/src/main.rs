@@ -54,6 +54,10 @@ enum Commands {
         /// Detach from any attached console immediately (used by Windows auto-start)
         #[arg(long, hide = true)]
         silent: bool,
+
+        /// Wait briefly for an exiting daemon to release its lock (used by auto-updater)
+        #[arg(long, hide = true)]
+        wait_lock: bool,
     },
 
     /// Run the centralized Nexus Web Hub, REST API & CAN-Bus WebSocket server
@@ -67,7 +71,7 @@ enum Commands {
     /// Show local node identity, live hardware telemetry, and daemon status
     Status,
 
-    /// Launch the SpaceX-themed Flight Deck GUI Dashboard
+    /// Open the Nexus Node Monitor native desktop GUI
     #[command(alias = "dashboard", alias = "ui")]
     Gui,
 
@@ -489,7 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse_from(&raw_args);
     let (crash_component, auto_recover_daemon) = match &cli.command {
-        Some(Commands::Run { foreground: true, silent: false }) => ("daemon", true),
+        Some(Commands::Run { foreground: true, silent: false, .. }) => ("daemon", true),
         Some(Commands::Gui) => ("gui", false),
         _ => ("cli", false),
     };
@@ -515,8 +519,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| config.token.clone());
 
     match cli.command {
-        Some(Commands::Run { foreground, silent }) => {
-            handle_run_command(config, foreground, silent).await?;
+        Some(Commands::Run { foreground, silent, wait_lock }) => {
+            handle_run_command(config, foreground, silent, wait_lock).await?;
         }
 
         #[cfg(feature = "hub")]
@@ -973,7 +977,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         None => {
             if cli.run {
-                handle_run_command(config, false, false).await?;
+                handle_run_command(config, false, false, false).await?;
             } else {
                 modules::banner::print_banner();
 
@@ -1088,7 +1092,7 @@ async fn probe_hub_node_status(config: &AgentConfig) -> (bool, String) {
     }
 }
 
-async fn handle_run_command(config: config::AgentConfig, foreground: bool, silent: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_run_command(config: config::AgentConfig, foreground: bool, silent: bool, wait_lock: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !foreground || silent {
         // 1. Check if daemon is already active
         if modules::daemon_lock::is_daemon_running() {
@@ -1275,13 +1279,22 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool, silen
     unsafe {
         libc::signal(libc::SIGHUP, libc::SIG_IGN);
     }
-    let _daemon_lock = match modules::daemon_lock::try_acquire_daemon_lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
-            println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
-            println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
-            return Ok(());
+    let _daemon_lock = {
+        let mut attempts = if wait_lock { 80 } else { 1 };
+        loop {
+            match modules::daemon_lock::try_acquire_daemon_lock() {
+                Ok(guard) => break guard,
+                Err(_) if attempts > 1 => {
+                    attempts -= 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+                Err(_) => {
+                    println!("\x1b[1;33m[!] Nexus Fleet Daemon is already active in the background.\x1b[0m");
+                    println!("\x1b[90mTelemetry streaming, WebSocket mesh, and taskbar tray icon are already running.\x1b[0m");
+                    println!("\x1b[90mUse '\x1b[1;32mnexus status\x1b[0m\x1b[90m' to inspect live metrics or '\x1b[1;32mnexus chat\x1b[0m\x1b[90m' to interact with AI.\x1b[0m");
+                    return Ok(());
+                }
+            }
         }
     };
 
@@ -1291,12 +1304,13 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool, silen
     // Launch background auto-updater task if enabled
     if config.is_feature_enabled("auto_update") {
         tokio::spawn(async {
-            // First check 60 seconds after startup
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            // First check 30 seconds after startup
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
             updater::AgentUpdater::run_auto_update_cycle().await;
 
-            // Then check periodically every 4 hours
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(4 * 3600));
+            // Then check periodically every 30 minutes
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30 * 60));
+            interval.tick().await; // consume immediate first tick
             loop {
                 interval.tick().await;
                 updater::AgentUpdater::run_auto_update_cycle().await;

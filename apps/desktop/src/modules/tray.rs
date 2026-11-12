@@ -180,7 +180,7 @@ unsafe fn show_tray_menu(hwnd: HWND) {
 
     let title = to_wide_str("⚡ Nexus Fleet Node");
     let status = to_wide_str("● Status: Connected (faizal.uk)");
-    let gui_label = to_wide_str("🚀 Launch Flight Deck (Native GUI)");
+    let gui_label = to_wide_str("🖥 Open Nexus Node Monitor");
     let status_label = to_wide_str("📊 View Fleet Telemetry (CLI)");
     let restart_label = to_wide_str("🔄 Restart Local Agent");
     let admin_label = to_wide_str("🌐 Open Cloud Admin Portal");
