@@ -106,10 +106,14 @@ impl TopologyCanvas {
                         state.topology_show_link_metrics,
                         node.tx_bytes_sec,
                         node.rx_bytes_sec,
+                        node.is_online,
                     );
 
-                    // Generate real-time packet particles
-                    if state.topology_show_packets {
+                    // Generate real-time packet particles ONLY if node is ONLINE!
+                    if state.topology_show_packets
+                        && node.is_online
+                        && (node.tx_bytes_sec > 0 || node.rx_bytes_sec > 0 || node.role == TopologyRole::Hub)
+                    {
                         let trunk_pt = Pos2::new(drop_x, trunk_y);
                         let kind = match node.role {
                             TopologyRole::Hub => PacketKind::QuorumHeartbeat,
@@ -144,9 +148,11 @@ impl TopologyCanvas {
                 // Tiered links: Cloud Core -> Compute -> Edge
                 let hub_node = positioned_nodes.iter().find(|n| n.role == TopologyRole::Hub);
                 let hub_pos = hub_node.map(|n| n.pos).unwrap_or(center);
+                let hub_online = hub_node.map(|n| n.is_online).unwrap_or(false);
 
                 for node in &positioned_nodes {
                     if node.role != TopologyRole::Hub {
+                        let link_online = node.is_online && hub_online;
                         render_mesh_link(
                             &painter,
                             hub_pos,
@@ -154,12 +160,16 @@ impl TopologyCanvas {
                             node.role.accent_color(),
                             1.2_f32,
                             state.topology_show_link_metrics,
-                            node.latency_ms,
+                            if link_online { node.latency_ms } else { None },
                             node.tx_bytes_sec,
                             node.rx_bytes_sec,
+                            link_online,
                         );
 
-                        if state.topology_show_packets {
+                        if state.topology_show_packets
+                            && link_online
+                            && (node.tx_bytes_sec > 0 || node.rx_bytes_sec > 0)
+                        {
                             let kind = if node.role == TopologyRole::AiCompute {
                                 PacketKind::AiInferenceStream
                             } else {
@@ -178,11 +188,9 @@ impl TopologyCanvas {
             }
             TopologyViewMode::FullMesh => {
                 // Star + Peer Quorum Triangle links
-                let hub_pos = positioned_nodes
-                    .iter()
-                    .find(|n| n.role == TopologyRole::Hub)
-                    .map(|n| n.pos)
-                    .unwrap_or(center);
+                let hub_node = positioned_nodes.iter().find(|n| n.role == TopologyRole::Hub);
+                let hub_pos = hub_node.map(|n| n.pos).unwrap_or(center);
+                let hub_online = hub_node.map(|n| n.is_online).unwrap_or(false);
 
                 // Quorum triangle inter-connections
                 let quorum_nodes: Vec<_> = positioned_nodes
@@ -192,6 +200,7 @@ impl TopologyCanvas {
 
                 for i in 0..quorum_nodes.len() {
                     for j in (i + 1)..quorum_nodes.len() {
+                        let link_online = quorum_nodes[i].is_online && quorum_nodes[j].is_online;
                         render_mesh_link(
                             &painter,
                             quorum_nodes[i].pos,
@@ -199,11 +208,12 @@ impl TopologyCanvas {
                             ACCENT_VIOLET,
                             1.4_f32,
                             state.topology_show_link_metrics,
-                            Some(12),
-                            1200,
-                            1200,
+                            if link_online { Some(12) } else { None },
+                            if link_online { 1200 } else { 0 },
+                            if link_online { 1200 } else { 0 },
+                            link_online,
                         );
-                        if state.topology_show_packets {
+                        if state.topology_show_packets && link_online {
                             particles.push(PacketParticle::new(
                                 quorum_nodes[i].pos,
                                 quorum_nodes[j].pos,
@@ -218,6 +228,7 @@ impl TopologyCanvas {
                 // Edge links to hub
                 for node in &positioned_nodes {
                     if !matches!(node.role, TopologyRole::Hub | TopologyRole::Failover | TopologyRole::Quorum) {
+                        let link_online = node.is_online && hub_online;
                         render_mesh_link(
                             &painter,
                             hub_pos,
@@ -225,11 +236,15 @@ impl TopologyCanvas {
                             node.role.accent_color(),
                             1.0_f32,
                             state.topology_show_link_metrics,
-                            node.latency_ms,
+                            if link_online { node.latency_ms } else { None },
                             node.tx_bytes_sec,
                             node.rx_bytes_sec,
+                            link_online,
                         );
-                        if state.topology_show_packets {
+                        if state.topology_show_packets
+                            && link_online
+                            && (node.tx_bytes_sec > 0 || node.rx_bytes_sec > 0)
+                        {
                             particles.push(PacketParticle::new(
                                 node.pos,
                                 hub_pos,
@@ -394,7 +409,7 @@ pub struct TopologyNodeData {
     pub pos: Pos2,
 }
 
-fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
+pub(crate) fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
     let mut list: Vec<TopologyNodeData> = Vec::new();
 
     let local_id = &state.config.node_id;
@@ -421,17 +436,45 @@ fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
             n.node_id.eq_ignore_ascii_case(node_id) || n.hostname.eq_ignore_ascii_case(host)
         });
 
-        let is_online = matching_remote.map(|n| n.status == "online").unwrap_or(true);
-        let cpu = matching_remote
-            .and_then(|n| n.telemetry.as_ref())
-            .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
-            .map(|v| v as f32)
-            .unwrap_or(14.0);
-        let ram = matching_remote
-            .and_then(|n| n.telemetry.as_ref())
-            .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
-            .map(|v| v as f32)
-            .unwrap_or(38.0);
+        let is_online = if let Some(r) = matching_remote {
+            r.status == "online"
+        } else if role == TopologyRole::Hub {
+            state.hub_latency_ms.is_some()
+        } else {
+            false
+        };
+
+        let (cpu, ram, rx, tx) = if is_online {
+            let c = matching_remote
+                .and_then(|n| n.telemetry.as_ref())
+                .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
+                .map(|v| v as f32)
+                .unwrap_or(14.0);
+            let m = matching_remote
+                .and_then(|n| n.telemetry.as_ref())
+                .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
+                .map(|v| v as f32)
+                .unwrap_or(38.0);
+            let r_rx = if role == TopologyRole::Hub {
+                state.total_fleet_tx_bytes_sec().max(800)
+            } else {
+                matching_remote
+                    .and_then(|n| n.telemetry.as_ref())
+                    .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64())
+                    .unwrap_or(0)
+            };
+            let r_tx = if role == TopologyRole::Hub {
+                state.total_fleet_rx_bytes_sec().max(800)
+            } else {
+                matching_remote
+                    .and_then(|n| n.telemetry.as_ref())
+                    .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64())
+                    .unwrap_or(0)
+            };
+            (c, m, r_rx, r_tx)
+        } else {
+            (0.0, 0.0, 0, 0)
+        };
 
         seen_ids.insert(node_id.to_string());
         list.push(TopologyNodeData {
@@ -446,9 +489,9 @@ fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
             ram_pct: ram,
             vram_pct: None,
             models: vec![],
-            rx_bytes_sec: 18400,
-            tx_bytes_sec: 22600,
-            latency_ms: state.hub_latency_ms,
+            rx_bytes_sec: rx,
+            tx_bytes_sec: tx,
+            latency_ms: if is_online { state.hub_latency_ms } else { None },
             pos: Pos2::ZERO,
         });
     }
@@ -466,29 +509,37 @@ fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
             local_added = true;
         }
 
+        let is_online = r.status == "online";
         let role = classify_node_role(&r.hostname, &r.models);
-        let cpu = r
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
-            .map(|v| v as f32)
-            .unwrap_or(0.0);
-        let ram = r
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
-            .map(|v| v as f32)
-            .unwrap_or(0.0);
-        let rx = r
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64())
-            .unwrap_or(0);
-        let tx = r
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64())
-            .unwrap_or(0);
+
+        let (cpu, ram, rx, tx) = if is_online {
+            let c = r
+                .telemetry
+                .as_ref()
+                .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
+                .map(|v| v as f32)
+                .unwrap_or(0.0);
+            let m = r
+                .telemetry
+                .as_ref()
+                .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
+                .map(|v| v as f32)
+                .unwrap_or(0.0);
+            let r_rx = r
+                .telemetry
+                .as_ref()
+                .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64())
+                .unwrap_or(0);
+            let r_tx = r
+                .telemetry
+                .as_ref()
+                .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64())
+                .unwrap_or(0);
+            (c, m, r_rx, r_tx)
+        } else {
+            // Strictly zero out CPU, RAM, and throughput for offline devices
+            (0.0, 0.0, 0, 0)
+        };
 
         seen_ids.insert(r.node_id.clone());
         list.push(TopologyNodeData {
@@ -497,12 +548,12 @@ fn collect_topology_nodes(state: &GuiState) -> Vec<TopologyNodeData> {
             role,
             os: r.os.clone(),
             arch: r.arch.clone(),
-            is_online: r.status == "online",
+            is_online,
             is_this_pc: is_this,
             cpu_pct: cpu,
             ram_pct: ram,
             vram_pct: None,
-            models: r.models.clone(),
+            models: if is_online { r.models.clone() } else { vec![] },
             rx_bytes_sec: rx,
             tx_bytes_sec: tx,
             latency_ms: None,

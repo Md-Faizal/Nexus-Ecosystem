@@ -101,35 +101,71 @@ pub fn render_can_drop_cable(
     show_metric: bool,
     tx_sec: u64,
     rx_sec: u64,
+    is_online: bool,
 ) {
-    let wire_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 90);
+    if is_online {
+        let wire_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 90);
 
-    // Tee junction on trunk
-    painter.circle_filled(Pos2::new(trunk_x, trunk_y), 3.0, color);
+        // Tee junction on trunk
+        painter.circle_filled(Pos2::new(trunk_x, trunk_y), 3.0, color);
 
-    // Routed orthogonal or diagonal drop
-    painter.line_segment(
-        [Pos2::new(trunk_x, trunk_y), node_pos],
-        Stroke::new(1.2_f32, wire_col),
-    );
-
-    if show_metric && (tx_sec > 0 || rx_sec > 0) {
-        let mid = Pos2::new((trunk_x + node_pos.x) * 0.5, (trunk_y + node_pos.y) * 0.5);
-        let text = format!("▲{} ▼{}", format_rate(tx_sec), format_rate(rx_sec));
-        let rect = Rect::from_center_size(mid, Vec2::new(74.0, 13.0));
-        painter.rect(
-            rect,
-            Rounding::same(3.0),
-            BG_VOID,
-            Stroke::new(0.8_f32, BORDER_SUBTLE),
+        // Routed drop
+        painter.line_segment(
+            [Pos2::new(trunk_x, trunk_y), node_pos],
+            Stroke::new(1.2_f32, wire_col),
         );
-        painter.text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            text,
-            FontId::monospace(7.5),
-            TEXT_2,
+
+        if show_metric && (tx_sec > 0 || rx_sec > 0) {
+            let mid = Pos2::new((trunk_x + node_pos.x) * 0.5, (trunk_y + node_pos.y) * 0.5);
+            let text = format!("▲{} ▼{}", format_rate(tx_sec), format_rate(rx_sec));
+            let rect = Rect::from_center_size(mid, Vec2::new(74.0, 13.0));
+            painter.rect(
+                rect,
+                Rounding::same(3.0),
+                BG_VOID,
+                Stroke::new(0.8_f32, BORDER_SUBTLE),
+            );
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::monospace(7.5),
+                TEXT_2,
+            );
+        }
+    } else {
+        // Offline: Muted, subtle dark drop cable
+        let offline_wire_col = Color32::from_rgba_unmultiplied(239, 68, 68, 40);
+
+        // Hollow / muted tee junction
+        painter.circle_stroke(
+            Pos2::new(trunk_x, trunk_y),
+            2.5,
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(239, 68, 68, 70)),
         );
+
+        painter.line_segment(
+            [Pos2::new(trunk_x, trunk_y), node_pos],
+            Stroke::new(1.0_f32, offline_wire_col),
+        );
+
+        if show_metric {
+            let mid = Pos2::new((trunk_x + node_pos.x) * 0.5, (trunk_y + node_pos.y) * 0.5);
+            let rect = Rect::from_center_size(mid, Vec2::new(54.0, 12.0));
+            painter.rect(
+                rect,
+                Rounding::same(3.0),
+                BG_VOID,
+                Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(239, 68, 68, 60)),
+            );
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                "OFFLINE",
+                FontId::monospace(7.0),
+                ACCENT_CRIMSON,
+            );
+        }
     }
 }
 
@@ -143,36 +179,43 @@ pub fn render_mesh_link(
     latency_ms: Option<u64>,
     tx_sec: u64,
     rx_sec: u64,
+    is_online: bool,
 ) {
-    let stroke_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 75);
-    painter.line_segment([from, to], Stroke::new(thickness, stroke_col));
+    if is_online {
+        let stroke_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 75);
+        painter.line_segment([from, to], Stroke::new(thickness, stroke_col));
 
-    if show_metric {
-        let mid = Pos2::new((from.x + to.x) * 0.5, (from.y + to.y) * 0.5);
-        let label = if let Some(ms) = latency_ms {
-            format!("{}ms", ms)
-        } else if tx_sec > 0 || rx_sec > 0 {
-            format!("▲{} ▼{}", format_rate(tx_sec), format_rate(rx_sec))
-        } else {
-            String::new()
-        };
+        if show_metric {
+            let mid = Pos2::new((from.x + to.x) * 0.5, (from.y + to.y) * 0.5);
+            let label = if let Some(ms) = latency_ms {
+                format!("{}ms", ms)
+            } else if tx_sec > 0 || rx_sec > 0 {
+                format!("▲{} ▼{}", format_rate(tx_sec), format_rate(rx_sec))
+            } else {
+                String::new()
+            };
 
-        if !label.is_empty() {
-            let rect = Rect::from_center_size(mid, Vec2::new(48.0, 13.0));
-            painter.rect(
-                rect,
-                Rounding::same(3.0),
-                BG_VOID,
-                Stroke::new(0.8_f32, BORDER_SUBTLE),
-            );
-            painter.text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                label,
-                FontId::monospace(7.5),
-                color,
-            );
+            if !label.is_empty() {
+                let rect = Rect::from_center_size(mid, Vec2::new(48.0, 13.0));
+                painter.rect(
+                    rect,
+                    Rounding::same(3.0),
+                    BG_VOID,
+                    Stroke::new(0.8_f32, BORDER_SUBTLE),
+                );
+                painter.text(
+                    rect.center(),
+                    Align2::CENTER_CENTER,
+                    label,
+                    FontId::monospace(7.5),
+                    color,
+                );
+            }
         }
+    } else {
+        // Muted offline line
+        let stroke_col = Color32::from_rgba_unmultiplied(239, 68, 68, 25);
+        painter.line_segment([from, to], Stroke::new(1.0_f32, stroke_col));
     }
 }
 

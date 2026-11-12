@@ -162,36 +162,64 @@ pub fn render_node_micro_hud(
         TEXT_1,
     );
 
-    // Mini Gauges: CPU & RAM Bars
-    let bar_y = rect.top() + 41.0;
-    let bar_w = (w - 24.0) * 0.46;
-    let bar_h = 3.5;
+    // Mini Gauges: CPU & RAM Bars (ONLY when online)
+    if node.is_online {
+        let bar_y = rect.top() + 41.0;
+        let bar_w = (w - 24.0) * 0.46;
+        let bar_h = 3.5;
 
-    // CPU Bar
-    render_mini_gauge(
-        painter,
-        Pos2::new(rect.left() + 12.0, bar_y),
-        bar_w,
-        bar_h,
-        "CPU",
-        node.cpu_pct / 100.0,
-        ACCENT_CYAN,
-    );
+        // CPU Bar
+        render_mini_gauge(
+            painter,
+            Pos2::new(rect.left() + 12.0, bar_y),
+            bar_w,
+            bar_h,
+            "CPU",
+            node.cpu_pct / 100.0,
+            ACCENT_CYAN,
+        );
 
-    // RAM Bar
-    render_mini_gauge(
-        painter,
-        Pos2::new(rect.left() + 16.0 + bar_w, bar_y),
-        bar_w,
-        bar_h,
-        "RAM",
-        node.ram_pct / 100.0,
-        ACCENT_VIOLET,
-    );
+        // RAM Bar
+        render_mini_gauge(
+            painter,
+            Pos2::new(rect.left() + 16.0 + bar_w, bar_y),
+            bar_w,
+            bar_h,
+            "RAM",
+            node.ram_pct / 100.0,
+            ACCENT_VIOLET,
+        );
+    } else {
+        // Offline: Explicit offline telemetry banner (no fake/stale CPU or RAM numbers)
+        let offline_rect = Rect::from_min_size(
+            Pos2::new(rect.left() + 12.0, rect.top() + 38.0),
+            Vec2::new(w - 24.0, 14.0),
+        );
+        painter.rect_filled(
+            offline_rect,
+            Rounding::same(3.0),
+            Color32::from_rgba_unmultiplied(239, 68, 68, 18),
+        );
+        painter.text(
+            offline_rect.center(),
+            Align2::CENTER_CENTER,
+            "● OFFLINE // NO SIGNAL",
+            FontId::monospace(7.5),
+            ACCENT_CRIMSON,
+        );
+    }
 
     // Footer: Subtitle / Model pill / Network indicator
     let footer_y = rect.top() + 52.0;
-    if node.models_count > 0 {
+    if !node.is_online {
+        painter.text(
+            Pos2::new(rect.left() + 12.0, footer_y + 1.0),
+            Align2::LEFT_CENTER,
+            format!("{}/{} • UNREACHABLE", node.os, node.arch),
+            FontId::monospace(7.0),
+            TEXT_3,
+        );
+    } else if node.models_count > 0 {
         painter.text(
             Pos2::new(rect.left() + 12.0, footer_y),
             Align2::LEFT_CENTER,

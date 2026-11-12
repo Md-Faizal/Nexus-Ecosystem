@@ -186,51 +186,64 @@ fn render_node_deep_inspector(ui: &mut egui::Ui, state: &mut GuiState) {
             .iter()
             .find(|n| n.node_id == sel_id || n.hostname.eq_ignore_ascii_case(&sel_id))
         {
-            let cpu = n
-                .telemetry
-                .as_ref()
-                .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
-                .map(|v| v as f32)
-                .unwrap_or(0.0);
-            let ram = n
-                .telemetry
-                .as_ref()
-                .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
-                .map(|v| v as f32)
-                .unwrap_or(0.0);
-            let rx = n
-                .telemetry
-                .as_ref()
-                .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64())
-                .unwrap_or(0);
-            let tx = n
-                .telemetry
-                .as_ref()
-                .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64())
-                .unwrap_or(0);
+            let is_on = n.status == "online";
+            let (cpu, ram, rx, tx) = if is_on {
+                let c = n
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("cpu")?.get("usage_pct")?.as_f64())
+                    .map(|v| v as f32)
+                    .unwrap_or(0.0);
+                let m = n
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("memory")?.get("used_pct")?.as_f64())
+                    .map(|v| v as f32)
+                    .unwrap_or(0.0);
+                let r_rx = n
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64())
+                    .unwrap_or(0);
+                let r_tx = n
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64())
+                    .unwrap_or(0);
+                (c, m, r_rx, r_tx)
+            } else {
+                (0.0, 0.0, 0, 0)
+            };
             (
                 n.hostname.clone(),
                 n.os.clone(),
                 n.arch.clone(),
-                n.status == "online",
+                is_on,
                 cpu,
                 ram,
-                n.models.clone(),
+                if is_on { n.models.clone() } else { vec![] },
                 rx,
                 tx,
             )
         } else {
             // Synthesized cloud core node (e.g. my-mac, cos, pro)
+            let is_hub = sel_id.eq_ignore_ascii_case("my-mac");
+            let is_on = if is_hub { state.hub_latency_ms.is_some() } else { false };
+            let (c, m, r_rx, r_tx) = if is_on {
+                (14.0, 38.0, state.total_fleet_tx_bytes_sec(), state.total_fleet_rx_bytes_sec())
+            } else {
+                (0.0, 0.0, 0, 0)
+            };
             (
                 sel_id.clone(),
                 "linux".to_string(),
                 "x86_64".to_string(),
-                true,
-                14.0,
-                38.0,
+                is_on,
+                c,
+                m,
                 vec![],
-                18400,
-                24200,
+                r_rx,
+                r_tx,
             )
         }
     };
@@ -267,20 +280,29 @@ fn render_node_deep_inspector(ui: &mut egui::Ui, state: &mut GuiState) {
 
         ui.add_space(8.0);
 
-        // Hardware & Network Metrics row
-        ui.horizontal_wrapped(|ui| {
-            pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
-            pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
-            pill_badge(ui, &format!("NET RX: {}", format_rate(rx)), ACCENT_EMERALD);
-            pill_badge(ui, &format!("NET TX: {}", format_rate(tx)), ACCENT_CYAN);
-            if !models.is_empty() {
-                pill_badge(
-                    ui,
-                    &format!("⚡ AI Models: {}", models.join(", ")),
-                    ACCENT_AMBER,
-                );
-            }
-        });
+        // Hardware & Network Metrics row (strictly omitted or zeroed when offline)
+        if is_online {
+            ui.horizontal_wrapped(|ui| {
+                pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
+                pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
+                pill_badge(ui, &format!("NET RX: {}", format_rate(rx)), ACCENT_EMERALD);
+                pill_badge(ui, &format!("NET TX: {}", format_rate(tx)), ACCENT_CYAN);
+                if !models.is_empty() {
+                    pill_badge(
+                        ui,
+                        &format!("⚡ AI Models: {}", models.join(", ")),
+                        ACCENT_AMBER,
+                    );
+                }
+            });
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                pill_badge(ui, "HARDWARE SENSORS OFFLINE", ACCENT_CRIMSON);
+                pill_badge(ui, "CPU N/A", TEXT_3);
+                pill_badge(ui, "RAM N/A", TEXT_3);
+                pill_badge(ui, "NET INACTIVE (0 B/s)", TEXT_3);
+            });
+        }
 
         ui.add_space(10.0);
 
@@ -292,31 +314,48 @@ fn render_node_deep_inspector(ui: &mut egui::Ui, state: &mut GuiState) {
         );
         ui.add_space(4.0);
 
-        let frame_rows = [
-            (
-                "0x1A0",
-                "TelemetryReport",
-                format!(
-                    "CPU: {:.1}% | RAM: {:.1}% | Link RX: {}",
-                    cpu_pct,
-                    ram_pct,
-                    format_rate(rx)
+        let frame_rows: Vec<(&str, &str, String, Color32)> = if is_online {
+            vec![
+                (
+                    "0x1A0",
+                    "TelemetryReport",
+                    format!(
+                        "CPU: {:.1}% | RAM: {:.1}% | Link RX: {}",
+                        cpu_pct,
+                        ram_pct,
+                        format_rate(rx)
+                    ),
+                    ACCENT_CYAN,
                 ),
-                ACCENT_CYAN,
-            ),
-            (
-                "0x040",
-                "HeartbeatAck",
-                "Cluster synchronization status: OK (0ms jitter)".to_string(),
-                ACCENT_VIOLET,
-            ),
-            (
-                "0x2C4",
-                "CanBusMultiplex",
-                format!("TX Rate: {} | Active Sockets: 1 ESTABLISHED", format_rate(tx)),
-                ACCENT_EMERALD,
-            ),
-        ];
+                (
+                    "0x040",
+                    "HeartbeatAck",
+                    "Cluster synchronization status: OK (0ms jitter)".to_string(),
+                    ACCENT_VIOLET,
+                ),
+                (
+                    "0x2C4",
+                    "CanBusMultiplex",
+                    format!("TX Rate: {} | Active Sockets: 1 ESTABLISHED", format_rate(tx)),
+                    ACCENT_EMERALD,
+                ),
+            ]
+        } else {
+            vec![
+                (
+                    "0x000",
+                    "SessionClosed",
+                    "Remote node disconnected from CAN-bus WebSocket mesh".to_string(),
+                    ACCENT_CRIMSON,
+                ),
+                (
+                    "0x040",
+                    "HeartbeatTimeout",
+                    "Heartbeat signal lost: Telemetry streaming suspended".to_string(),
+                    TEXT_3,
+                ),
+            ]
+        };
 
         for (can_id, frame_type, details, col) in frame_rows {
             row_frame().show(ui, |ui| {
@@ -391,31 +430,36 @@ fn render_node_tile(
             .color(TEXT_3),
         );
 
-        let cpu_pct = node
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("cpu"))
-            .and_then(|c| c.get("usage_pct"))
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-        let ram_pct = node
-            .telemetry
-            .as_ref()
-            .and_then(|t| t.get("memory"))
-            .and_then(|m| m.get("used_pct"))
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
         ui.add_space(8.0);
         ui.horizontal_wrapped(|ui| {
-            pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
-            pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
-            if !node.models.is_empty() {
-                pill_badge(
-                    ui,
-                    &format!("{} AI Models", node.models.len()),
-                    ACCENT_AMBER,
-                );
+            if online {
+                let cpu_pct = node
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("cpu"))
+                    .and_then(|c| c.get("usage_pct"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let ram_pct = node
+                    .telemetry
+                    .as_ref()
+                    .and_then(|t| t.get("memory"))
+                    .and_then(|m| m.get("used_pct"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
+                pill_badge(ui, &format!("CPU {:.1}%", cpu_pct), ACCENT_CYAN);
+                pill_badge(ui, &format!("RAM {:.1}%", ram_pct), ACCENT_VIOLET);
+                if !node.models.is_empty() {
+                    pill_badge(
+                        ui,
+                        &format!("{} AI Models", node.models.len()),
+                        ACCENT_AMBER,
+                    );
+                }
+            } else {
+                pill_badge(ui, "TELEMETRY PAUSED", TEXT_3);
+                pill_badge(ui, "SOCKET CLOSED", ACCENT_CRIMSON);
             }
         });
     });

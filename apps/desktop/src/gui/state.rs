@@ -385,9 +385,11 @@ impl GuiState {
     pub fn total_fleet_rx_bytes_sec(&self) -> u64 {
         let mut total = self.telemetry.as_ref().map(|t| t.network.rx_bytes_sec).unwrap_or(0);
         for node in &self.remote_nodes {
-            if let Some(rx) = node.telemetry.as_ref()
-                .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64()) {
-                total += rx;
+            if node.status == "online" {
+                if let Some(rx) = node.telemetry.as_ref()
+                    .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64()) {
+                    total += rx;
+                }
             }
         }
         total
@@ -396,9 +398,11 @@ impl GuiState {
     pub fn total_fleet_tx_bytes_sec(&self) -> u64 {
         let mut total = self.telemetry.as_ref().map(|t| t.network.tx_bytes_sec).unwrap_or(0);
         for node in &self.remote_nodes {
-            if let Some(tx) = node.telemetry.as_ref()
-                .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64()) {
-                total += tx;
+            if node.status == "online" {
+                if let Some(tx) = node.telemetry.as_ref()
+                    .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64()) {
+                    total += tx;
+                }
             }
         }
         total
@@ -914,6 +918,108 @@ mod tests {
             resolve_effective_pin("4455", Some("9988")).as_deref(),
             Some("4455")
         );
+    }
+
+    #[test]
+    fn total_fleet_traffic_ignores_offline_nodes() {
+        use crate::modules::cluster_ops::RemoteNodeInfo;
+        let (cmd_tx, _cmd_rx) = std::sync::mpsc::channel::<GuiCommand>();
+        let (_evt_tx, evt_rx) = std::sync::mpsc::channel::<GuiEvent>();
+        let state = GuiState {
+            config: crate::config::AgentConfig::default(),
+            route: GuiRoute::Overview,
+            sidebar_collapsed: false,
+            telemetry: None,
+            fitness: crate::modules::fitness::FitnessScore::calculate(8192, 4096, 12.0, false, false, true),
+            gpu: None,
+            per_core_cpu: vec![],
+            processes: vec![],
+            process_search: String::new(),
+            process_sort: ProcessSort::Cpu,
+            daemon_active: false,
+            daemon_pid: None,
+            cpu_history: RingBuffer::new(10),
+            ram_history: RingBuffer::new(10),
+            gpu_history: RingBuffer::new(10),
+            gpu_temp_history: RingBuffer::new(10),
+            net_rx_history: RingBuffer::new(10),
+            net_tx_history: RingBuffer::new(10),
+            hub_latency_history: RingBuffer::new(10),
+            remote_nodes: vec![
+                RemoteNodeInfo {
+                    node_id: "online-node".to_string(),
+                    hostname: "online-node".to_string(),
+                    os: "linux".to_string(),
+                    arch: "x86_64".to_string(),
+                    status: "online".to_string(),
+                    last_seen_secs: 1,
+                    models: vec![],
+                    telemetry: Some(serde_json::json!({
+                        "network": { "rx_bytes_sec": 5000, "tx_bytes_sec": 2000 }
+                    })),
+                },
+                RemoteNodeInfo {
+                    node_id: "offline-node".to_string(),
+                    hostname: "offline-node".to_string(),
+                    os: "linux".to_string(),
+                    arch: "x86_64".to_string(),
+                    status: "offline".to_string(),
+                    last_seen_secs: 90,
+                    models: vec![],
+                    telemetry: Some(serde_json::json!({
+                        "network": { "rx_bytes_sec": 99999, "tx_bytes_sec": 88888 }
+                    })),
+                },
+            ],
+            remote_services: vec![],
+            cluster_error: None,
+            cluster_loading: false,
+            hub_latency_ms: None,
+            docker_containers: vec![],
+            selected_node_id: None,
+            topology_zoom: 1.0,
+            topology_pan: eframe::egui::Vec2::ZERO,
+            topology_view_mode: TopologyViewMode::CanBusHybrid,
+            topology_show_packets: true,
+            topology_show_link_metrics: true,
+            topology_filter: String::new(),
+            topology_frozen: false,
+            ai_telemetry: crate::mesh::protocol::AiEngineTelemetry::default(),
+            loaded_models: vec![],
+            selected_model: String::new(),
+            chat_sessions: vec![],
+            active_chat: crate::modules::chat_storage::ChatStorage::new_session("local", "test", "", None, 0.7),
+            chat_input: String::new(),
+            ai_streaming: false,
+            ai_stream_buffer: String::new(),
+            ai_stream_started: None,
+            show_ai_params: false,
+            system_prompt_input: String::new(),
+            crashes: vec![],
+            update_info: None,
+            update_checking: false,
+            update_schedule_hours: 6,
+            last_update_check: None,
+            logs: std::collections::VecDeque::new(),
+            show_command_palette: false,
+            palette_query: String::new(),
+            palette_selected: 0,
+            show_settings: false,
+            settings_tab: SettingsTab::Mesh,
+            hub_url_input: String::new(),
+            admin_pin_input: String::new(),
+            ai_endpoint_input: String::new(),
+            pref_coordinator: false,
+            pref_high_cadence: false,
+            pref_ai_relay: false,
+            toast: None,
+            cmd_tx,
+            evt_rx,
+        };
+
+        assert_eq!(state.total_fleet_rx_bytes_sec(), 5000);
+        assert_eq!(state.total_fleet_tx_bytes_sec(), 2000);
+        assert_eq!(state.active_online_nodes_count(), 2);
     }
 }
 
