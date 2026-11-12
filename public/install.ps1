@@ -88,7 +88,7 @@ if ($env:Path -notlike "*$TargetDir*") {
 }
 
 Write-Host "Registering Nexus background service and startup daemon..." -ForegroundColor Gray
-schtasks /delete /tn "NexusAgent" /f 2>$null | Out-Null
+try { cmd /c 'schtasks /delete /tn "NexusAgent" /f >nul 2>&1' } catch {}
 if ($IsAdmin) {
     & $DestExe service install
 } else {
