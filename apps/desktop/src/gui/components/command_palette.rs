@@ -155,15 +155,18 @@ pub fn render_command_palette(ctx: &egui::Context, state: &mut GuiState) {
     });
 
     let screen = ctx.screen_rect();
+    let fade_t = ctx.animate_bool_with_time(egui::Id::new("cmd_palette_fade"), true, 0.16);
+    let scrim_alpha = (185.0 * fade_t).round() as u8;
+
     egui::Area::new(egui::Id::new("cmd_palette_scrim"))
         .fixed_pos(screen.min)
-        .order(egui::Order::Foreground)
+        .order(egui::Order::Middle)
         .show(ctx, |ui| {
             let resp = ui.allocate_rect(screen, Sense::click());
             ui.painter().rect_filled(
                 screen,
                 Rounding::ZERO,
-                Color32::from_rgba_unmultiplied(0, 0, 0, 175),
+                Color32::from_rgba_unmultiplied(4, 4, 8, scrim_alpha),
             );
             if resp.clicked() {
                 close_palette = true;
@@ -171,11 +174,13 @@ pub fn render_command_palette(ctx: &egui::Context, state: &mut GuiState) {
         });
 
     let modal_w = (screen.width() - 32.0).clamp(320.0, 580.0);
+    let y_offset = 64.0 + 14.0 * fade_t;
     egui::Window::new("command_palette_window")
+        .order(egui::Order::Foreground)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)
-        .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 76.0))
+        .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, y_offset))
         .fixed_size(Vec2::new(modal_w, 380.0))
         .frame(
             Frame::none()

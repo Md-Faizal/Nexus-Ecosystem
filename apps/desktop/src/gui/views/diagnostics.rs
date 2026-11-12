@@ -105,11 +105,24 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
 
         let manifest_url = "https://faizal.uk/releases/latest.json".to_string();
         ui.horizontal_wrapped(|ui| {
-            if action_button(ui, "↻ Check for Updates").clicked() && !state.update_checking {
+            ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
+            if action_button(ui, "↻ Check Updates").clicked() && !state.update_checking {
                 state.update_checking = true;
+                state.last_update_check = Some(std::time::Instant::now());
                 let _ = state.cmd_tx.send(GuiCommand::CheckUpdates {
                     manifest_url: manifest_url.clone(),
                 });
+            }
+
+            if accent_button(ui, "⚡ Force Update", ACCENT_AMBER).clicked() {
+                let _ = state.cmd_tx.send(GuiCommand::ForceUpdate {
+                    manifest_url: manifest_url.clone(),
+                });
+                state.set_toast(
+                    "Forcing latest release download & install…",
+                    LogLevel::Warn,
+                    "Updater",
+                );
             }
 
             if let Some(ref info) = state.update_info {
@@ -120,14 +133,54 @@ fn render_daemon_updater_card(ui: &mut egui::Ui, state: &mut GuiState) {
                         ACCENT_EMERALD,
                     );
                     if primary_button(ui, "⬇ Install Update").clicked() {
-                        let _ = state.cmd_tx.send(GuiCommand::InstallUpdate { manifest_url });
-                        state.set_toast("Downloading and applying update…", LogLevel::Info, "Updater");
+                        let _ = state.cmd_tx.send(GuiCommand::InstallUpdate {
+                            manifest_url: manifest_url.clone(),
+                        });
+                        state.set_toast(
+                            "Downloading and applying update…",
+                            LogLevel::Info,
+                            "Updater",
+                        );
                     }
                 } else {
                     pill_badge(ui, "UP TO DATE", ACCENT_EMERALD);
                 }
             }
         });
+
+        ui.add_space(10.0);
+        let mut sched_on = state.config.is_feature_enabled("auto_update");
+        render_toggle_row(
+            ui,
+            "Scheduled Auto-Updates",
+            &format!("Automatically check for updates every {}h", state.update_schedule_hours),
+            &mut sched_on,
+        );
+        if sched_on != state.config.is_feature_enabled("auto_update") {
+            state.config.features.insert("auto_update".to_string(), sched_on);
+            let _ = state.config.save();
+        }
+        if sched_on {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("SCHEDULE:")
+                        .font(FontId::monospace(9.5))
+                        .color(TEXT_3),
+                );
+                for hrs in [1u64, 6, 24] {
+                    let active = state.update_schedule_hours == hrs;
+                    let resp = if active {
+                        accent_button(ui, &format!("{}h", hrs), ACCENT_CYAN)
+                    } else {
+                        action_button(ui, &format!("{}h", hrs))
+                    };
+                    if resp.clicked() {
+                        state.update_schedule_hours = hrs;
+                    }
+                }
+            });
+        }
     });
 }
 

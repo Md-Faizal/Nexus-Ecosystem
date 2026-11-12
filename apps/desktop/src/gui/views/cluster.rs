@@ -36,12 +36,40 @@ pub fn render(ui: &mut egui::Ui, state: &mut GuiState, tier: LayoutTier) {
         });
         ui.add_space(10.0);
 
+        let local_cpu = state
+            .telemetry
+            .as_ref()
+            .map(|t| t.cpu.usage_pct)
+            .unwrap_or(0.0);
         render_topology_canvas(
             ui,
+            &state.config.hostname,
+            local_cpu,
             &state.remote_nodes,
             state.hub_latency_ms,
             &mut state.selected_node_id,
         );
+
+        if let Some(ref sel_id) = state.selected_node_id {
+            if let Some(node) = state.remote_nodes.iter().find(|n| &n.node_id == sel_id) {
+                ui.add_space(10.0);
+                row_frame().show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal_wrapped(|ui| {
+                        pill_badge(ui, &format!("SELECTED: {}", node.hostname), ACCENT_CYAN);
+                        pill_badge(ui, &format!("ID: {}", node.node_id), TEXT_2);
+                        pill_badge(ui, &format!("{}/{}", node.os, node.arch), ACCENT_VIOLET);
+                        if !node.models.is_empty() {
+                            pill_badge(
+                                ui,
+                                &format!("Models: {}", node.models.join(", ")),
+                                ACCENT_AMBER,
+                            );
+                        }
+                    });
+                });
+            }
+        }
 
         if let Some(ref err) = state.cluster_error {
             ui.add_space(8.0);

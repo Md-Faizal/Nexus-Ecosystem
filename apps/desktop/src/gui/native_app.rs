@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui::{Align, Color32, FontId, Frame, Layout, Margin, Pos2, Rounding, Sense, Stroke, Vec2};
+use egui::{Align, Color32, FontId, Frame, Layout, Margin, Rounding, Sense, Stroke, Vec2};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -148,6 +148,8 @@ impl NodeMonitorApp {
             crashes,
             update_info: None,
             update_checking: false,
+            update_schedule_hours: 6,
+            last_update_check: Some(Instant::now()),
             logs: VecDeque::with_capacity(250),
             show_command_palette: false,
             palette_query: String::new(),
@@ -368,6 +370,23 @@ impl NodeMonitorApp {
             });
             let _ = self.state.cmd_tx.send(GuiCommand::RefreshDocker);
         }
+
+        // Scheduled auto-update check
+        if self.state.config.is_feature_enabled("auto_update") && !self.state.update_checking {
+            let interval = Duration::from_secs(self.state.update_schedule_hours.max(1) * 3600);
+            let due = self
+                .state
+                .last_update_check
+                .map(|t| t.elapsed() >= interval)
+                .unwrap_or(false);
+            if due {
+                self.state.update_checking = true;
+                self.state.last_update_check = Some(Instant::now());
+                let _ = self.state.cmd_tx.send(GuiCommand::CheckUpdates {
+                    manifest_url: "https://faizal.uk/releases/latest.json".to_string(),
+                });
+            }
+        }
     }
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
@@ -501,8 +520,8 @@ impl eframe::App for NodeMonitorApp {
         self.poll_background_events();
         self.handle_shortcuts(ctx);
 
-        let poll_secs = if self.state.pref_high_cadence { 1 } else { 2 };
-        ctx.request_repaint_after(Duration::from_secs(poll_secs));
+        // Smooth 144Hz-capable animation cadence (VSync-aligned via eframe/glow)
+        ctx.request_repaint_after(Duration::from_millis(7));
 
         let viewport_w = ctx.screen_rect().width();
         let is_compact_viewport = viewport_w < 860.0;
@@ -529,14 +548,6 @@ impl eframe::App for NodeMonitorApp {
         egui::CentralPanel::default()
             .frame(Frame::none().fill(BG_VOID).inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
-                // Subtle top ambient satin glow
-                let rect = ui.max_rect();
-                ui.painter().circle_filled(
-                    Pos2::new(rect.center().x, rect.top() - 200.0),
-                    440.0,
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 6),
-                );
-
                 let pad = if is_compact_viewport { 16.0 } else { 24.0 };
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])

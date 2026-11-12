@@ -102,14 +102,20 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
 
                 let btn_w = ui.available_width();
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(btn_w, 36.0), Sense::click());
-                let bg = if resp.hovered() && !active {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 9)
+                let hover_t = ui.ctx().animate_bool_with_time(resp.id, resp.hovered() && !active, 0.14);
+                let active_t = ui.ctx().animate_bool_with_time(resp.id.with("active"), active, 0.18);
+                let bg_alpha = (active_t * 18.0 + hover_t * 10.0).round() as u8;
+                let bg = Color32::from_rgba_unmultiplied(255, 255, 255, bg_alpha);
+                let stroke_col = if active {
+                    BORDER_STRONG
+                } else if resp.hovered() {
+                    BORDER_SUBTLE
                 } else {
-                    fill
+                    Color32::TRANSPARENT
                 };
 
                 ui.painter()
-                    .rect(rect, Rounding::same(9.0), bg, Stroke::new(1.0, stroke));
+                    .rect(rect, Rounding::same(9.0), bg, Stroke::new(1.0_f32, stroke_col));
 
                 if active {
                     let bar = egui::Rect::from_min_size(
@@ -180,58 +186,70 @@ pub fn render_sidebar(ctx: &egui::Context, state: &mut GuiState, is_compact_view
                 } else {
                     Frame::none()
                         .fill(BG_TILE)
-                        .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                        .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                         .rounding(Rounding::same(10.0))
                         .inner_margin(Margin::same(12.0))
                         .show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.horizontal(|ui| {
-                                let dot_col = if state.daemon_active {
-                                    ACCENT_EMERALD
-                                } else {
-                                    ACCENT_AMBER
-                                };
-                                let (r, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), Sense::hover());
-                                ui.painter().circle_filled(r.center(), 3.2, dot_col);
-                                ui.label(
-                                    egui::RichText::new(if state.daemon_active {
-                                        "DAEMON ONLINE"
+                            ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.horizontal(|ui| {
+                                    let dot_col = if state.daemon_active {
+                                        ACCENT_EMERALD
                                     } else {
-                                        "DAEMON STANDBY"
-                                    })
-                                    .font(FontId::monospace(9.5))
-                                    .color(dot_col),
-                                );
-                            });
-                            if let Some(pid) = state.daemon_pid {
-                                ui.label(
-                                    egui::RichText::new(format!("PID {}", pid))
-                                        .font(FontId::monospace(9.5))
-                                        .color(TEXT_3),
-                                );
-                            }
-                            ui.add_space(8.0);
-                            ui.horizontal(|ui| {
-                                let act_label = if state.daemon_active { "Restart" } else { "Start" };
-                                if action_button(ui, act_label).clicked() {
-                                    let action = if state.daemon_active {
-                                        DaemonAction::Restart
-                                    } else {
-                                        DaemonAction::Start
+                                        ACCENT_AMBER
                                     };
-                                    let _ = state.cmd_tx.send(GuiCommand::RunDaemonAction(action));
-                                    state.set_toast(
-                                        format!("Dispatching daemon {}...", act_label.to_lowercase()),
-                                        LogLevel::Info,
-                                        "Daemon",
+                                    let (r, _) =
+                                        ui.allocate_exact_size(Vec2::new(8.0, 8.0), Sense::hover());
+                                    ui.painter().circle_filled(r.center(), 3.2, dot_col);
+                                    ui.label(
+                                        egui::RichText::new(if state.daemon_active {
+                                            "DAEMON ONLINE"
+                                        } else {
+                                            "DAEMON STANDBY"
+                                        })
+                                        .font(FontId::monospace(9.5))
+                                        .color(dot_col),
+                                    );
+                                });
+                                if let Some(pid) = state.daemon_pid {
+                                    ui.add_space(4.0);
+                                    ui.label(
+                                        egui::RichText::new(format!("PID {}", pid))
+                                            .font(FontId::monospace(9.5))
+                                            .color(TEXT_3),
                                     );
                                 }
-                                if state.daemon_active && action_button(ui, "Stop").clicked() {
-                                    let _ = state
-                                        .cmd_tx
-                                        .send(GuiCommand::RunDaemonAction(DaemonAction::Stop));
-                                    state.set_toast("Stopping daemon...", LogLevel::Warn, "Daemon");
-                                }
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    let act_label =
+                                        if state.daemon_active { "Restart" } else { "Start" };
+                                    if action_button(ui, act_label).clicked() {
+                                        let action = if state.daemon_active {
+                                            DaemonAction::Restart
+                                        } else {
+                                            DaemonAction::Start
+                                        };
+                                        let _ = state.cmd_tx.send(GuiCommand::RunDaemonAction(action));
+                                        state.set_toast(
+                                            format!(
+                                                "Dispatching daemon {}...",
+                                                act_label.to_lowercase()
+                                            ),
+                                            LogLevel::Info,
+                                            "Daemon",
+                                        );
+                                    }
+                                    if state.daemon_active && action_button(ui, "Stop").clicked() {
+                                        let _ = state
+                                            .cmd_tx
+                                            .send(GuiCommand::RunDaemonAction(DaemonAction::Stop));
+                                        state.set_toast(
+                                            "Stopping daemon...",
+                                            LogLevel::Warn,
+                                            "Daemon",
+                                        );
+                                    }
+                                });
                             });
                         });
                 }

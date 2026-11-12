@@ -13,15 +13,18 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
         }
     });
 
+    let fade_t = ctx.animate_bool_with_time(egui::Id::new("settings_modal_fade"), true, 0.16);
+    let scrim_alpha = (190.0 * fade_t).round() as u8;
+
     egui::Area::new(egui::Id::new("preferences_scrim"))
         .fixed_pos(screen.min)
-        .order(egui::Order::Foreground)
+        .order(egui::Order::Middle)
         .show(ctx, |ui| {
             let resp = ui.allocate_rect(screen, Sense::click());
             ui.painter().rect_filled(
                 screen,
                 Rounding::ZERO,
-                Color32::from_rgba_unmultiplied(0, 0, 0, 185),
+                Color32::from_rgba_unmultiplied(4, 4, 8, scrim_alpha),
             );
             if resp.clicked() {
                 close = true;
@@ -30,6 +33,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
 
     let modal_w = (screen.width() - 32.0).clamp(320.0, 540.0);
     egui::Window::new("settings_modal_window")
+        .order(egui::Order::Foreground)
         .title_bar(false)
         .collapsible(false)
         .resizable(false)

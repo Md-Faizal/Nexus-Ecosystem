@@ -215,6 +215,9 @@ pub enum GuiCommand {
     InstallUpdate {
         manifest_url: String,
     },
+    ForceUpdate {
+        manifest_url: String,
+    },
     RunDaemonAction(DaemonAction),
 }
 
@@ -315,6 +318,8 @@ pub struct GuiState {
     pub crashes: Vec<(bool, CrashRecord)>,
     pub update_info: Option<UpdateManifestInfo>,
     pub update_checking: bool,
+    pub update_schedule_hours: u64,
+    pub last_update_check: Option<Instant>,
     pub logs: VecDeque<GuiLogEntry>,
 
     // Overlays & Preferences
@@ -722,6 +727,25 @@ async fn handle_command(cmd: GuiCommand, tx: &Sender<GuiEvent>) {
                 Err(e) => {
                     let _ = tx.send(GuiEvent::Toast {
                         msg: format!("Update failed: {}", e),
+                        level: LogLevel::Error,
+                        source: "Updater".to_string(),
+                    });
+                }
+            }
+        }
+
+        GuiCommand::ForceUpdate { manifest_url } => {
+            match AgentUpdater::run_update(&manifest_url, false, true).await {
+                Ok(()) => {
+                    let _ = tx.send(GuiEvent::Toast {
+                        msg: "Force update completed! Restart to apply.".to_string(),
+                        level: LogLevel::Success,
+                        source: "Updater".to_string(),
+                    });
+                }
+                Err(e) => {
+                    let _ = tx.send(GuiEvent::Toast {
+                        msg: format!("Force update failed: {}", e),
                         level: LogLevel::Error,
                         source: "Updater".to_string(),
                     });

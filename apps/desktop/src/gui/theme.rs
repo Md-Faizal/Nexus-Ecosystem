@@ -298,7 +298,9 @@ pub fn render_hairline_bar(
     pct: f32,
     color: Color32,
 ) {
-    let clamped = pct.clamp(0.0, 100.0);
+    let target = pct.clamp(0.0, 100.0);
+    let anim_id = ui.make_persistent_id(("hairline_bar", label));
+    let smoothed = ui.ctx().animate_value_with_time(anim_id, target, 0.35);
     let width = ui.available_width().max(80.0);
     ui.vertical(|ui| {
         ui.set_width(width);
@@ -317,14 +319,21 @@ pub fn render_hairline_bar(
             });
         });
         ui.add_space(4.0);
-        let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(width, 4.0), Sense::hover());
+        let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(width, 5.0), Sense::hover());
         ui.painter()
-            .rect_filled(bar_rect, Rounding::same(2.0), Color32::from_rgb(26, 26, 33));
-        if clamped > 0.0 {
-            let fill_w = (bar_rect.width() * (clamped / 100.0)).max(3.0);
-            let fill_rect = egui::Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, 4.0));
+            .rect_filled(bar_rect, Rounding::same(2.5), Color32::from_rgb(24, 24, 32));
+        if smoothed > 0.1 {
+            let fill_w = (bar_rect.width() * (smoothed / 100.0)).max(4.0);
+            let fill_rect = egui::Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, 5.0));
+            // Soft ambient bloom underneath
+            let glow_rect = fill_rect.expand2(Vec2::new(1.0, 2.0));
+            ui.painter().rect_filled(
+                glow_rect,
+                Rounding::same(3.5),
+                Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 36),
+            );
             ui.painter()
-                .rect_filled(fill_rect, Rounding::same(2.0), color);
+                .rect_filled(fill_rect, Rounding::same(2.5), color);
         }
     });
 }
