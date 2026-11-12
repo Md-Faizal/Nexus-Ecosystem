@@ -16,6 +16,30 @@ use std::collections::VecDeque;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TopologyViewMode {
+    #[default]
+    CanBusHybrid,
+    TieredHierarchy,
+    FullMesh,
+}
+
+impl TopologyViewMode {
+    pub const ALL: [TopologyViewMode; 3] = [
+        TopologyViewMode::CanBusHybrid,
+        TopologyViewMode::TieredHierarchy,
+        TopologyViewMode::FullMesh,
+    ];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            TopologyViewMode::CanBusHybrid => "CAN-Bus Hybrid",
+            TopologyViewMode::TieredHierarchy => "Tiered Grid",
+            TopologyViewMode::FullMesh => "Full Mesh",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuiRoute {
     Overview,
@@ -301,6 +325,15 @@ pub struct GuiState {
     pub docker_containers: Vec<ServiceTelemetry>,
     pub selected_node_id: Option<String>,
 
+    // Topology & Fleet Mesh Controls
+    pub topology_zoom: f32,
+    pub topology_pan: eframe::egui::Vec2,
+    pub topology_view_mode: TopologyViewMode,
+    pub topology_show_packets: bool,
+    pub topology_show_link_metrics: bool,
+    pub topology_filter: String,
+    pub topology_frozen: bool,
+
     // AI Studio
     pub ai_telemetry: AiEngineTelemetry,
     pub loaded_models: Vec<OllamaProcessModel>,
@@ -349,6 +382,32 @@ pub enum SettingsTab {
 }
 
 impl GuiState {
+    pub fn total_fleet_rx_bytes_sec(&self) -> u64 {
+        let mut total = self.telemetry.as_ref().map(|t| t.network.rx_bytes_sec).unwrap_or(0);
+        for node in &self.remote_nodes {
+            if let Some(rx) = node.telemetry.as_ref()
+                .and_then(|t| t.get("network")?.get("rx_bytes_sec")?.as_u64()) {
+                total += rx;
+            }
+        }
+        total
+    }
+
+    pub fn total_fleet_tx_bytes_sec(&self) -> u64 {
+        let mut total = self.telemetry.as_ref().map(|t| t.network.tx_bytes_sec).unwrap_or(0);
+        for node in &self.remote_nodes {
+            if let Some(tx) = node.telemetry.as_ref()
+                .and_then(|t| t.get("network")?.get("tx_bytes_sec")?.as_u64()) {
+                total += tx;
+            }
+        }
+        total
+    }
+
+    pub fn active_online_nodes_count(&self) -> usize {
+        1 + self.remote_nodes.iter().filter(|n| n.status == "online").count()
+    }
+
     pub fn push_log(&mut self, level: LogLevel, source: &str, message: impl Into<String>) {
         if self.logs.len() >= 250 {
             self.logs.pop_front();

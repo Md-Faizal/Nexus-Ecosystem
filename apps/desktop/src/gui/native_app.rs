@@ -130,6 +130,13 @@ impl NodeMonitorApp {
             hub_latency_ms: None,
             docker_containers: Vec::new(),
             selected_node_id: None,
+            topology_zoom: 1.0,
+            topology_pan: Vec2::ZERO,
+            topology_view_mode: crate::gui::state::TopologyViewMode::CanBusHybrid,
+            topology_show_packets: true,
+            topology_show_link_metrics: true,
+            topology_filter: String::new(),
+            topology_frozen: false,
             ai_telemetry: AiEngineTelemetry {
                 engine: "ollama".to_string(),
                 endpoint: ai_endpoint_input.clone(),
