@@ -16,12 +16,12 @@ use crate::modules::gpu::GpuCollector;
 static GUI_RUNNING: AtomicBool = AtomicBool::new(false);
 
 const BG_BLACK: Color32 = Color32::BLACK;
-const CARD_BG: Color32 = Color32::from_rgb(10, 10, 12);
-const TILE_BG: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 5);
-const ROW_BG: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 4);
+const CARD_BG: Color32 = Color32::from_rgb(10, 10, 13);
+const TILE_BG: Color32 = Color32::from_rgb(15, 15, 19);
+const ROW_BG: Color32 = Color32::from_rgb(14, 14, 17);
 const SHEET_BG: Color32 = Color32::from_rgb(9, 9, 11);
-const BORDER_SUBTLE: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 16);
-const BORDER_STRONG: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 36);
+const BORDER_SUBTLE: Color32 = Color32::from_rgb(24, 24, 28);
+const BORDER_STRONG: Color32 = Color32::from_rgb(46, 46, 54);
 const TEXT_1: Color32 = Color32::WHITE;
 const TEXT_2: Color32 = Color32::from_rgb(161, 161, 170);
 const TEXT_3: Color32 = Color32::from_rgb(82, 82, 91);
@@ -35,8 +35,8 @@ pub fn launch_native_gui() {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1180.0, 760.0])
-            .with_min_inner_size([860.0, 620.0])
+            .with_inner_size([1200.0, 760.0])
+            .with_min_inner_size([900.0, 640.0])
             .with_title("NEXUS // FLIGHT DECK")
             .with_active(true),
         ..Default::default()
@@ -75,15 +75,15 @@ fn configure_obsidian_theme(ctx: &egui::Context) {
     visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
     visuals.widgets.noninteractive.rounding = Rounding::same(12.0);
 
-    visuals.widgets.inactive.bg_fill = Color32::from_rgba_premultiplied(255, 255, 255, 10);
+    visuals.widgets.inactive.bg_fill = Color32::from_rgba_unmultiplied(255, 255, 255, 10);
     visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
     visuals.widgets.inactive.rounding = Rounding::same(8.0);
 
-    visuals.widgets.hovered.bg_fill = Color32::from_rgba_premultiplied(255, 255, 255, 25);
+    visuals.widgets.hovered.bg_fill = Color32::from_rgba_unmultiplied(255, 255, 255, 24);
     visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, BORDER_STRONG);
     visuals.widgets.hovered.rounding = Rounding::same(8.0);
 
-    visuals.widgets.active.bg_fill = Color32::from_rgba_premultiplied(255, 255, 255, 40);
+    visuals.widgets.active.bg_fill = Color32::from_rgba_unmultiplied(255, 255, 255, 38);
     visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, TEXT_1);
     visuals.widgets.active.rounding = Rounding::same(8.0);
 
@@ -219,24 +219,29 @@ impl eframe::App for FlightDeckApp {
         egui::CentralPanel::default()
             .frame(Frame::none().fill(BG_BLACK).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
+                // Subtle top-center ambient satin glow (unmultiplied alpha!)
                 let rect = ui.max_rect();
                 ui.painter().circle_filled(
-                    Pos2::new(rect.center().x, rect.top() - 120.0),
-                    360.0,
-                    Color32::from_rgba_premultiplied(255, 255, 255, 6),
+                    Pos2::new(rect.center().x, rect.top() - 180.0),
+                    420.0,
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 7),
                 );
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.add_space(28.0);
                     let avail = ui.available_width();
                     let content_w = (avail - 64.0).clamp(760.0, 1136.0);
-                    let side_pad = ((avail - content_w) * 0.5).max(24.0);
+                    let side_pad = ((avail - content_w) * 0.5).max(32.0);
 
                     ui.horizontal(|ui| {
                         ui.add_space(side_pad);
-                        ui.allocate_ui(Vec2::new(content_w, ui.available_height()), |ui| {
-                            self.render_main_grid(ui, content_w);
-                        });
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(content_w, 0.0),
+                            Layout::top_down(Align::LEFT),
+                            |ui| {
+                                self.render_main_grid(ui, content_w);
+                            },
+                        );
                     });
                     ui.add_space(28.0);
                 });
@@ -285,7 +290,7 @@ impl FlightDeckApp {
                 mono_rect,
                 Rounding::same(8.0),
                 Color32::from_rgb(20, 20, 24),
-                Stroke::new(1.0_f32, Color32::from_rgba_premultiplied(255, 255, 255, 30)),
+                Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(255, 255, 255, 30)),
             );
             ui.painter().text(
                 mono_rect.center(),
@@ -307,16 +312,16 @@ impl FlightDeckApp {
                             .color(TEXT_1),
                     );
                     ui.add_space(6.0);
-                    let (dot_rect, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), Sense::hover());
+                    let (dot_rect, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), Sense::hover());
                     let dot_color = if self.daemon_active { TEXT_1 } else { TEXT_3 };
-                    ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
                     if self.daemon_active {
                         ui.painter().circle_filled(
                             dot_rect.center(),
-                            5.5,
-                            Color32::from_rgba_premultiplied(255, 255, 255, 50),
+                            5.0,
+                            Color32::from_rgba_unmultiplied(255, 255, 255, 45),
                         );
                     }
+                    ui.painter().circle_filled(dot_rect.center(), 2.8, dot_color);
                 });
                 ui.label(
                     RichText::new(format!("{} // TIER: {}", hostname, tier))
@@ -330,14 +335,14 @@ impl FlightDeckApp {
                 let (gear_rect, gear_resp) =
                     ui.allocate_exact_size(Vec2::new(36.0, 36.0), Sense::click());
                 let bg = if gear_resp.hovered() {
-                    Color32::from_rgba_premultiplied(255, 255, 255, 30)
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 28)
                 } else {
-                    Color32::from_rgba_premultiplied(255, 255, 255, 14)
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 12)
                 };
                 let stroke = if gear_resp.hovered() {
                     BORDER_STRONG
                 } else {
-                    Color32::from_rgba_premultiplied(255, 255, 255, 30)
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 30)
                 };
                 ui.painter().circle(
                     gear_rect.center(),
@@ -364,7 +369,7 @@ impl FlightDeckApp {
                     "DAEMON STANDBY"
                 };
                 Frame::none()
-                    .fill(Color32::from_rgba_premultiplied(255, 255, 255, 8))
+                    .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 8))
                     .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                     .rounding(Rounding::same(20.0))
                     .inner_margin(Margin::symmetric(14.0, 6.0))
@@ -381,23 +386,31 @@ impl FlightDeckApp {
 
     fn render_main_grid(&mut self, ui: &mut egui::Ui, total_w: f32) {
         let gap = 24.0;
-        let left_w = 340.0_f32.min(total_w * 0.34);
-        let right_w = (total_w - left_w - gap).max(360.0);
+        let left_w = 350.0_f32.min(total_w * 0.34);
+        let right_w = (total_w - left_w - gap).max(380.0);
 
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
 
-            ui.allocate_ui(Vec2::new(left_w, 560.0), |ui| {
-                self.render_fitness_card(ui);
-            });
+            // Left Column: MUST use top_down layout!
+            ui.allocate_ui_with_layout(
+                Vec2::new(left_w, 0.0),
+                Layout::top_down(Align::LEFT),
+                |ui| {
+                    self.render_fitness_card(ui, left_w);
+                },
+            );
 
-            ui.allocate_ui(Vec2::new(right_w, 560.0), |ui| {
-                ui.vertical(|ui| {
+            // Right Column: MUST use top_down layout!
+            ui.allocate_ui_with_layout(
+                Vec2::new(right_w, 0.0),
+                Layout::top_down(Align::LEFT),
+                |ui| {
                     ui.spacing_mut().item_spacing.y = 24.0;
-                    self.render_telemetry_matrix_card(ui);
-                    self.render_tricore_card(ui);
-                });
-            });
+                    self.render_telemetry_matrix_card(ui, right_w);
+                    self.render_tricore_card(ui, right_w);
+                },
+            );
         });
     }
 
@@ -411,121 +424,151 @@ impl FlightDeckApp {
 
     fn render_card_header(
         ui: &mut egui::Ui,
+        inner_w: f32,
         title: &str,
         right_subtext: &str,
         right_color: Color32,
     ) {
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(title)
-                    .font(FontId::monospace(10.0))
-                    .strong()
-                    .color(TEXT_3),
-            );
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.allocate_ui_with_layout(
+            Vec2::new(inner_w, 16.0),
+            Layout::left_to_right(Align::Center),
+            |ui| {
                 ui.label(
-                    RichText::new(right_subtext)
+                    RichText::new(title)
                         .font(FontId::monospace(10.0))
-                        .color(right_color),
+                        .strong()
+                        .color(TEXT_3),
                 );
-            });
-        });
-        ui.add_space(18.0);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(
+                        RichText::new(right_subtext)
+                            .font(FontId::monospace(10.0))
+                            .color(right_color),
+                    );
+                });
+            },
+        );
+        ui.add_space(20.0);
     }
 
-    fn render_fitness_card(&self, ui: &mut egui::Ui) {
+    fn render_fitness_card(&self, ui: &mut egui::Ui, card_w: f32) {
+        let inner_w = (card_w - 48.0).max(200.0);
         Self::card_frame().show(ui, |ui| {
-            ui.set_width(ui.available_width());
+            ui.set_width(inner_w);
             let tier_label = format!("Tier: {}", capitalize(&self.cached_fitness.tier));
-            Self::render_card_header(ui, "01 // SYMBIOTE FITNESS", &tier_label, TEXT_3);
+            Self::render_card_header(ui, inner_w, "01 // SYMBIOTE FITNESS", &tier_label, TEXT_3);
 
-            ui.vertical_centered(|ui| {
-                let gauge_size = 216.0;
-                let (rect, _) =
-                    ui.allocate_exact_size(Vec2::new(gauge_size, gauge_size), Sense::hover());
-                let painter = ui.painter();
-                let center = rect.center();
-                let radius = 94.0;
+            // Centered 220x220 radial gauge
+            ui.allocate_ui_with_layout(
+                Vec2::new(inner_w, 220.0),
+                Layout::top_down(Align::Center),
+                |ui| {
+                    let (rect, _) =
+                        ui.allocate_exact_size(Vec2::new(216.0, 216.0), Sense::hover());
+                    let painter = ui.painter();
+                    let center = rect.center();
+                    let radius = 94.0;
 
-                painter.circle_stroke(
-                    center,
-                    radius,
-                    Stroke::new(4.0_f32, Color32::from_rgba_premultiplied(255, 255, 255, 10)),
-                );
+                    painter.circle_stroke(
+                        center,
+                        radius,
+                        Stroke::new(4.0_f32, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
+                    );
 
-                let pct = (self.cached_fitness.fitness_pct / 100.0).clamp(0.0, 1.0);
-                let sweep = pct * TAU;
-                let steps = 72;
-                let start_angle = -PI / 2.0;
+                    let pct = (self.cached_fitness.fitness_pct / 100.0).clamp(0.0, 1.0);
+                    let sweep = pct * TAU;
+                    let steps = 72;
+                    let start_angle = -PI / 2.0;
 
-                if pct > 0.005 {
-                    let mut pts = Vec::with_capacity(steps + 1);
-                    let active_steps = ((steps as f32) * pct).ceil().max(2.0) as usize;
-                    for i in 0..=active_steps {
-                        let t = i as f32 / active_steps as f32;
-                        let angle = start_angle + t * sweep;
-                        pts.push(Pos2::new(
-                            center.x + radius * angle.cos(),
-                            center.y + radius * angle.sin(),
+                    if pct > 0.005 {
+                        let mut pts = Vec::with_capacity(steps + 1);
+                        let active_steps = ((steps as f32) * pct).ceil().max(2.0) as usize;
+                        for i in 0..=active_steps {
+                            let t = i as f32 / active_steps as f32;
+                            let angle = start_angle + t * sweep;
+                            pts.push(Pos2::new(
+                                center.x + radius * angle.cos(),
+                                center.y + radius * angle.sin(),
+                            ));
+                        }
+                        painter.add(egui::Shape::line(
+                            pts.clone(),
+                            Stroke::new(
+                                7.0_f32,
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 28),
+                            ),
                         ));
+                        painter.add(egui::Shape::line(pts, Stroke::new(4.0_f32, TEXT_1)));
                     }
-                    painter.add(egui::Shape::line(
-                        pts.clone(),
-                        Stroke::new(7.0_f32, Color32::from_rgba_premultiplied(255, 255, 255, 28)),
-                    ));
-                    painter.add(egui::Shape::line(pts, Stroke::new(4.0_f32, TEXT_1)));
-                }
 
-                painter.text(
-                    Pos2::new(center.x, center.y - 8.0),
-                    egui::Align2::CENTER_CENTER,
-                    format!("{:.1}%", self.cached_fitness.fitness_pct),
-                    FontId::proportional(44.0),
-                    TEXT_1,
-                );
-                painter.text(
-                    Pos2::new(center.x, center.y + 24.0),
-                    egui::Align2::CENTER_CENTER,
-                    "CONSENSUS SCORE",
-                    FontId::monospace(9.0),
-                    TEXT_3,
-                );
-            });
+                    painter.text(
+                        Pos2::new(center.x, center.y - 8.0),
+                        egui::Align2::CENTER_CENTER,
+                        format!("{:.1}%", self.cached_fitness.fitness_pct),
+                        FontId::proportional(44.0),
+                        TEXT_1,
+                    );
+                    painter.text(
+                        Pos2::new(center.x, center.y + 24.0),
+                        egui::Align2::CENTER_CENTER,
+                        "CONSENSUS SCORE",
+                        FontId::monospace(9.0),
+                        TEXT_3,
+                    );
+                },
+            );
 
             ui.add_space(16.0);
 
+            // Role badge box
             Frame::none()
-                .fill(Color32::from_rgba_premultiplied(255, 255, 255, 5))
+                .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 6))
                 .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                 .rounding(Rounding::same(8.0))
                 .inner_margin(Margin::symmetric(14.0, 10.0))
                 .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.vertical_centered(|ui| {
-                        ui.label(
-                            RichText::new(&self.cached_fitness.role_label)
-                                .font(FontId::monospace(11.0))
-                                .color(TEXT_2),
-                        );
-                    });
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(inner_w - 28.0, 16.0),
+                        Layout::top_down(Align::Center),
+                        |ui| {
+                            ui.label(
+                                RichText::new(&self.cached_fitness.role_label)
+                                    .font(FontId::monospace(11.0))
+                                    .color(TEXT_2),
+                            );
+                        },
+                    );
                 });
 
             ui.add_space(20.0);
 
-            render_hairline_bar(ui, "RAM HEADROOM", self.cached_fitness.ram_headroom_pct);
+            // Hairline Headroom Bars
+            render_hairline_bar(
+                ui,
+                inner_w,
+                "RAM HEADROOM",
+                self.cached_fitness.ram_headroom_pct,
+            );
             ui.add_space(14.0);
-            render_hairline_bar(ui, "CPU HEADROOM", self.cached_fitness.cpu_headroom_pct);
+            render_hairline_bar(
+                ui,
+                inner_w,
+                "CPU HEADROOM",
+                self.cached_fitness.cpu_headroom_pct,
+            );
         });
     }
 
-    fn render_telemetry_matrix_card(&self, ui: &mut egui::Ui) {
+    fn render_telemetry_matrix_card(&self, ui: &mut egui::Ui, card_w: f32) {
+        let inner_w = (card_w - 48.0).max(300.0);
         Self::card_frame().show(ui, |ui| {
-            ui.set_width(ui.available_width());
+            ui.set_width(inner_w);
             let uptime = System::uptime();
             let h = uptime / 3600;
             let m = (uptime % 3600) / 60;
             Self::render_card_header(
                 ui,
+                inner_w,
                 "02 // HOST TELEMETRY MATRIX",
                 &format!("Uptime: {}h {}m", h, m),
                 TEXT_3,
@@ -559,7 +602,10 @@ impl FlightDeckApp {
                     ),
                 )
             } else {
-                ("Integrated".to_string(), "No discrete GPU detected".to_string())
+                (
+                    "Integrated".to_string(),
+                    "No discrete GPU detected".to_string(),
+                )
             };
 
             let hub_host = self.config.primary_hub_host();
@@ -575,7 +621,7 @@ impl FlightDeckApp {
             );
 
             let gap = 14.0;
-            let tile_w = ((ui.available_width() - gap) * 0.5).max(160.0);
+            let tile_w = ((inner_w - gap) * 0.5).max(160.0);
 
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = gap;
@@ -584,7 +630,7 @@ impl FlightDeckApp {
                     tile_w,
                     "PROCESSOR",
                     &format!("{:.1}%", cpu_pct),
-                    &format!("{} • {}C", truncate_label(&cpu_brand, 22), cores),
+                    &format!("{} • {}C", truncate_label(&cpu_brand, 24), cores),
                 );
                 render_tile(
                     ui,
@@ -609,11 +655,13 @@ impl FlightDeckApp {
         });
     }
 
-    fn render_tricore_card(&mut self, ui: &mut egui::Ui) {
+    fn render_tricore_card(&mut self, ui: &mut egui::Ui, card_w: f32) {
+        let inner_w = (card_w - 48.0).max(300.0);
         Self::card_frame().show(ui, |ui| {
-            ui.set_width(ui.available_width());
+            ui.set_width(inner_w);
             Self::render_card_header(
                 ui,
+                inner_w,
                 "03 // PROTECTED TRI-CORE PAYLOAD",
                 "Survivability: Maximum",
                 TEXT_1,
@@ -621,6 +669,7 @@ impl FlightDeckApp {
 
             render_tricore_row(
                 ui,
+                inner_w,
                 "Nexus Fleet Hub & Website",
                 "faizal.uk // Rust Axum Core (Port 3002)",
                 "PRIMARY ACTIVE",
@@ -629,6 +678,7 @@ impl FlightDeckApp {
             ui.add_space(10.0);
             render_tricore_row(
                 ui,
+                inner_w,
                 "Stalwart Mail Stack",
                 "mail.faizal.uk // IMAP, SMTP, JMAP",
                 "HOT STANDBY",
@@ -637,6 +687,7 @@ impl FlightDeckApp {
             ui.add_space(10.0);
             render_tricore_row(
                 ui,
+                inner_w,
                 "macOS Business Environment",
                 "macos.faizal.uk // Docker Blue-Green",
                 "HOT STANDBY",
@@ -677,7 +728,7 @@ impl FlightDeckApp {
                 ui.painter().rect_filled(
                     screen,
                     Rounding::ZERO,
-                    Color32::from_rgba_premultiplied(0, 0, 0, 190),
+                    Color32::from_rgba_unmultiplied(0, 0, 0, 190),
                 );
                 if scrim_resp.clicked() {
                     self.show_settings = false;
@@ -695,7 +746,7 @@ impl FlightDeckApp {
                     .fill(SHEET_BG)
                     .stroke(Stroke::new(
                         1.0_f32,
-                        Color32::from_rgba_premultiplied(255, 255, 255, 32),
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 32),
                     ))
                     .rounding(Rounding::same(22.0))
                     .inner_margin(Margin::same(28.0)),
@@ -714,10 +765,10 @@ impl FlightDeckApp {
                         ui.painter().circle(
                             close_rect.center(),
                             13.5,
-                            Color32::from_rgba_premultiplied(255, 255, 255, 16),
+                            Color32::from_rgba_unmultiplied(255, 255, 255, 16),
                             Stroke::new(
                                 1.0_f32,
-                                Color32::from_rgba_premultiplied(255, 255, 255, 26),
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 26),
                             ),
                         );
                         ui.painter().text(
@@ -789,54 +840,63 @@ impl FlightDeckApp {
     }
 }
 
-fn render_hairline_bar(ui: &mut egui::Ui, label: &str, pct: f32) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(label).font(FontId::monospace(10.0)).color(TEXT_3));
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(
-                RichText::new(format!("{:.1}%", pct))
-                    .font(FontId::monospace(10.0))
-                    .strong()
-                    .color(TEXT_1),
-            );
-        });
-    });
-    ui.add_space(5.0);
-    let w = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 3.0), Sense::hover());
+fn render_hairline_bar(ui: &mut egui::Ui, width: f32, label: &str, pct: f32) {
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, 16.0),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.label(RichText::new(label).font(FontId::monospace(10.0)).color(TEXT_3));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{:.1}%", pct))
+                        .font(FontId::monospace(10.0))
+                        .strong()
+                        .color(TEXT_1),
+                );
+            });
+        },
+    );
+    ui.add_space(6.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 3.0), Sense::hover());
     ui.painter().rect_filled(
         rect,
         Rounding::same(2.0),
-        Color32::from_rgba_premultiplied(255, 255, 255, 14),
+        Color32::from_rgba_unmultiplied(255, 255, 255, 14),
     );
-    let fill_w = (w * (pct / 100.0).clamp(0.0, 1.0)).max(2.0);
+    let fill_w = (width * (pct / 100.0).clamp(0.0, 1.0)).max(2.0);
     let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_w, 3.0));
     ui.painter()
         .rect_filled(fill_rect, Rounding::same(2.0), TEXT_1);
 }
 
-fn render_tile(ui: &mut egui::Ui, width: f32, label: &str, value: &str, sub: &str) {
+fn render_tile(ui: &mut egui::Ui, tile_w: f32, label: &str, value: &str, sub: &str) {
     Frame::none()
         .fill(TILE_BG)
         .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
         .rounding(Rounding::same(12.0))
         .inner_margin(Margin::same(16.0))
         .show(ui, |ui| {
-            ui.set_width(width - 34.0);
-            ui.label(RichText::new(label).font(FontId::monospace(9.0)).color(TEXT_3));
-            ui.add_space(6.0);
-            ui.label(
-                RichText::new(value)
-                    .font(FontId::proportional(20.0))
-                    .color(TEXT_1),
+            ui.allocate_ui_with_layout(
+                Vec2::new((tile_w - 34.0).max(120.0), 66.0),
+                Layout::top_down(Align::LEFT),
+                |ui| {
+                    ui.label(RichText::new(label).font(FontId::monospace(9.0)).color(TEXT_3));
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(value)
+                            .font(FontId::proportional(20.0))
+                            .color(TEXT_1),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(sub).font(FontId::monospace(10.0)).color(TEXT_2));
+                },
             );
-            ui.add_space(4.0);
-            ui.label(RichText::new(sub).font(FontId::monospace(10.0)).color(TEXT_2));
         });
 }
 
 fn render_tricore_row(
     ui: &mut egui::Ui,
+    row_w: f32,
     name: &str,
     tag: &str,
     state_label: &str,
@@ -848,53 +908,56 @@ fn render_tricore_row(
         .rounding(Rounding::same(10.0))
         .inner_margin(Margin::symmetric(18.0, 12.0))
         .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(
-                        RichText::new(name)
-                            .font(FontId::proportional(12.5))
-                            .strong()
-                            .color(TEXT_1),
-                    );
-                    ui.label(RichText::new(tag).font(FontId::monospace(9.5)).color(TEXT_3));
-                });
+            ui.allocate_ui_with_layout(
+                Vec2::new((row_w - 36.0).max(200.0), 34.0),
+                Layout::left_to_right(Align::Center),
+                |ui| {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(
+                            RichText::new(name)
+                                .font(FontId::proportional(12.5))
+                                .strong()
+                                .color(TEXT_1),
+                        );
+                        ui.label(RichText::new(tag).font(FontId::monospace(9.5)).color(TEXT_3));
+                    });
 
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let (bg, fg, border) = if primary {
-                        (
-                            Color32::from_rgba_premultiplied(255, 255, 255, 16),
-                            TEXT_1,
-                            Color32::from_rgba_premultiplied(255, 255, 255, 30),
-                        )
-                    } else {
-                        (
-                            Color32::from_rgba_premultiplied(255, 255, 255, 8),
-                            TEXT_2,
-                            BORDER_SUBTLE,
-                        )
-                    };
-                    Frame::none()
-                        .fill(bg)
-                        .stroke(Stroke::new(1.0_f32, border))
-                        .rounding(Rounding::same(20.0))
-                        .inner_margin(Margin::symmetric(10.0, 4.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(state_label)
-                                    .font(FontId::monospace(9.0))
-                                    .color(fg),
-                            );
-                        });
-                });
-            });
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let (bg, fg, border) = if primary {
+                            (
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 16),
+                                TEXT_1,
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 30),
+                            )
+                        } else {
+                            (
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 8),
+                                TEXT_2,
+                                BORDER_SUBTLE,
+                            )
+                        };
+                        Frame::none()
+                            .fill(bg)
+                            .stroke(Stroke::new(1.0_f32, border))
+                            .rounding(Rounding::same(20.0))
+                            .inner_margin(Margin::symmetric(10.0, 4.0))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new(state_label)
+                                        .font(FontId::monospace(9.0))
+                                        .color(fg),
+                                );
+                            });
+                    });
+                },
+            );
         });
 }
 
 fn minimal_action_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
     let btn = egui::Button::new(RichText::new(text).font(FontId::monospace(11.0)).color(TEXT_2))
-        .fill(Color32::from_rgba_premultiplied(255, 255, 255, 10))
+        .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 10))
         .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
         .rounding(Rounding::same(8.0))
         .min_size(Vec2::new(0.0, 34.0));
@@ -924,7 +987,7 @@ fn render_toggle_row(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut
             let bg = if *value {
                 TEXT_1
             } else {
-                Color32::from_rgba_premultiplied(255, 255, 255, 26)
+                Color32::from_rgba_unmultiplied(255, 255, 255, 26)
             };
             let knob_col = if *value { Color32::BLACK } else { TEXT_2 };
             let knob_x = if *value {
