@@ -31,6 +31,11 @@ REGION = os.environ.get("OCI_REGION", "ap-hyderabad-1")
 STATE_FILE = os.environ.get("OCI_STATE_FILE", "/home/ubuntu/stack/ops/oci_state.json")
 PUBLIC_STATE_FILE = os.environ.get("OCI_PUBLIC_STATE_FILE", "/home/ubuntu/stack/apps/personal-site/public/assets/oci_state.json")
 
+# OCI Resource Manager Tenancy Pacing: In Always Free / standard accounts,
+# creating jobs more frequently than ~20m triggers 429 TooManyRequests.
+# Pacing proactively guarantees 0 rate-limit violations.
+JOB_MIN_SPACING_SEC = int(os.environ.get("OCI_JOB_MIN_SPACING_SEC", "1200"))  # 20 minutes default
+
 # SMTP Relay Config (Defaults match production docker-compose Brevo relay)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp-relay.brevo.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
@@ -45,19 +50,18 @@ RECIPIENTS = [
 def get_retry_strategy():
     """Builds an exponential backoff retry strategy for transient 429 and 5xx errors."""
     try:
-        return (
+        builder = (
             RetryStrategyBuilder()
-            .add_handled_status_code_intercept(429)
-            .add_handled_status_code_intercept(500)
-            .add_handled_status_code_intercept(502)
-            .add_handled_status_code_intercept(503)
-            .add_handled_status_code_intercept(504)
-            .exponential_backoff_base(2)
-            .exponential_backoff_factor_seconds(2)
-            .maximum_wait_time_seconds(30)
-            .total_elapsed_time_seconds(60)
-            .build()
+            .add_max_attempts(max_attempts=6)
+            .add_total_elapsed_time(total_elapsed_time_seconds=180)
+            .add_service_error_check(
+                service_error_retry_on_any_5xx=True,
+                service_error_retry_config={
+                    429: ["TooManyRequests", "RateLimitExceeded"]
+                }
+            )
         )
+        return builder.get_retry_strategy()
     except Exception as e:
         print(f"[WARN] Failed building RetryStrategyBuilder, fallback to default: {e}")
         return getattr(oci.retry, "DEFAULT_RETRY_STRATEGY", None)
@@ -78,6 +82,7 @@ def load_state():
         "attempts_today": 0,
         "today_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "last_attempt_at": None,
+        "last_job_created_at": None,
         "last_status": "NONE",
         "last_message": "Initialized, waiting for first check.",
         "last_job_ocid": None,
@@ -97,13 +102,18 @@ def record_attempt(state, status, message, job_ocid=None):
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     short_job = job_ocid[-10:] if job_ocid else "N/A"
     
-    # Avoid duplicate identical consecutive attempts
+    # Avoid duplicate identical consecutive attempts within 3 minutes
     if state["recent_attempts"]:
         latest_att = state["recent_attempts"][0]
         if latest_att.get("status") == status and latest_att.get("job_id") == short_job:
-            latest_att["time"] = timestamp
-            latest_att["message"] = message
-            return
+            try:
+                old_time = datetime.strptime(latest_att["time"].replace(" UTC", ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - old_time).total_seconds() < 180:
+                    latest_att["time"] = timestamp
+                    latest_att["message"] = message
+                    return
+            except Exception:
+                pass
 
     state["recent_attempts"].insert(0, {
         "time": timestamp,
@@ -210,18 +220,6 @@ def run():
             print(f"[WARN] Failed to parse rate_limited_until: {e}")
             state.pop("rate_limited_until", None)
 
-    # 2. Minimum pacing guard between job creation attempts (min 180s)
-    last_attempt_str = state.get("last_attempt_at")
-    if last_attempt_str:
-        try:
-            last_dt = datetime.strptime(last_attempt_str.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            elapsed_sec = (now - last_dt).total_seconds()
-            if elapsed_sec < 180:
-                print(f"[PACING] Only {int(elapsed_sec)}s elapsed since last job attempt (min 180s). Skipping to protect rate-limit.")
-                sys.exit(0)
-        except Exception as e:
-            print(f"[WARN] Failed to parse last_attempt_at: {e}")
-
     try:
         rm = get_rm_client()
     except Exception as e:
@@ -231,7 +229,7 @@ def run():
         save_state(state)
         sys.exit(1)
 
-    # 3. Fetch recent jobs
+    # 2. Fetch recent jobs
     try:
         jobs_response = rm.list_jobs(stack_id=STACK_OCID, sort_by="TIMECREATED", sort_order="DESC", limit=5)
         jobs = jobs_response.data
@@ -254,7 +252,7 @@ def run():
         save_state(state)
         sys.exit(1)
 
-    # 4. Check for active/running job
+    # 3. Check for active/running job
     active_job = None
     for j in jobs:
         if j.lifecycle_state in ["ACCEPTED", "IN_PROGRESS", "CANCELING"]:
@@ -269,7 +267,7 @@ def run():
         save_state(state)
         sys.exit(0)
 
-    # 5. Inspect latest completed job
+    # 4. Inspect latest completed job
     if jobs:
         latest = jobs[0]
         state["last_job_ocid"] = latest.id
@@ -319,6 +317,37 @@ def run():
                 record_attempt(state, "FAILED", msg, latest.id)
                 state["last_recorded_failed_job_ocid"] = latest.id
 
+    # 5. Proactive Tenancy Job Cadence Guard (Safe Interval)
+    # Prevents triggering OCI 429 TooManyRequests by spacing create_job by at least JOB_MIN_SPACING_SEC (20m).
+    if jobs and hasattr(jobs[0], "time_created") and jobs[0].time_created:
+        job_created_time = jobs[0].time_created
+        if not job_created_time.tzinfo:
+            job_created_time = job_created_time.replace(tzinfo=timezone.utc)
+        elapsed_since_job = (now - job_created_time).total_seconds()
+        if elapsed_since_job < JOB_MIN_SPACING_SEC:
+            rem_sec = int(JOB_MIN_SPACING_SEC - elapsed_since_job)
+            print(f"[PACING] Last job created {int(elapsed_since_job)}s ago. Next slot in {rem_sec}s (min {JOB_MIN_SPACING_SEC//60}m).")
+            state["status"] = "PACING"
+            state["last_message"] = f"Pacing safe interval: next capacity check in {rem_sec // 60}m {rem_sec % 60}s (preventing 429)"
+            save_state(state)
+            sys.exit(0)
+
+    # Fallback check against recorded state timestamp
+    last_created_str = state.get("last_job_created_at")
+    if last_created_str:
+        try:
+            last_created_dt = datetime.fromisoformat(last_created_str)
+            elapsed_state = (now - last_created_dt).total_seconds()
+            if elapsed_state < JOB_MIN_SPACING_SEC:
+                rem_sec = int(JOB_MIN_SPACING_SEC - elapsed_state)
+                print(f"[PACING] State says job created {int(elapsed_state)}s ago. Waiting {rem_sec}s.")
+                state["status"] = "PACING"
+                state["last_message"] = f"Pacing safe interval: next capacity check in {rem_sec // 60}m {rem_sec % 60}s (preventing 429)"
+                save_state(state)
+                sys.exit(0)
+        except Exception:
+            pass
+
     # 6. Trigger New Apply Job
     try:
         from oci.resource_manager.models import CreateJobDetails, CreateApplyJobOperationDetails
@@ -336,6 +365,7 @@ def run():
         state["total_attempts"] += 1
         state["attempts_today"] += 1
         state["last_attempt_at"] = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+        state["last_job_created_at"] = now.isoformat()
         state["last_job_ocid"] = new_job.id
         state["last_created_job_ocid"] = new_job.id
         state["consecutive_rate_limits"] = 0
@@ -386,7 +416,7 @@ def run():
                     <tr><td style="color: #888; padding: 6px 0;">Last Attempt:</td><td style="color: #aaa;">{state.get('last_attempt_at', 'N/A')}</td></tr>
                 </table>
                 <div style="background-color: #121418; border-left: 3px solid #f59e0b; padding: 12px; font-size: 12px; color: #c5c6c7;">
-                    The lean runner continues every 5 minutes. You will receive an immediate notification as soon as an instance is successfully provisioned.
+                    The lean runner continues every 5 minutes with proactive OCI rate pacing. You will receive an immediate notification as soon as an instance is successfully provisioned.
                 </div>
             </div>
             """

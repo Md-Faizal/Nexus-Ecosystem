@@ -98,6 +98,7 @@ export default function OciProvisionerCard() {
   const isAuthError = data.status === 'AUTH_ERROR';
   const isInProgress = data.status === 'JOB_IN_PROGRESS';
   const isRateLimit = data.status === 'RATE_LIMIT';
+  const isPacing = data.status === 'PACING';
 
   const badgeColor = isAllocated
     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
@@ -105,6 +106,8 @@ export default function OciProvisionerCard() {
     ? 'bg-red-500/20 text-red-400 border-red-500/30'
     : isRateLimit
     ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+    : isPacing
+    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
     : isInProgress
     ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
     : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
@@ -115,6 +118,8 @@ export default function OciProvisionerCard() {
     ? 'AUTH REQUIRED ⚠️'
     : isRateLimit
     ? 'RATE LIMIT COOLDOWN ⏳'
+    : isPacing
+    ? 'PACING SAFE INTERVAL ⏱️'
     : isInProgress
     ? 'APPLY IN PROGRESS'
     : 'SEARCHING CAPACITY';
@@ -261,6 +266,8 @@ export default function OciProvisionerCard() {
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : att.status === 'TRIGGERED'
                         ? 'bg-blue-500/20 text-blue-400'
+                        : att.status === 'PACING'
+                        ? 'bg-cyan-500/20 text-cyan-400'
                         : att.status === 'FAILED'
                         ? 'bg-amber-500/20 text-amber-400'
                         : att.status === 'RATE_LIMIT'
