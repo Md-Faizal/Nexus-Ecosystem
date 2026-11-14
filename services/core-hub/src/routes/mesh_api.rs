@@ -1555,10 +1555,9 @@ pub async fn download_snapshot(
 
     let bytes = tokio::fs::read(file_path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut response = Response::new(bytes.into());
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_TYPE,
-        axum::http::HeaderValue::from_static("application/octet-stream"),
-    );
-    Ok(response)
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
+        bytes,
+    ).into_response())
 }
