@@ -1375,7 +1375,7 @@ pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<Candidat
     scores
 }
 
-pub fn start_spool_retry_worker(state: Arc<AppStateInner>) {
+pub fn start_spool_retry_worker(state: SharedState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(45));
         loop {
