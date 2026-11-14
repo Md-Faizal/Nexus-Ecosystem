@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod db;
 pub mod health;
+pub mod mail_gateway;
 pub mod mailer;
 pub mod middleware;
 pub mod models;
@@ -38,6 +39,12 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
 
     // Spawn 24h health report background cron
     tokio::spawn(health::run_scheduled_reporter(config.clone(), db.clone()));
+
+    // Spawn Tier-2 Doomsday Local SMTP Ingress Gateway for Stalwart Mail Relay
+    let gateway_state = state.clone();
+    tokio::spawn(async move {
+        mail_gateway::start_local_smtp_ingress("127.0.0.1:2525", gateway_state).await;
+    });
 
     // Admin protected sub-router
     let admin_routes = Router::new()

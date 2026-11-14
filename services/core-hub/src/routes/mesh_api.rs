@@ -1445,6 +1445,11 @@ pub async fn get_mail_relay_status(State(state): State<SharedState>) -> Json<ser
                 "protocol": "STARTTLS (Port 587)"
             }
         },
+        "mail_gateway": {
+            "address": "127.0.0.1:2525",
+            "status": "active_listening",
+            "stalwart_integration": "active_tier2_fallback"
+        },
         "spool_queue": {
             "pending": pending,
             "sent": sent,

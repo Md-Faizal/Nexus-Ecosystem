@@ -452,6 +452,23 @@ export default function SettingsTab({
           </div>
         </div>
 
+        {/* Stalwart Mail Server Autoconfig Bridge */}
+        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-[#89ff00]"></span>
+            <div>
+              <span className="text-white font-semibold">Stalwart Mail Server Bridge: </span>
+              <span className="text-neutral-300">mail.faizal.uk (Port 587/465 Autoconfig)</span>
+              <div className="text-[10px] text-neutral-400 mt-0.5">
+                Phone & desktop client submissions route automatically: Resend (Tier 1A) → Brevo (Tier 1B) → Mesh Ingress (127.0.0.1:2525)
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] px-2.5 py-1 rounded-full bg-[#89ff00]/10 text-[#89ff00] border border-[#89ff00]/30 font-bold uppercase self-start sm:self-auto">
+            Connected & Cascading
+          </span>
+        </div>
+
         {/* Test Delivery Probe */}
         <form onSubmit={handleTestEmail} className="pt-2 border-t border-white/5 space-y-2">
           <div className="text-xs font-mono text-neutral-300">
