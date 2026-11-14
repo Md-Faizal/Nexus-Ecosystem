@@ -760,7 +760,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Ok(())
         }
 
         Some(Commands::Service { action }) => match action {
