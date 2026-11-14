@@ -219,6 +219,38 @@ enum Commands {
         #[command(subcommand)]
         action: AuthCommands,
     },
+
+    /// Manage Edge Survivor role (Doomsday failsafe upholding macOS, Hub, and Mail locally)
+    Survivor {
+        #[command(subcommand)]
+        action: SurvivorCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum SurvivorCommands {
+    /// Opt this local workstation into upholding the cluster
+    OptIn {
+        /// Keep local Docker containers warm in the background
+        #[arg(long)]
+        hot_standby: bool,
+
+        /// Optional Cloudflare Tunnel token
+        #[arg(long)]
+        token: Option<String>,
+    },
+
+    /// Opt out of upholding the cluster
+    OptOut,
+
+    /// Show current survivor role, mirrored database sizes, and sync age
+    Status,
+
+    /// Force an immediate database snapshot sync from the cloud hub
+    Sync,
+
+    /// Run a dry-run test spin-up of local survivor containers
+    Test,
 }
 
 #[derive(Subcommand)]
@@ -662,6 +694,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Auth { action }) => {
             handle_auth_command(&mut config, action).await?;
         }
+
+        Some(Commands::Survivor { action }) => match action {
+            SurvivorCommands::OptIn { hot_standby, token } => {
+                let mut cfg = modules::survivor::SurvivorSupervisor::load_config();
+                cfg.opt_in = true;
+                cfg.hot_standby = hot_standby;
+                if let Some(tok) = token {
+                    cfg.cloudflared_token = Some(tok);
+                }
+                modules::survivor::SurvivorSupervisor::save_config(&cfg).map_err(|e| e)?;
+                println!("\x1b[1;32m✓ This workstation is now OPTED IN as an Edge Survivor node.\x1b[0m");
+                if hot_standby {
+                    println!("  Mode: Hot-Standby (Spinning up warm local Docker containers...)");
+                    let _ = modules::survivor::SurvivorSupervisor::start_local_survivor_stack();
+                } else {
+                    println!("  Mode: On-Demand (Containers will spin up in < 5s if all cloud VMs fail).");
+                }
+            }
+            SurvivorCommands::OptOut => {
+                let mut cfg = modules::survivor::SurvivorSupervisor::load_config();
+                cfg.opt_in = false;
+                cfg.hot_standby = false;
+                modules::survivor::SurvivorSupervisor::save_config(&cfg).map_err(|e| e)?;
+                let _ = modules::survivor::SurvivorSupervisor::stop_local_survivor_stack();
+                println!("\x1b[1;33m✓ This workstation has OPTED OUT of the Edge Survivor role.\x1b[0m");
+            }
+            SurvivorCommands::Status => {
+                let st = modules::survivor::SurvivorSupervisor::get_status();
+                println!("\x1b[1;36m============================================================\x1b[0m");
+                println!("\x1b[1;37m   NEXUS EDGE SURVIVOR NODE TELEMETRY\x1b[0m");
+                println!("\x1b[1;36m============================================================\x1b[0m");
+                let role_badge = if st.opt_in {
+                    if st.hot_standby { "\x1b[1;32m[OPTED-IN : HOT STANDBY]\x1b[0m" } else { "\x1b[1;32m[OPTED-IN : ON DEMAND]\x1b[0m" }
+                } else {
+                    "\x1b[1;30m[OPTED-OUT]\x1b[0m"
+                };
+                println!("   Survivor Role:        {}", role_badge);
+                println!("   Docker Engine Ready:  {}", if st.docker_ready { "\x1b[1;32m[YES]\x1b[0m" } else { "\x1b[1;31m[NO (Docker not running)]\x1b[0m" });
+                println!("   MacOS.db Mirrored:    {:.2} MB", st.macos_db_size_bytes as f64 / 1_048_576.0);
+                println!("   messages.db Mirrored: {:.2} KB", st.messages_db_size_bytes as f64 / 1_024.0);
+                println!("   Stalwart Mail Config: {}", if st.stalwart_config_ready { "\x1b[1;32m[READY]\x1b[0m" } else { "\x1b[1;33m[PENDING SYNC]\x1b[0m" });
+                if let Some(secs) = st.last_synced_secs_ago {
+                    println!("   Last Hub Sync:        {}s ago", secs);
+                } else {
+                    println!("   Last Hub Sync:        Never (run 'nexus survivor sync')");
+                }
+                println!("\x1b[1;36m============================================================\x1b[0m");
+            }
+            SurvivorCommands::Sync => {
+                let hub_url = config.hubs.first().cloned().unwrap_or_else(|| "wss://faizal.uk/api/mesh/ws".into());
+                let pin = config.effective_pin().unwrap_or_default();
+                println!("Initiating live snapshot synchronization from hub: {}...", hub_url);
+                match modules::survivor::SurvivorSupervisor::sync_from_hub(&hub_url, &pin).await {
+                    Ok(msg) => println!("\x1b[1;32m✓ {}\x1b[0m", msg),
+                    Err(e) => eprintln!("\x1b[1;31m✗ Sync failed: {}\x1b[0m", e),
+                }
+            }
+            SurvivorCommands::Test => {
+                println!("\x1b[1;36mRunning dry-run survivor drill...\x1b[0m");
+                match modules::survivor::SurvivorSupervisor::start_local_survivor_stack() {
+                    Ok(_) => println!("\x1b[1;32m✓ Local Docker survivor stack spin-up test PASSED.\x1b[0m"),
+                    Err(e) => eprintln!("\x1b[1;31m✗ Local Docker test failed: {}\x1b[0m", e),
+                }
+            }
+        },
 
         Some(Commands::Service { action }) => match action {
             ServiceCommands::Install { user } => {

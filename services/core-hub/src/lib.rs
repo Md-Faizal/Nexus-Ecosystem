@@ -96,6 +96,7 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         .route("/fleet/ai/conversations/:id", delete(routes::mesh_api::delete_ai_conversation))
         .route("/fleet/mail-relay/status", get(routes::mesh_api::get_mail_relay_status))
         .route("/fleet/mail-relay/drain", post(routes::mesh_api::trigger_mail_spool_drain))
+        .route("/snapshot/:db_name", get(routes::mesh_api::download_snapshot))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::require_admin_middleware,

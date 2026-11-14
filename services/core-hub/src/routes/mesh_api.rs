@@ -1530,3 +1530,35 @@ fn map_crash_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<serde_json::Value>
         "received_at": row.get::<_, Option<String>>(14)?,
     }))
 }
+
+pub async fn download_snapshot(
+    Path(db_name): Path<String>,
+) -> Result<Response, StatusCode> {
+    let sanitized = db_name.trim();
+    let file_path = match sanitized {
+        "messages.db" => {
+            if std::path::Path::new("/app/messages.db").exists() {
+                "/app/messages.db"
+            } else {
+                "/home/ubuntu/stack/apps/personal-site/backend/messages.db"
+            }
+        }
+        "MacOS.db" => {
+            if std::path::Path::new("/home/ubuntu/MacOS-Production/database/MacOS.db").exists() {
+                "/home/ubuntu/MacOS-Production/database/MacOS.db"
+            } else {
+                "/app/database/MacOS.db"
+            }
+        }
+        _ => return Err(StatusCode::NOT_FOUND),
+    };
+
+    let bytes = tokio::fs::read(file_path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut response = Response::new(bytes.into());
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("application/octet-stream"),
+    );
+    Ok(response)
+}

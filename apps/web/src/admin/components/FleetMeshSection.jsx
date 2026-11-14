@@ -335,6 +335,12 @@ export default function FleetMeshSection() {
                         Relay Carrier
                       </span>
                     )}
+                    {isOnline && (node?.telemetry?.survivor_opt_in || node?.node_id?.toLowerCase().includes('potato')) && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30" title="Tier-4 Edge Survivor (Doomsday Failsafe)">
+                        <Layers className="w-3 h-3" />
+                        Survivor Node
+                      </span>
+                    )}
                     <button
                       onClick={() => setFeatureModalNode(node)}
                       className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer"

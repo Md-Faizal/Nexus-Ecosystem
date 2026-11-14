@@ -379,6 +379,7 @@ pub enum SettingsTab {
     Mesh,
     Telemetry,
     Ai,
+    Survivor,
 }
 
 impl GuiState {

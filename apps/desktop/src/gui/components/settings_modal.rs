@@ -77,6 +77,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                     (SettingsTab::Mesh, "Mesh & Hub"),
                     (SettingsTab::Telemetry, "Telemetry"),
                     (SettingsTab::Ai, "AI Engine"),
+                    (SettingsTab::Survivor, "🛡️ Survivor"),
                 ] {
                     let active = state.settings_tab == tab;
                     let resp = ui.add(
@@ -190,6 +191,56 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                             "Expose local Ollama models to the Nexus Fleet mesh",
                             &mut state.pref_ai_relay,
                         );
+                    }
+                    SettingsTab::Survivor => {
+                        ui.label(
+                            egui::RichText::new("LOCAL EDGE SURVIVOR (DOOMSDAY FAILSAFE)")
+                                .font(FontId::monospace(10.0))
+                                .color(TEXT_3),
+                        );
+                        ui.add_space(4.0);
+                        let mut survivor_cfg = crate::modules::survivor::SurvivorSupervisor::load_config();
+                        let mut opt_in = survivor_cfg.opt_in;
+                        render_toggle_row(
+                            ui,
+                            "Opt-In Cluster Survivor Node",
+                            "Uphold macOS, Nexus Hub & Mail if all cloud VMs fail",
+                            &mut opt_in,
+                        );
+                        if opt_in != survivor_cfg.opt_in {
+                            survivor_cfg.opt_in = opt_in;
+                            let _ = crate::modules::survivor::SurvivorSupervisor::save_config(&survivor_cfg);
+                        }
+                        ui.add_space(8.0);
+                        let mut hot_standby = survivor_cfg.hot_standby;
+                        render_toggle_row(
+                            ui,
+                            "Hot Standby Mode",
+                            "Keep local Docker containers warm (instant cutover)",
+                            &mut hot_standby,
+                        );
+                        if hot_standby != survivor_cfg.hot_standby {
+                            survivor_cfg.hot_standby = hot_standby;
+                            let _ = crate::modules::survivor::SurvivorSupervisor::save_config(&survivor_cfg);
+                        }
+                        ui.add_space(10.0);
+                        let status = crate::modules::survivor::SurvivorSupervisor::get_status();
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "Mirrored Data: MacOS.db ({:.1} MB), messages.db ({:.1} KB)",
+                                status.macos_db_size_bytes as f64 / 1_048_576.0,
+                                status.messages_db_size_bytes as f64 / 1_024.0
+                            ))
+                            .font(FontId::monospace(10.0))
+                            .color(ACCENT_GREEN),
+                        );
+                        if let Some(secs) = status.last_synced_secs_ago {
+                            ui.label(
+                                egui::RichText::new(format!("Last Synced: {}s ago", secs))
+                                    .font(FontId::monospace(9.0))
+                                    .color(TEXT_3),
+                            );
+                        }
                     }
                 });
 
