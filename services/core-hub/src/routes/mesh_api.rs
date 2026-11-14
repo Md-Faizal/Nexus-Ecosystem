@@ -1531,7 +1531,6 @@ fn map_crash_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<serde_json::Value>
     }))
 }
 
-/// Stream verified transactional SQLite database snapshots to Edge Survivor nodes
 pub async fn download_snapshot(
     Path(db_name): Path<String>,
 ) -> Result<Response, StatusCode> {
