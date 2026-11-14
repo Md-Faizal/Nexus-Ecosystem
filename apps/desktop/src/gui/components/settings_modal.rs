@@ -232,7 +232,7 @@ pub fn render_settings_modal(ctx: &egui::Context, state: &mut GuiState) {
                                 status.messages_db_size_bytes as f64 / 1_024.0
                             ))
                             .font(FontId::monospace(10.0))
-                            .color(ACCENT_GREEN),
+                            .color(ACCENT_EMERALD),
                         );
                         if let Some(secs) = status.last_synced_secs_ago {
                             ui.label(
