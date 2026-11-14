@@ -1,11 +1,11 @@
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
-
 fn main() {
     #[cfg(windows)]
     {
+        use std::env;
+        use std::fs;
+        use std::path::PathBuf;
+        use std::process::Command;
+
         let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         let resources_dir = manifest_dir.join("resources");
         let rc_file = resources_dir.join("app.rc");

@@ -18,7 +18,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, RwLock};
-use tracing::info;
+use tracing::{error, info, warn};
 
 // ─── Fleet Node Session ──────────────────────────────────────────────────────
 
