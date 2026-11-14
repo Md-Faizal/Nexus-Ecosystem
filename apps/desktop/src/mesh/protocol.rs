@@ -90,6 +90,20 @@ pub enum MeshMessage {
 
     // ─── Crash Record Telemetry ───
     CrashReport(CrashReportPayload),
+
+    // ─── Out-of-Band Mail Relay & Doomsday Drain ───
+    MailDispatchTask {
+        task_id: String,
+        recipient: String,
+        subject: String,
+        html_body: String,
+        text_body: Option<String>,
+    },
+    MailDispatchAck {
+        task_id: String,
+        success: bool,
+        error: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

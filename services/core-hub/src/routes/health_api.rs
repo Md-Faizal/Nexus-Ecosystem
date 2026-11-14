@@ -607,10 +607,11 @@ pub async fn test_email(
         .await
         .unwrap_or_else(|| "me@faizal.uk".into());
 
-    let subject = "Test Email from Personal Site (Rust Backend)";
-    let body = r#"<div style="font-family:sans-serif;padding:20px;background:#0b0b0c;color:#fff;">
-        <h2 style="color:#d4af37">Test Email Successful!</h2>
-        <p>Your Rust Axum server and Brevo SMTP relay are operating flawlessly.</p>
+    let subject = "Nexus Fleet Mail Resilience Probe (Tier 1 & 2)";
+    let body = r#"<div style="font-family:sans-serif;padding:24px;background:#0d0e12;color:#f3f4f6;border-radius:12px;border:1px solid #262626;">
+        <h2 style="color:#89ff00;margin-top:0;">⚡ Nexus Fleet Mail Delivery Verified</h2>
+        <p>Your Rust Axum server resilient mail cascade (Resend Cloud API / Brevo Relay / Doomsday Mesh Spool) is operating with full failover protection.</p>
+        <p style="font-size:12px;color:#888;">Dispatched via Nexus Fleet Resilient Dispatcher</p>
     </div>"#.to_string();
 
     match send_report_email(&state.config, &state.db, &recipient, subject, body).await {

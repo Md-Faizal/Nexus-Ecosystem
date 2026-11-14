@@ -61,10 +61,9 @@ pub async fn require_admin_middleware(
     req: Request,
     next: Next,
 ) -> Response {
-    let pin_from_header = req
+    let auth_header = req
         .headers()
         .get("authorization")
-        .or_else(|| req.headers().get("x-admin-pin"))
         .and_then(|v| v.to_str().ok())
         .map(|s| {
             let trimmed = s.trim();
@@ -75,14 +74,68 @@ pub async fn require_admin_middleware(
             }
         });
 
-    let pin_from_query = req.uri().query().and_then(|q| {
-        q.split('&')
-            .find(|pair| pair.starts_with("pin="))
-            .map(|pair| pair.trim_start_matches("pin=").to_string())
-    });
+    let raw_token = auth_header
+        .or_else(|| {
+            req.headers()
+                .get("x-admin-pin")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+        .or_else(|| {
+            req.uri().query().and_then(|q| {
+                q.split('&')
+                    .find(|pair| pair.starts_with("pin="))
+                    .map(|pair| pair.trim_start_matches("pin=").to_string())
+            })
+        })
+        .unwrap_or_default();
 
-    let pin = pin_from_header.or(pin_from_query).unwrap_or_default();
+    // 1. Check for Machine Personal Access Token (PAT)
+    if raw_token.starts_with("nex_live_") {
+        let token_hash = crate::auth::crypto::sha256_hash(&raw_token);
+        let conn = state.db.lock().await;
+        let is_valid: bool = conn
+            .query_row(
+                r#"
+                SELECT 1 FROM api_tokens t
+                JOIN users u ON u.id = t.user_id
+                WHERE t.token_hash = ?1 
+                  AND u.status = 'active'
+                  AND (u.role = 'owner' OR u.role = 'admin')
+                  AND (t.expires_at IS NULL OR t.expires_at > CURRENT_TIMESTAMP)
+                "#,
+                rusqlite::params![token_hash],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
 
+        if is_valid {
+            let _ = conn.execute(
+                "UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = ?1",
+                rusqlite::params![token_hash],
+            );
+            return next.run(req).await;
+        }
+    }
+
+    // 2. Check for Modern Signed JWT Session Token
+    let jwt_secret = state.config.admin_pin.as_bytes();
+    if let Ok(claims) = crate::auth::crypto::verify_jwt(&raw_token, jwt_secret) {
+        let conn = state.db.lock().await;
+        let is_admin: bool = conn
+            .query_row(
+                "SELECT 1 FROM users WHERE id = ?1 AND status = 'active' AND token_version = ?2 AND (role = 'owner' OR role = 'admin')",
+                rusqlite::params![claims.sub, claims.token_version],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if is_admin {
+            return next.run(req).await;
+        }
+    }
+
+    // 3. Backward Compatibility Fallback: Legacy 4-digit PIN
     let conn = state.db.lock().await;
     let effective_pin: String = conn
         .query_row(
@@ -93,14 +146,14 @@ pub async fn require_admin_middleware(
         .unwrap_or_else(|_| state.config.admin_pin.clone());
     drop(conn);
 
-    if pin == effective_pin {
+    if !raw_token.is_empty() && raw_token == effective_pin {
         next.run(req).await
     } else {
         (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({
                 "success": false,
-                "error": "Unauthorized. Invalid PIN."
+                "error": "Unauthorized. Valid Nexus session token or admin credential required."
             })),
         )
             .into_response()

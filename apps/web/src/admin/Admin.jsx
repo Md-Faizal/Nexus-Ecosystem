@@ -231,14 +231,14 @@ export default function Admin({ onExit }) {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const getPin = () => {
-    return localStorage.getItem('faizal_admin_pin') || '2004';
+  const getAuthToken = () => {
+    return localStorage.getItem('nexus_auth_token') || localStorage.getItem('faizal_admin_pin') || '2004';
   };
 
   const fetchWithAuth = useCallback(async (url, options = {}) => {
-    const pin = getPin();
+    const token = getAuthToken();
     const headers = {
-      'Authorization': pin,
+      'Authorization': (token.startsWith('eyJ') || token.startsWith('nex_live_')) ? `Bearer ${token}` : token,
       ...(options.headers || {})
     };
     return fetch(url, { ...options, headers });
@@ -698,6 +698,8 @@ export default function Admin({ onExit }) {
           bannedIps={bannedIps}
           onBanIp={handleBanIp}
           onUnbanIp={handleUnbanIp}
+          fetchWithAuth={fetchWithAuth}
+          showToast={showToast}
         />
       )}
 
@@ -706,6 +708,7 @@ export default function Admin({ onExit }) {
           siteTheme={siteTheme}
           onThemeChange={handleThemeChange}
           onSendTestEmail={handleSendTestEmail}
+          fetchWithAuth={fetchWithAuth}
           showToast={showToast}
         />
       )}

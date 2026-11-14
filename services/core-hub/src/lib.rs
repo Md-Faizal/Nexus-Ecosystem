@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod config;
 pub mod db;
 pub mod health;
@@ -83,6 +84,8 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         .route("/fleet/ai/conversations", get(routes::mesh_api::list_ai_conversations).post(routes::mesh_api::create_ai_conversation))
         .route("/fleet/ai/conversations/:id/messages", get(routes::mesh_api::get_ai_conversation_messages).post(routes::mesh_api::send_ai_conversation_message))
         .route("/fleet/ai/conversations/:id", delete(routes::mesh_api::delete_ai_conversation))
+        .route("/fleet/mail-relay/status", get(routes::mesh_api::get_mail_relay_status))
+        .route("/fleet/mail-relay/drain", post(routes::mesh_api::trigger_mail_spool_drain))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::require_admin_middleware,
@@ -90,6 +93,7 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
 
     // Public API sub-router
     let api_routes = Router::new()
+        .nest("/auth", auth::auth_router())
         .route("/projects", get(routes::projects::list_projects))
         .route("/project-image/:id", get(routes::projects::get_project_image))
         .route("/profile-pic", get(routes::profile::get_current_profile_pic))

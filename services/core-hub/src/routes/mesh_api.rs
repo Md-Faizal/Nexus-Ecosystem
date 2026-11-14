@@ -188,6 +188,12 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                                     fitness: None,
                                 },
                             );
+
+                            // Anticipation Hook: Node connected, attempt immediate mail spool drain
+                            let state_drain = state.clone();
+                            tokio::spawn(async move {
+                                drain_spool_to_best_node(&state_drain).await;
+                            });
                         }
 
                         "heartbeat" => {
@@ -253,6 +259,26 @@ async fn handle_node_connection(socket: WebSocket, state: SharedState) {
                                 if let Some(sender) = pending.remove(&ack.command_id) {
                                     let _ = sender.send(ack);
                                 }
+                            }
+                        }
+
+                        "mail_dispatch_ack" => {
+                            let task_id = payload.get("task_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            let success = payload.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                            let error_msg = payload.get("error").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            if !task_id.is_empty() {
+                                let db = state.db.clone();
+                                let nid = node_id.clone();
+                                tokio::spawn(async move {
+                                    if success {
+                                        info!("Mail task {} successfully dispatched by node {}", task_id, nid);
+                                        let _ = crate::db::mark_mail_spool_sent(&db, &task_id, &nid).await;
+                                    } else {
+                                        let err = error_msg.unwrap_or_else(|| "Local worker reported failure".into());
+                                        error!("Mail task {} failed on node {}: {}", task_id, nid, err);
+                                        let _ = crate::db::mark_mail_spool_failed(&db, &task_id, &err).await;
+                                    }
+                                });
                             }
                         }
 
@@ -1247,6 +1273,184 @@ pub async fn get_mesh_crashes(
     Json(serde_json::json!({
         "crashes": crashes,
         "total": total
+    }))
+}
+
+// ─── Doomsday Mesh Mail Relay Selection & Drain Engine ────────────────────────
+
+#[derive(Serialize)]
+pub struct CandidateNodeScore {
+    pub node_id: String,
+    pub hostname: String,
+    pub score: f32,
+    pub connection_score: f32,
+    pub fitness_score: f32,
+    pub history_score: f32,
+    pub last_seen_secs: u64,
+}
+
+pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<CandidateNodeScore> {
+    let sessions = state.fleet.sessions.read().await;
+    let mut scores = Vec::new();
+
+    for (node_id, session) in sessions.iter() {
+        let has_capability = session.features.get("mail_relay").copied().unwrap_or(false)
+            || session.features.get("local_agent").copied().unwrap_or(false)
+            || !session.hostname.is_empty();
+
+        if !has_capability {
+            continue;
+        }
+
+        let elapsed = session.last_seen.elapsed().as_secs();
+        if elapsed > 45 {
+            continue;
+        }
+
+        // 1. Connection freshness (35%)
+        let s_conn = ((45.0 - elapsed as f32) / 45.0 * 100.0).clamp(0.0, 100.0);
+
+        // 2. Hardware fitness (30%)
+        let s_fit = if let Some(ref tel) = session.latest_telemetry {
+            let cpu = tel.get("cpu").and_then(|c| c.get("usage_pct")).and_then(|v| v.as_f64()).unwrap_or(15.0) as f32;
+            let mem = tel.get("memory");
+            let free_pct = if let Some(m) = mem {
+                let total = m.get("total_mb").and_then(|v| v.as_f64()).unwrap_or(8000.0) as f32;
+                let used = m.get("used_mb").and_then(|v| v.as_f64()).unwrap_or(4000.0) as f32;
+                if total > 0.0 { ((total - used) / total * 100.0).clamp(0.0, 100.0) } else { 50.0 }
+            } else {
+                50.0
+            };
+            (100.0 - cpu).clamp(0.0, 100.0) * 0.5 + free_pct * 0.5
+        } else {
+            75.0
+        };
+
+        // 3. Historical delivery track record from SQLite (25%)
+        let s_hist = crate::db::get_node_relay_success_rate(&state.db, node_id).await;
+
+        let total_score = 0.35 * s_conn + 0.30 * s_fit + 0.25 * s_hist;
+
+        scores.push(CandidateNodeScore {
+            node_id: node_id.clone(),
+            hostname: session.hostname.clone(),
+            score: (total_score * 10.0).round() / 10.0,
+            connection_score: (s_conn * 10.0).round() / 10.0,
+            fitness_score: (s_fit * 10.0).round() / 10.0,
+            history_score: (s_hist * 10.0).round() / 10.0,
+            last_seen_secs: elapsed,
+        });
+    }
+
+    scores.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    scores
+}
+
+pub async fn drain_spool_to_best_node(state: &SharedState) -> usize {
+    let pending_items = match crate::db::get_pending_spool(&state.db, 10).await {
+        Ok(items) => items,
+        Err(_) => return 0,
+    };
+
+    if pending_items.is_empty() {
+        return 0;
+    }
+
+    let candidates = compute_candidate_relay_scores(state).await;
+    let best = match candidates.first() {
+        Some(b) => b,
+        None => {
+            warn!("Mail Spool Drain: No online node eligible for relaying. Messages stay buffered.");
+            return 0;
+        }
+    };
+
+    let sessions = state.fleet.sessions.read().await;
+    let tx = match sessions.get(&best.node_id) {
+        Some(s) => s.ws_tx.clone(),
+        None => return 0,
+    };
+    drop(sessions);
+
+    info!(
+        "Mail Spool Drain: Selected optimal node '{}' ({}) with Relay Affinity Score {:.1} for {} message(s)",
+        best.node_id, best.hostname, best.score, pending_items.len()
+    );
+
+    let mut dispatched = 0;
+    for item in pending_items {
+        let frame = serde_json::json!({
+            "frame_id": 0,
+            "node_id": "hub",
+            "timestamp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
+            "msg": {
+                "type": "mail_dispatch_task",
+                "payload": {
+                    "task_id": item.id,
+                    "recipient": item.recipient,
+                    "subject": item.subject,
+                    "html_body": item.html_body,
+                    "text_body": item.text_body
+                }
+            }
+        });
+
+        if tx.send(frame.to_string()).await.is_ok() {
+            let _ = crate::db::mark_mail_spool_relaying(&state.db, &item.id, &best.node_id).await;
+            dispatched += 1;
+        }
+    }
+
+    dispatched
+}
+
+pub async fn get_mail_relay_status(State(state): State<SharedState>) -> Json<serde_json::Value> {
+    let (pending, sent, failed) = crate::db::get_spool_stats(&state.db).await;
+    let candidates = compute_candidate_relay_scores(&state).await;
+
+    let resend_key = if !state.config.resend_api_key.trim().is_empty() {
+        Some("configured (env)".to_string())
+    } else {
+        crate::db::get_setting(&state.db, "resend_api_key")
+            .await
+            .filter(|k| !k.trim().is_empty())
+            .map(|_| "configured (db)".to_string())
+    };
+
+    let brevo_host = &state.config.smtp_host;
+    let brevo_user = &state.config.smtp_user;
+
+    Json(serde_json::json!({
+        "success": true,
+        "cloud_tier": {
+            "resend": {
+                "status": if resend_key.is_some() { "active_primary" } else { "unconfigured" },
+                "configured": resend_key.is_some(),
+                "details": resend_key.unwrap_or_else(|| "Set RESEND_API_KEY in settings".into()),
+                "protocol": "HTTPS REST (Port 443)"
+            },
+            "brevo": {
+                "status": "standby_failover",
+                "host": brevo_host,
+                "user": brevo_user,
+                "protocol": "STARTTLS (Port 587)"
+            }
+        },
+        "spool_queue": {
+            "pending": pending,
+            "sent": sent,
+            "failed": failed
+        },
+        "mesh_nodes": candidates,
+        "optimal_node": candidates.first().map(|c| c.node_id.clone())
+    }))
+}
+
+pub async fn trigger_mail_spool_drain(State(state): State<SharedState>) -> Json<serde_json::Value> {
+    let count = drain_spool_to_best_node(&state).await;
+    Json(serde_json::json!({
+        "success": true,
+        "dispatched_count": count
     }))
 }
 

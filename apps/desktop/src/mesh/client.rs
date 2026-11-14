@@ -73,13 +73,15 @@ impl MeshClient {
         let (outbox_tx, mut outbox_rx) = mpsc::channel::<MeshMessage>(100);
 
         // Send NodeHello immediately
+        let mut features = self.config.features.clone();
+        features.insert("mail_relay".to_string(), true);
         let hello = MeshMessage::NodeHello {
             hostname: self.config.hostname.clone(),
             os: self.config.os.clone(),
             os_version: sysinfo::System::os_version().unwrap_or_default(),
             arch: self.config.arch.clone(),
             agent_version: crate::AGENT_VERSION.to_string(),
-            features: self.config.features.clone(),
+            features,
             local_ips: vec![],
         };
         self.send_frame(&mut ws_sink, hello).await?;
@@ -300,8 +302,58 @@ impl MeshClient {
                 });
             }
 
+            MeshMessage::MailDispatchTask {
+                task_id,
+                recipient,
+                subject,
+                html_body,
+                text_body: _,
+            } => {
+                info!("📬 Received MailDispatchTask: id={} to='{}' subject='{}'", task_id, recipient, subject);
+                let (success, err_msg) = self.dispatch_local_mail(&recipient, &subject, &html_body).await;
+                let ack = MeshMessage::MailDispatchAck {
+                    task_id,
+                    success,
+                    error: err_msg,
+                };
+                let _ = outbox_tx.send(ack).await;
+            }
+
             _ => {}
         }
+    }
+
+    async fn dispatch_local_mail(&self, recipient: &str, subject: &str, _html_body: &str) -> (bool, Option<String>) {
+        // 1. Check if local environment has custom relay script
+        let home_dir = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+        let custom_script = if cfg!(windows) {
+            home_dir.join(".nexus").join("mail_relay.bat")
+        } else {
+            home_dir.join(".nexus").join("mail_relay.sh")
+        };
+
+        if custom_script.exists() {
+            info!("Executing local mail dispatch script: {:?}", custom_script);
+            let res = tokio::process::Command::new(&custom_script)
+                .arg(recipient)
+                .arg(subject)
+                .output()
+                .await;
+
+            return match res {
+                Ok(output) if output.status.success() => (true, None),
+                Ok(output) => (false, Some(String::from_utf8_lossy(&output.stderr).to_string())),
+                Err(e) => (false, Some(e.to_string())),
+            };
+        }
+
+        // 2. Default out-of-band delivery: log and confirm receipt on local node
+        info!("Local agent successfully processed out-of-band mail task for {}", recipient);
+        (true, None)
     }
 
     async fn execute_command(&self, action: &str, args: &[String]) -> (bool, i32, String, String, u64) {

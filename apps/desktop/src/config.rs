@@ -47,6 +47,7 @@ impl Default for AgentConfig {
         features.insert("ai_bridge".to_string(), true);
         features.insert("docker".to_string(), true);
         features.insert("auto_update".to_string(), true);
+        features.insert("mail_relay".to_string(), true);
 
         Self {
             node_id,

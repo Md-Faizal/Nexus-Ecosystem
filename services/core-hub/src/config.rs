@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub smtp_tls: String,
     pub sender_name: String,
     pub sender_email: String,
+    // ── Resend Cloud ESMTP / API (Port 443 HTTPS bypasses OCI/GCP port 25 block) ─
+    pub resend_api_key: String,
     // ── Cluster Topology & Role ──────────────────────────────────────────────
     pub node_role: String,
     pub node_name: String,
@@ -122,6 +124,8 @@ impl AppConfig {
                 .unwrap_or_else(|_| "Faizal VM Health Monitor".into()),
             sender_email: std::env::var("SENDER_EMAIL")
                 .unwrap_or_else(|_| "reports@faizal.uk".into()),
+            resend_api_key: std::env::var("RESEND_API_KEY")
+                .unwrap_or_default(),
             node_role,
             node_name,
         }

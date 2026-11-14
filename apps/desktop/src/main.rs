@@ -213,6 +213,12 @@ enum Commands {
         #[command(subcommand)]
         action: McCommands,
     },
+
+    /// Manage Nexus Identity authentication (login, logout, status)
+    Auth {
+        #[command(subcommand)]
+        action: AuthCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -246,6 +252,20 @@ enum TunnelCommands {
         #[arg(short, long)]
         token: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+pub enum AuthCommands {
+    /// Sign in to Nexus Identity via RFC 8628 device authorization or PAT
+    Login {
+        /// Optional Personal Access Token (nex_live_...) to set directly
+        #[arg(long)]
+        token: Option<String>,
+    },
+    /// Show current authenticated user session or token status
+    Status,
+    /// Revoke and log out of the current Nexus session
+    Logout,
 }
 
 #[derive(Subcommand)]
@@ -637,6 +657,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Some(Commands::Health) => {
             modules::cluster_ops::ClusterOps::print_health_report(&primary_hub, admin_pin.as_deref()).await;
+        }
+
+        Some(Commands::Auth { action }) => {
+            handle_auth_command(&mut config, action).await?;
         }
 
         Some(Commands::Service { action }) => match action {
@@ -1438,4 +1462,127 @@ fn dirs_next_or_home() -> Option<std::path::PathBuf> {
     {
         std::env::var("HOME").ok().map(std::path::PathBuf::from)
     }
+}
+
+async fn handle_auth_command(
+    config: &mut AgentConfig,
+    action: AuthCommands,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let api_base = if let Some(first_hub) = config.hubs.first() {
+        if first_hub.starts_with("wss://") {
+            format!("https://{}", &first_hub[6..].split('/').next().unwrap_or("faizal.uk"))
+        } else if first_hub.starts_with("ws://") {
+            format!("http://{}", &first_hub[5..].split('/').next().unwrap_or("localhost:3002"))
+        } else {
+            "https://faizal.uk".to_string()
+        }
+    } else {
+        "https://faizal.uk".to_string()
+    };
+
+    match action {
+        AuthCommands::Login { token } => {
+            if let Some(tok) = token {
+                config.token = Some(tok.trim().to_string());
+                config.save()?;
+                println!("\x1b[32m✓ Token successfully persisted in Nexus Agent configuration.\x1b[0m");
+                return Ok(());
+            }
+
+            println!("\x1b[1;36m============================================================\x1b[0m");
+            println!("\x1b[1;36m🌌 Nexus Identity Device Authorization (RFC 8628)\x1b[0m");
+            println!("\x1b[1;36m============================================================\x1b[0m");
+
+            let res = client
+                .post(format!("{}/api/auth/device/code", api_base))
+                .json(&serde_json::json!({
+                    "client_id": "nexus-cli",
+                    "client_name": config.hostname
+                }))
+                .send()
+                .await?;
+
+            if !res.status().is_success() {
+                eprintln!("\x1b[31mFailed to initiate device authorization with Hub (HTTP {})\x1b[0m", res.status());
+                return Ok(());
+            }
+
+            let code_data: serde_json::Value = res.json().await?;
+            let device_code = code_data["device_code"].as_str().unwrap_or_default();
+            let user_code = code_data["user_code"].as_str().unwrap_or_default();
+            let verify_uri = code_data["verification_uri"].as_str().unwrap_or("https://faizal.uk/admin");
+
+            println!("1. Open your browser and navigate to: \x1b[1;33m{}\x1b[0m", verify_uri);
+            println!("2. Approve authorization using code:   \x1b[1;32m{}\x1b[0m", user_code);
+            println!("\x1b[1;36m============================================================\x1b[0m");
+            println!("Waiting for authorization confirmation (Ctrl+C to abort)...");
+
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
+                let poll_res = client
+                    .post(format!("{}/api/auth/device/token", api_base))
+                    .json(&serde_json::json!({ "device_code": device_code }))
+                    .send()
+                    .await;
+
+                if let Ok(resp) = poll_res {
+                    if resp.status().is_success() {
+                        let data: serde_json::Value = resp.json().await?;
+                        if let Some(tok) = data["token"].as_str() {
+                            config.token = Some(tok.to_string());
+                            config.save()?;
+                            let name = data["user"]["full_name"].as_str().unwrap_or("Operator");
+                            let email = data["user"]["email"].as_str().unwrap_or("");
+                            println!("\n\x1b[1;32m✓ Authenticated successfully as {} ({})!\x1b[0m", name, email);
+                            println!("\x1b[32m✓ Session token saved to config.\x1b[0m");
+                            break;
+                        }
+                    } else if resp.status() == reqwest::StatusCode::FORBIDDEN {
+                        println!("\n\x1b[31mAuthorization was denied by user.\x1b[0m");
+                        break;
+                    }
+                }
+            }
+        }
+        AuthCommands::Status => {
+            if let Some(tok) = &config.token {
+                println!("Stored Token: {}...", &tok[..tok.len().min(16)]);
+                let res = client
+                    .get(format!("{}/api/auth/me", api_base))
+                    .header("Authorization", format!("Bearer {}", tok))
+                    .send()
+                    .await;
+
+                if let Ok(resp) = res {
+                    if resp.status().is_success() {
+                        let data: serde_json::Value = resp.json().await?;
+                        let user = &data["user"];
+                        println!("\x1b[1;32mActive User:\x1b[0m  {} ({})", user["full_name"].as_str().unwrap_or(""), user["email"].as_str().unwrap_or(""));
+                        println!("\x1b[1;32mRole:\x1b[0m         {}", user["role"].as_str().unwrap_or(""));
+                        println!("\x1b[1;32mStatus:\x1b[0m       {}", user["status"].as_str().unwrap_or(""));
+                    } else {
+                        println!("\x1b[33mSession status: Invalid or expired token (HTTP {})\x1b[0m", resp.status());
+                    }
+                }
+            } else {
+                println!("\x1b[33mNot currently authenticated.\x1b[0m");
+                println!("Run '\x1b[1mnexus auth login\x1b[0m' to authenticate with Nexus Identity.");
+            }
+        }
+        AuthCommands::Logout => {
+            if let Some(tok) = &config.token {
+                let _ = client
+                    .post(format!("{}/api/auth/logout", api_base))
+                    .header("Authorization", format!("Bearer {}", tok))
+                    .send()
+                    .await;
+            }
+            config.token = None;
+            config.save()?;
+            println!("\x1b[32m✓ Logged out successfully. Token cleared from local configuration.\x1b[0m");
+        }
+    }
+    Ok(())
 }
