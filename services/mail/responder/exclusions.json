@@ -1,6 +1,7 @@
 {
   "comment": "Exclusion rules for Mohammad Faizal auto-reply engine",
   "blacklist_domains": [
+    "faizal.uk",
     "amazon.com",
     "github.com",
     "gitlab.com",
@@ -36,6 +37,11 @@
     "billing",
     "support",
     "alert",
-    "security"
+    "security",
+    "report",
+    "reports",
+    "cron",
+    "daemon",
+    "automated"
   ]
 }

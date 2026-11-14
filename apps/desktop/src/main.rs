@@ -745,7 +745,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 SurvivorCommands::Sync => {
                     let hub_url = config.hubs.first().cloned().unwrap_or_else(|| "wss://faizal.uk/api/mesh/ws".into());
-                    let pin = config.effective_pin().unwrap_or_default();
+                    let pin = admin_pin.clone().or_else(|| config.token.clone()).unwrap_or_default();
                     println!("Initiating live snapshot synchronization from hub: {}...", hub_url);
                     match modules::survivor::SurvivorSupervisor::sync_from_hub(&hub_url, &pin).await {
                         Ok(msg) => println!("\x1b[1;32m✓ {}\x1b[0m", msg),
@@ -760,7 +760,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Ok(())
         }
 
         Some(Commands::Service { action }) => match action {

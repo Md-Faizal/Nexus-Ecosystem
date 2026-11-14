@@ -14,7 +14,7 @@ import logging
 import sqlite3
 import imaplib
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.header import decode_header
@@ -166,7 +166,9 @@ class AutoResponder:
             last_replied_str = row[0]
             try:
                 last_replied = datetime.fromisoformat(last_replied_str)
-                if datetime.utcnow() - last_replied < timedelta(days=self.cooldown_days):
+                if last_replied.tzinfo is None:
+                    last_replied = last_replied.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - last_replied < timedelta(days=self.cooldown_days):
                     return True, f"Within {self.cooldown_days}-day cooldown (last replied: {last_replied_str})"
             except Exception as e:
                 logger.warning(f"Failed to parse timestamp {last_replied_str}: {e}")
@@ -175,7 +177,7 @@ class AutoResponder:
 
     def record_processed(self, msg_id, sender_addr, subject, action):
         cur = self.conn.cursor()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cur.execute("""
             INSERT OR REPLACE INTO processed_messages (message_id, sender_email, subject, processed_at, action)
             VALUES (?, ?, ?, ?, ?)
@@ -185,7 +187,7 @@ class AutoResponder:
     def update_cooldown(self, sender_addr):
         cur = self.conn.cursor()
         sender_lower = sender_addr.lower()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cur.execute("""
             INSERT INTO replied_senders (sender_email, last_replied_at, reply_count)
             VALUES (?, ?, 1)
