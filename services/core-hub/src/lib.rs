@@ -46,6 +46,9 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         mail_gateway::start_local_smtp_ingress("127.0.0.1:2525", gateway_state).await;
     });
 
+    // Spawn Tier-2 Periodic Spool Retry & Drain Worker (Exponential Backoff up to 72h)
+    routes::mesh_api::start_spool_retry_worker(state.clone());
+
     // Admin protected sub-router
     let admin_routes = Router::new()
         .route("/messages", get(routes::contact::get_messages))

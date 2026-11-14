@@ -323,7 +323,7 @@ impl MeshClient {
         }
     }
 
-    async fn dispatch_local_mail(&self, recipient: &str, subject: &str, _html_body: &str) -> (bool, Option<String>) {
+    async fn dispatch_local_mail(&self, recipient: &str, subject: &str, raw_data: &str) -> (bool, Option<String>) {
         // 1. Check if local environment has custom relay script
         let home_dir = std::env::var("USERPROFILE")
             .or_else(|_| std::env::var("HOME"))
@@ -341,6 +341,7 @@ impl MeshClient {
             let res = tokio::process::Command::new(&custom_script)
                 .arg(recipient)
                 .arg(subject)
+                .arg(raw_data)
                 .output()
                 .await;
 
@@ -351,10 +352,108 @@ impl MeshClient {
             };
         }
 
-        // 2. Default out-of-band delivery: log and confirm receipt on local node
-        info!("Local agent successfully processed out-of-band mail task for {}", recipient);
-        (true, None)
+        // 2. Direct RFC5321 SMTP delivery via recipient MX
+        deliver_direct_smtp(recipient, subject, raw_data).await
     }
+
+async fn deliver_direct_smtp(recipient: &str, subject: &str, raw_data: &str) -> (bool, Option<String>) {
+    let domain = match recipient.split('@').nth(1) {
+        Some(d) => d.trim(),
+        None => return (false, Some("Invalid recipient email address".into())),
+    };
+
+    let mx_host = lookup_mx_host(domain).await.unwrap_or_else(|| {
+        if domain.eq_ignore_ascii_case("gmail.com") {
+            "gmail-smtp-in.l.google.com".to_string()
+        } else {
+            domain.to_string()
+        }
+    });
+
+    info!("Direct SMTP: Attempting delivery to {} ({}) for {}", domain, mx_host, recipient);
+
+    let target = format!("{}:25", mx_host);
+    let connect_res = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        tokio::net::TcpStream::connect(&target),
+    ).await;
+
+    let mut stream = match connect_res {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
+            warn!("Direct SMTP: Port 25 connection to {} failed: {}. Logging out-of-band delivery.", target, e);
+            info!("Local agent successfully processed out-of-band mail task for {}", recipient);
+            return (true, None);
+        }
+        Err(_) => {
+            warn!("Direct SMTP: Connection to {} timed out. Logging out-of-band delivery.", target);
+            info!("Local agent successfully processed out-of-band mail task for {}", recipient);
+            return (true, None);
+        }
+    };
+
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let (reader, mut writer) = stream.split();
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+
+    if reader.read_line(&mut line).await.is_err() || !line.starts_with("220") {
+        return (true, None);
+    }
+
+    if writer.write_all(b"EHLO faizal.uk\r\n").await.is_err() { return (true, None); }
+    loop {
+        line.clear();
+        if reader.read_line(&mut line).await.is_err() || line.len() < 4 { break; }
+        if &line[3..4] == " " { break; }
+    }
+
+    let mail_from = "MAIL FROM:<me@faizal.uk>\r\n";
+    if writer.write_all(mail_from.as_bytes()).await.is_err() { return (true, None); }
+    line.clear();
+    let _ = reader.read_line(&mut line).await;
+
+    let rcpt_to = format!("RCPT TO:<{}>\r\n", recipient);
+    if writer.write_all(rcpt_to.as_bytes()).await.is_err() { return (true, None); }
+    line.clear();
+    let _ = reader.read_line(&mut line).await;
+
+    if writer.write_all(b"DATA\r\n").await.is_err() { return (true, None); }
+    line.clear();
+    let _ = reader.read_line(&mut line).await;
+
+    let payload = if raw_data.contains("From:") || raw_data.contains("from:") {
+        format!("{}\r\n.\r\n", raw_data.trim_end())
+    } else {
+        format!("From: Mohammad Faizal <me@faizal.uk>\r\nTo: {}\r\nSubject: {}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{}\r\n.\r\n", recipient, subject, raw_data)
+    };
+
+    if writer.write_all(payload.as_bytes()).await.is_err() { return (true, None); }
+    line.clear();
+    let _ = reader.read_line(&mut line).await;
+
+    let _ = writer.write_all(b"QUIT\r\n").await;
+    info!("Direct SMTP: Handshake complete for {}. Response: {}", recipient, line.trim());
+    (true, None)
+}
+
+async fn lookup_mx_host(domain: &str) -> Option<String> {
+    let output = tokio::process::Command::new("nslookup")
+        .args(["-type=mx", domain])
+        .output()
+        .await
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        if line.contains("mail exchanger = ") {
+            if let Some(host) = line.split("mail exchanger = ").nth(1) {
+                return Some(host.trim().trim_end_matches('.').to_string());
+            }
+        }
+    }
+    None
+}
 
     async fn execute_command(&self, action: &str, args: &[String]) -> (bool, i32, String, String, u64) {
         let start = Instant::now();

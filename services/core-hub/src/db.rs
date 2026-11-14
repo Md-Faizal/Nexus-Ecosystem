@@ -202,7 +202,8 @@ fn init_schema(conn: &Connection) -> Result<()> {
             status TEXT NOT NULL DEFAULT 'pending',
             priority INTEGER NOT NULL DEFAULT 5,
             attempts INTEGER NOT NULL DEFAULT 0,
-            max_attempts INTEGER NOT NULL DEFAULT 5,
+            max_attempts INTEGER NOT NULL DEFAULT 8,
+            carrier_type TEXT DEFAULT 'mesh_auto',
             last_error TEXT,
             dispatched_by TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -347,6 +348,10 @@ fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_mail_spool_pending ON mail_spool (status, priority, scheduled_at);
         "#,
     )?;
+
+    // Safe migrations for mail_spool resilience enhancements
+    let _ = conn.execute("ALTER TABLE mail_spool ADD COLUMN scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP", []);
+    let _ = conn.execute("ALTER TABLE mail_spool ADD COLUMN carrier_type TEXT DEFAULT 'mesh_auto'", []);
 
     // Seed default settings if missing
     let defaults = [
@@ -532,13 +537,22 @@ pub async fn mark_mail_spool_failed(
     error: &str,
 ) -> Result<()> {
     let conn = db.lock().await;
+    // Exponential backoff schedule:
+    // Attempt 1: +2m, Attempt 2: +8m, Attempt 3: +30m, Attempt 4: +2h, Attempt 5: +6h, Attempt 6+: +12h (up to 72h total retention)
     conn.execute(
         r#"
         UPDATE mail_spool 
-        SET status = CASE WHEN attempts + 1 >= max_attempts THEN 'failed' ELSE 'pending' END,
+        SET status = CASE WHEN attempts + 1 >= max_attempts THEN 'exhausted' ELSE 'pending' END,
             attempts = attempts + 1,
             last_error = ?1,
-            scheduled_at = datetime('now', '+2 minutes')
+            scheduled_at = datetime('now', CASE attempts
+                WHEN 0 THEN '+2 minutes'
+                WHEN 1 THEN '+8 minutes'
+                WHEN 2 THEN '+30 minutes'
+                WHEN 3 THEN '+2 hours'
+                WHEN 4 THEN '+6 hours'
+                ELSE '+12 hours'
+            END)
         WHERE id = ?2
         "#,
         params![error, id],

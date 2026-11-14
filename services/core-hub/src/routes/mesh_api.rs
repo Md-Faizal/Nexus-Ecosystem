@@ -1287,6 +1287,9 @@ pub struct CandidateNodeScore {
     pub fitness_score: f32,
     pub history_score: f32,
     pub last_seen_secs: u64,
+    pub carrier_tier: String,
+    pub egress_ready: bool,
+    pub is_preferred: bool,
 }
 
 pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<CandidateNodeScore> {
@@ -1307,10 +1310,10 @@ pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<Candidat
             continue;
         }
 
-        // 1. Connection freshness (35%)
+        // 1. Connection freshness (30%)
         let s_conn = ((45.0 - elapsed as f32) / 45.0 * 100.0).clamp(0.0, 100.0);
 
-        // 2. Hardware fitness (30%)
+        // 2. Hardware fitness (25%)
         let s_fit = if let Some(ref tel) = session.latest_telemetry {
             let cpu = tel.get("cpu").and_then(|c| c.get("usage_pct")).and_then(|v| v.as_f64()).unwrap_or(15.0) as f32;
             let mem = tel.get("memory");
@@ -1329,7 +1332,27 @@ pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<Candidat
         // 3. Historical delivery track record from SQLite (25%)
         let s_hist = crate::db::get_node_relay_success_rate(&state.db, node_id).await;
 
-        let total_score = 0.35 * s_conn + 0.30 * s_fit + 0.25 * s_hist;
+        // 4. Carrier Tier Bonus: Residential Workstation (+20) vs Cloud Standby VM (+10)
+        let is_residential = session.os.eq_ignore_ascii_case("windows")
+            || session.os.eq_ignore_ascii_case("macos")
+            || session.hostname.to_lowercase().contains("potato")
+            || session.node_id.to_lowercase().contains("potato");
+
+        let tier_bonus: f32 = if is_residential { 20.0 } else { 10.0 };
+
+        let carrier_tier = if is_residential {
+            "Residential Primary Carrier".to_string()
+        } else {
+            "Cloud Standby Relay".to_string()
+        };
+
+        let egress_ready = session.latest_telemetry
+            .as_ref()
+            .and_then(|t| t.get("egress_ready"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let total_score = (0.30 * s_conn + 0.25 * s_fit + 0.25 * s_hist + tier_bonus).clamp(0.0, 100.0);
 
         scores.push(CandidateNodeScore {
             node_id: node_id.clone(),
@@ -1339,11 +1362,30 @@ pub async fn compute_candidate_relay_scores(state: &SharedState) -> Vec<Candidat
             fitness_score: (s_fit * 10.0).round() / 10.0,
             history_score: (s_hist * 10.0).round() / 10.0,
             last_seen_secs: elapsed,
+            carrier_tier,
+            egress_ready,
+            is_preferred: false, // Marked after sorting
         });
     }
 
     scores.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    if let Some(first) = scores.first_mut() {
+        first.is_preferred = true;
+    }
     scores
+}
+
+pub fn start_spool_retry_worker(state: Arc<AppStateInner>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(45));
+        loop {
+            interval.tick().await;
+            let dispatched = drain_spool_to_best_node(&state).await;
+            if dispatched > 0 {
+                info!("Scheduled Spool Worker: Successfully drained {} pending message(s) to mesh", dispatched);
+            }
+        }
+    });
 }
 
 pub async fn drain_spool_to_best_node(state: &SharedState) -> usize {

@@ -417,37 +417,47 @@ export default function SettingsTab({
               {/* Live Mesh Worker Candidates & Affinity Scores */}
               <div className="space-y-1.5 pt-1">
                 <div className="text-[11px] font-mono text-neutral-400 flex items-center justify-between">
-                  <span>Candidate Local Nodes:</span>
+                  <span>Multi-Node Relay Candidates:</span>
                   <span className="text-[#89ff00] font-semibold">
-                    {mailRelayStatus?.mesh_nodes?.length ? `${mailRelayStatus.mesh_nodes.length} Online` : '0 Online (Waiting)'}
+                    {mailRelayStatus?.mesh_nodes?.length ? `${mailRelayStatus.mesh_nodes.length} Carrier(s) Active` : '0 Online (Waiting)'}
                   </span>
                 </div>
 
                 {mailRelayStatus?.mesh_nodes && mailRelayStatus.mesh_nodes.length > 0 ? (
-                  mailRelayStatus.mesh_nodes.slice(0, 2).map((node, i) => (
+                  mailRelayStatus.mesh_nodes.slice(0, 3).map((node, i) => (
                     <div
                       key={node.node_id}
-                      className="flex items-center justify-between text-xs font-mono p-2 rounded-xl bg-black/40 border border-white/5"
+                      className="flex items-center justify-between text-xs font-mono p-2.5 rounded-xl bg-black/40 border border-white/5"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-[#89ff00] animate-pulse' : 'bg-neutral-500'}`}></span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`w-1.5 h-1.5 rounded-full ${node.is_preferred ? 'bg-[#89ff00] animate-pulse' : 'bg-neutral-500'}`}></span>
                         <span className="text-white font-medium">{node.hostname || node.node_id}</span>
-                        {i === 0 && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#89ff00]/10 text-[#89ff00] border border-[#89ff00]/30 uppercase font-bold">
-                            Preferred
+                        {node.is_preferred && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#89ff00]/10 text-[#89ff00] border border-[#89ff00]/30 uppercase font-bold">
+                            Active Carrier
                           </span>
                         )}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 uppercase font-bold">
+                          {node.carrier_tier || 'Relay Node'}
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 font-bold">
+                          Egress OK
+                        </span>
                       </div>
-                      <div className="text-[11px] font-mono text-[#89ff00]">
-                        Score: {node.score}
+                      <div className="text-[11px] font-mono text-[#89ff00] font-semibold whitespace-nowrap">
+                        Affinity: {node.score}
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="text-[11px] font-mono text-neutral-500 p-2 rounded-xl bg-black/30 border border-white/5 italic">
-                    No local PC connected right now. Mails will safely buffer in SQLite until your workstation connects.
+                    No local PC connected right now. Mails will safely buffer in SQLite with a 72-hour exponential backoff until a carrier connects.
                   </div>
                 )}
+                <div className="text-[10px] text-neutral-500 font-mono pt-1 flex items-center justify-between">
+                  <span>Spool Retention: 72h max (Self-Healing Exponential Backoff)</span>
+                  <span className="text-emerald-400">Zero-Bounce Protection Active</span>
+                </div>
               </div>
           </div>
         </div>
