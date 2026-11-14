@@ -1420,6 +1420,15 @@ pub async fn get_mail_relay_status(State(state): State<SharedState>) -> Json<ser
     let brevo_host = &state.config.smtp_host;
     let brevo_user = &state.config.smtp_user;
 
+    let last_spool_error = {
+        let conn = state.db.lock().await;
+        conn.query_row(
+            "SELECT last_error FROM mail_spool WHERE last_error IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+            [],
+            |r| r.get::<_, Option<String>>(0),
+        ).ok().flatten()
+    };
+
     Json(serde_json::json!({
         "success": true,
         "cloud_tier": {
@@ -1439,7 +1448,8 @@ pub async fn get_mail_relay_status(State(state): State<SharedState>) -> Json<ser
         "spool_queue": {
             "pending": pending,
             "sent": sent,
-            "failed": failed
+            "failed": failed,
+            "last_error": last_spool_error
         },
         "mesh_nodes": candidates,
         "optimal_node": candidates.first().map(|c| c.node_id.clone())

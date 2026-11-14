@@ -219,6 +219,8 @@ pub async fn dispatch_resilient_email(
         get_setting(db, "resend_api_key").await.filter(|k| !k.trim().is_empty())
     };
 
+    let mut cloud_errors = Vec::new();
+
     if let Some(ref api_key) = resend_key {
         match send_via_resend(
             api_key,
@@ -236,8 +238,11 @@ pub async fn dispatch_resilient_email(
             }
             Err(e) => {
                 warn!("Tier 1A (Resend) failed: {}. Falling back to Tier 1B (Brevo/SMTP)...", e);
+                cloud_errors.push(format!("Resend: {}", e));
             }
         }
+    } else {
+        cloud_errors.push("Resend: unconfigured API key".into());
     }
 
     // ── Tier 1B: Primary SMTP Relay (Brevo port 587) ─────────────────────────
@@ -248,6 +253,8 @@ pub async fn dispatch_resilient_email(
         }
         Err(e) => {
             warn!("Tier 1B (SMTP Relay) failed: {}. Falling back to Tier 2 Doomsday Local Mesh Spool...", e);
+            cloud_errors.push(format!("SMTP: {}", e));
+            let combined_err = cloud_errors.join(" | ");
 
             // ── Tier 2: Doomsday Local Mesh Spool (SQLite Buffer) ────────────
             let _ = enqueue_mail_spool(
@@ -259,7 +266,7 @@ pub async fn dispatch_resilient_email(
                 None,
                 message_type,
                 priority,
-                Some(&e),
+                Some(&combined_err),
             )
             .await;
 
