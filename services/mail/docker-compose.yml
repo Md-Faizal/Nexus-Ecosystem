@@ -15,3 +15,22 @@ services:
       resources:
         limits:
           memory: 512M
+
+  responder:
+    build:
+      context: ./responder
+      dockerfile: Dockerfile
+    container_name: stalwart-responder
+    hostname: responder.mail.faizal.uk
+    network_mode: host
+    restart: always
+    environment:
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-FaizalMail2026!}
+    volumes:
+      - ./responder/state:/app/state
+      - ./responder/config.json:/app/config.json:ro
+      - ./responder/exclusions.json:/app/exclusions.json:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M

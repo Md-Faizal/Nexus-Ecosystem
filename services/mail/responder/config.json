@@ -1,0 +1,25 @@
+{
+  "mail": {
+    "imap_server": "mail.faizal.uk",
+    "imap_port": 993,
+    "smtp_server": "mail.faizal.uk",
+    "smtp_port": 465,
+    "username": "me@faizal.uk",
+    "password_env": "MAIL_PASSWORD",
+    "sender_name": "Mohammad Faizal",
+    "sender_email": "me@faizal.uk",
+    "reply_subject_prefix": "Re: "
+  },
+  "rules": {
+    "cooldown_days": 7,
+    "check_interval_seconds": 15,
+    "auto_reply_to_aliases": ["work@faizal.uk", "me@faizal.uk"],
+    "ignore_threads_with_in_reply_to": true
+  },
+  "paths": {
+    "exclusions_file": "exclusions.json",
+    "db_file": "state/responder.db",
+    "html_template": "templates/acknowledgement.html",
+    "txt_template": "templates/acknowledgement.txt"
+  }
+}

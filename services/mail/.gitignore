@@ -4,3 +4,6 @@ mail-state/
 mail-logs/
 config/opendkim/
 config/ssl/
+responder/state/*.db
+responder/state/*.db-journal
+__pycache__/

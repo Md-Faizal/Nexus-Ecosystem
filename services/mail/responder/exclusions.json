@@ -1,0 +1,41 @@
+{
+  "comment": "Exclusion rules for Mohammad Faizal auto-reply engine",
+  "blacklist_domains": [
+    "amazon.com",
+    "github.com",
+    "gitlab.com",
+    "paypal.com",
+    "stripe.com",
+    "google.com",
+    "apple.com",
+    "linkedin.com",
+    "twitter.com",
+    "x.com",
+    "facebookmail.com",
+    "instagram.com",
+    "uber.com"
+  ],
+  "blacklist_senders": [
+    "mailer-daemon@faizal.uk",
+    "postmaster@faizal.uk"
+  ],
+  "whitelist_senders": [
+    "example-friend@gmail.com",
+    "example-family@outlook.com"
+  ],
+  "drop_sender_patterns": [
+    "noreply",
+    "no-reply",
+    "donotreply",
+    "do-not-reply",
+    "mailer-daemon",
+    "postmaster",
+    "notification",
+    "notifications",
+    "newsletter",
+    "billing",
+    "support",
+    "alert",
+    "security"
+  ]
+}
