@@ -30,6 +30,7 @@ services:
       - ./responder/state:/app/state
       - ./responder/config.json:/app/config.json:ro
       - ./responder/exclusions.json:/app/exclusions.json:ro
+      - ./responder/templates:/app/templates:ro
     deploy:
       resources:
         limits:
