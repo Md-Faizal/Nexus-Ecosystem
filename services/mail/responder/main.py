@@ -215,8 +215,21 @@ class AutoResponder:
             msg["References"] = orig_msg_id
 
         # Personalize text & HTML bodies with actual recipient email
-        rendered_txt = self.txt_template.replace("{{ recipient_email }}", to_addr).replace("{{recipient_email}}", to_addr)
-        rendered_html = self.html_template.replace("{{ recipient_email }}", to_addr).replace("{{recipient_email}}", to_addr)
+        def personalize(text, addr):
+            if not text:
+                return text
+            for placeholder in [
+                "{{ recipient_email }}",
+                "{{recipient_email}}",
+                "%7B%7B+recipient_email+%7D%7D",
+                "%7B%7Brecipient_email%7D%7D",
+                "%7B%7B%20recipient_email%20%7D%7D",
+            ]:
+                text = text.replace(placeholder, addr)
+            return text
+
+        rendered_txt = personalize(self.txt_template, to_addr)
+        rendered_html = personalize(self.html_template, to_addr)
 
         # Attach text & HTML bodies
         part_txt = MIMEText(rendered_txt, "plain", "utf-8")
