@@ -355,14 +355,14 @@ async fn evaluate_suppression(
 ) -> (bool, &'static str) {
     let sender_lower = sender.to_lowercase();
 
-    // 0. Blacklist Check (highest priority)
+    // 0. Never Auto-Reply List (Exclusions)
     for entry in ar_config.blacklist.split(|c| c == ',' || c == '\n' || c == ';') {
         let trimmed = entry.trim().to_lowercase();
         if !trimmed.is_empty() {
             if trimmed.starts_with('@') && sender_lower.ends_with(&trimmed) {
-                return (true, "Blacklisted sender domain");
+                return (true, "Excluded from auto-reply (domain in Never-Reply list)");
             } else if sender_lower == trimmed {
-                return (true, "Blacklisted sender address");
+                return (true, "Excluded from auto-reply (address in Never-Reply list)");
             }
         }
     }

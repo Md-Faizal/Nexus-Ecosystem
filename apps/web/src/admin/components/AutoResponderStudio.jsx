@@ -234,10 +234,67 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [sigGuideTab, setSigGuideTab] = useState('iphone');
+  const [sigCopied, setSigCopied] = useState(false);
+  const [templateCopied, setTemplateCopied] = useState(false);
   const previewDebounce = useRef(null);
   const isFirstMount = useRef(true);
   const showToastRef = useRef(showToast);
   showToastRef.current = showToast;
+
+  const SIGNATURE_HTML = `<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 13px; color: #111111; line-height: 1.4; border-top: 2px solid #89ff00; padding-top: 14px; margin-top: 18px; max-width: 480px;">
+  <tr>
+    <td style="vertical-align: middle; padding-right: 14px; border-right: 1px solid #e0e0e0;">
+      <a href="https://faizal.uk" target="_blank" style="text-decoration: none;">
+        <img src="https://faizal.uk/images/mail/fz_logo.png" height="34" width="34" alt="FZ" style="display: block; border: 0;" />
+      </a>
+    </td>
+    <td style="vertical-align: middle; padding-left: 14px;">
+      <div style="font-size: 14px; font-weight: 800; color: #111111; letter-spacing: -0.2px; text-transform: uppercase;">MOHAMMAD FAIZAL</div>
+      <div style="font-size: 12px; color: #555555; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">Full-Stack Engineer &amp; Systems Architect</div>
+      <div style="font-size: 11px; margin-top: 6px; font-weight: 600;">
+        <a href="https://faizal.uk" target="_blank" style="color: #1A1AE8; text-decoration: none;">faizal.uk</a>
+        <span style="color: #cccccc; margin: 0 6px;">|</span>
+        <a href="https://faizal.uk/work" target="_blank" style="color: #1A1AE8; text-decoration: none;">Selected Works</a>
+        <span style="color: #cccccc; margin: 0 6px;">|</span>
+        <a href="mailto:me@faizal.uk" style="color: #1A1AE8; text-decoration: none;">me@faizal.uk</a>
+      </div>
+    </td>
+  </tr>
+</table>`;
+
+  const copyRichSignature = async () => {
+    try {
+      const text = "Mohammad Faizal — Full-Stack Engineer & Systems Architect | https://faizal.uk";
+      const blobHtml = new Blob([SIGNATURE_HTML], { type: 'text/html' });
+      const blobText = new Blob([text], { type: 'text/plain' });
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': blobHtml,
+          'text/plain': blobText,
+        })
+      ]);
+      setSigCopied(true);
+      setTimeout(() => setSigCopied(false), 3000);
+      showToastRef.current?.('Rich signature copied! Ready to paste into Gmail / Apple Mail settings', 'success');
+    } catch (e) {
+      await navigator.clipboard.writeText(SIGNATURE_HTML);
+      setSigCopied(true);
+      setTimeout(() => setSigCopied(false), 3000);
+      showToastRef.current?.('HTML signature code copied to clipboard!', 'success');
+    }
+  };
+
+  const copyFullTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(previewHtml || '');
+      setTemplateCopied(true);
+      setTimeout(() => setTemplateCopied(false), 3000);
+      showToastRef.current?.('Full email template HTML copied to clipboard!', 'success');
+    } catch (e) {
+      showToastRef.current?.('Failed to copy template code', 'error');
+    }
+  };
 
   // ── Load config ─────────────────────────────────────────────────────────────
   const loadConfig = useCallback(async (isInitial = false) => {
@@ -531,45 +588,63 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
         </div>
       </div>
 
-      {/* ── Access Control (Whitelist & Blacklist) ────────────────────────── */}
+      {/* ── Never Auto-Reply List (Exclusions) ────────────────────────── */}
       <div style={S.section}>
         <div style={S.sectionHeader}>
-          <span style={{ fontSize: 16 }}>📋</span>
-          <h3 style={S.sectionTitle}>Access Control (Whitelist & Blacklist)</h3>
+          <span style={{ fontSize: 16 }}>🚫</span>
+          <h3 style={S.sectionTitle}>Never Auto-Reply List (Exclusions)</h3>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#ff7070', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+            Automated Replies Suppressed
+          </span>
         </div>
         <div style={S.sectionBody}>
-          <div style={S.row}>
-            <div style={S.field}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label style={S.label}>VIP Whitelist (Always Reply)</label>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#89ff00' }}>Bypasses Cooldown</span>
+          {/* Safe Inbox Guarantee Banner */}
+          <div style={{
+            background: 'rgba(137,255,0,0.06)',
+            border: '1px solid rgba(137,255,0,0.22)',
+            borderRadius: 8,
+            padding: '10px 14px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10
+          }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span>
+            <div>
+              <div style={{ color: '#89ff00', fontWeight: 600, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
+                SAFE INBOX GUARANTEE
               </div>
-              <textarea
-                value={config.whitelist || ''}
-                onChange={set('whitelist')}
-                placeholder="vip@partner.com, @trusted-agency.org, client@example.com"
-                style={{ ...S.textarea, minHeight: 70, marginTop: 4 }}
-                className="ar-input"
-              />
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Inter', sans-serif" }}>
-                Comma or newline-separated. Supports exact emails or <code>@domain.com</code> wildcards.
-              </span>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
+                Adding addresses or domains here <strong>ONLY</strong> silences the automated acknowledgement note. Their incoming emails will still land safely in your inbox 100% of the time — nothing in your mailbox is blocked.
+              </div>
             </div>
-            <div style={S.field}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label style={S.label}>Blacklist (Never Reply)</label>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#ff5050' }}>Blocked Senders</span>
-              </div>
-              <textarea
-                value={config.blacklist || ''}
-                onChange={set('blacklist')}
-                placeholder="spammer@junk.com, @coldemail-blast.io, marketing@bad.net"
-                style={{ ...S.textarea, minHeight: 70, marginTop: 4, borderColor: config.blacklist ? 'rgba(255,80,80,0.3)' : undefined }}
-                className="ar-input"
-              />
+          </div>
+
+          <div style={S.field}>
+            <label style={S.label}>Excluded Addresses &amp; Domains</label>
+            <textarea
+              value={config.blacklist || ''}
+              onChange={set('blacklist')}
+              placeholder="friend@gmail.com, @colleagues.com, recruiter@company.com, alerts@bank.com"
+              style={{
+                ...S.textarea,
+                minHeight: 85,
+                marginTop: 4,
+                borderColor: config.blacklist ? 'rgba(255,100,100,0.3)' : undefined,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12
+              }}
+              className="ar-input"
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Inter', sans-serif" }}>
-                Senders matching these addresses or domains will be immediately dropped with zero auto-reply.
+                Comma, newline, or semicolon-separated. Use exact emails or <code>@domain.com</code> wildcards to exclude an entire company.
               </span>
+              {config.blacklist && (
+                <span style={{ fontSize: 11, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace" }}>
+                  ✓ {config.blacklist.split(/[,;\n]/).filter(s => s.trim()).length} exclusion rule(s) active
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -767,6 +842,176 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
           <button onClick={sendTest} disabled={testSending} style={{ ...S.btnPrimary, flexShrink: 0 }} className="ar-btn">
             {testSending ? '⏳ Sending…' : '📧 Send Test'}
           </button>
+        </div>
+      </div>
+
+      {/* ── Reusable Signature & Templates ─────────────────────────────────── */}
+      <div style={S.section}>
+        <div style={S.sectionHeader}>
+          <span style={{ fontSize: 16 }}>📬</span>
+          <h3 style={S.sectionTitle}>Reusable Signature &amp; Templates (Mobile &amp; Desktop)</h3>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+            Atelier Brand Assets
+          </span>
+        </div>
+        <div style={S.sectionBody}>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+            Use your branded Atelier signature and full responsive email layout when replying manually from your phone, laptop, or webmail.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 20 }}>
+            {/* Signature Preview Card */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: 10,
+              padding: 20,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+              border: '1px solid #e5e5e5'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                  Atelier Email Signature
+                </span>
+                <span style={{ fontSize: 10, background: '#1A1AE8', color: '#FFF0E3', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                  FOOTER LOCKUP
+                </span>
+              </div>
+              <div dangerouslySetInnerHTML={{ __html: SIGNATURE_HTML }} />
+              <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={copyRichSignature}
+                  style={{
+                    background: sigCopied ? '#89ff00' : '#111113',
+                    color: sigCopied ? '#000000' : '#ffffff',
+                    border: '1px solid #222225',
+                    borderRadius: 6,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  className="ar-btn"
+                >
+                  {sigCopied ? '✓ Copied to Clipboard!' : '📋 Copy Rich Signature'}
+                </button>
+              </div>
+            </div>
+
+            {/* Full Layout Template Card */}
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: 10,
+              padding: 20,
+              border: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                    Full Email Layout Template
+                  </span>
+                  <span style={{ fontSize: 10, background: 'rgba(137,255,0,0.15)', color: '#89ff00', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                    600PX RESPONSIVE
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                  Includes top pixelated bar, brand header, hero art banner, body card, and bottom pixelated bar. Ideal for Gmail Canned Templates or rich replies.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={copyFullTemplate}
+                  style={{
+                    ...S.btnSecondary,
+                    background: templateCopied ? 'rgba(137,255,0,0.2)' : undefined,
+                    color: templateCopied ? '#89ff00' : undefined,
+                  }}
+                  className="ar-btn-sec"
+                >
+                  {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Full Template HTML'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Setup Guide Tabs */}
+          <div style={{
+            background: 'rgba(0,0,0,0.25)',
+            borderRadius: 8,
+            padding: 16,
+            border: '1px solid rgba(255,255,255,0.06)'
+          }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', marginRight: 4, alignSelf: 'center' }}>
+                Setup Guide:
+              </span>
+              {[
+                { id: 'iphone', label: '📱 iPhone (Apple Mail)' },
+                { id: 'android', label: '🤖 Android (Gmail / Spark)' },
+                { id: 'templates', label: '📨 Gmail Canned Templates' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSigGuideTab(t.id)}
+                  style={{
+                    background: sigGuideTab === t.id ? 'rgba(137,255,0,0.15)' : 'rgba(255,255,255,0.04)',
+                    color: sigGuideTab === t.id ? '#89ff00' : 'rgba(255,255,255,0.7)',
+                    border: `1px solid ${sigGuideTab === t.id ? 'rgba(137,255,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: 6,
+                    padding: '5px 12px',
+                    fontSize: 11,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    cursor: 'pointer',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {sigGuideTab === 'iphone' && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                <ol style={{ margin: 0, paddingLeft: 20 }}>
+                  <li>Click <strong>📋 Copy Rich Signature</strong> above on this device (or copy it from Safari).</li>
+                  <li>On your iPhone, open <strong>Settings → Mail → Signature</strong>.</li>
+                  <li>Tap and hold in the signature box, then tap <strong>Paste</strong>.</li>
+                  <li style={{ color: '#89ff00', marginTop: 4 }}>
+                    <strong>⭐ Crucial iPhone Step:</strong> Gently <strong>shake your iPhone</strong> immediately until the &ldquo;Undo Change Attributes&rdquo; prompt appears, then tap <strong>Undo</strong>. (This prevents Apple Mail from stripping your custom colors, font sizes, and layout!).
+                  </li>
+                </ol>
+              </div>
+            )}
+
+            {sigGuideTab === 'android' && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                <ol style={{ margin: 0, paddingLeft: 20 }}>
+                  <li>
+                    <strong>Gmail Web (Recommended for all Android Gmail users):</strong> Google&rsquo;s mobile app restricts local signature settings to plain text. However, if you paste this signature into <strong>Gmail Web (Settings ⚙️ → See all settings → General → Signature)</strong>, Gmail will automatically render your rich HTML signature on web and mobile replies!
+                  </li>
+                  <li style={{ marginTop: 6 }}>
+                    <strong>Spark / Outlook / FairEmail on Android:</strong> Open the app&rsquo;s <strong>Settings → Accounts → Signature</strong>, click <strong>📋 Copy Rich Signature</strong> above, and paste directly into the signature editor.
+                  </li>
+                </ol>
+              </div>
+            )}
+
+            {sigGuideTab === 'templates' && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                <ol style={{ margin: 0, paddingLeft: 20 }}>
+                  <li>In Gmail Web, open <strong>Settings (⚙️) → See all settings → Advanced → Templates</strong> and select <strong>Enable</strong>.</li>
+                  <li>Click <strong>Compose</strong> a new email. Click <strong>📄 Copy Full Template HTML</strong> above or paste your styled content into the message body.</li>
+                  <li>Click the 3 dots <strong>More options (⋮)</strong> at the bottom right of the compose window → <strong>Templates → Save draft as template → Save as new template</strong> (e.g. &ldquo;Atelier Branded Reply&rdquo;).</li>
+                  <li style={{ color: '#89ff00', marginTop: 4 }}>
+                    <strong>Instant Reuse:</strong> Whenever replying to an email, click <strong>⋮ → Templates → Atelier Branded Reply</strong> to instantly load the full graphic layout ready for your message!
+                  </li>
+                </ol>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
