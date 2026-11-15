@@ -331,6 +331,9 @@ pub async fn send_report_email(
 pub async fn send_auto_reply(
     to_addr: &str,
     to_name: &str,
+    from_name: &str,
+    from_email: &str,
+    reply_to: &str,
     orig_msg_id: Option<&str>,
     orig_subject: &str,
     html_body: &str,
@@ -353,7 +356,24 @@ pub async fn send_auto_reply(
         .credentials(Credentials::new(user.to_string(), pass.to_string()))
         .build();
 
-    let from_header = "\"Mohammad Faizal\" <me@faizal.uk>";
+    let from_name_clean = if from_name.trim().is_empty() {
+        "Mohammad Faizal (Auto-Reply)"
+    } else {
+        from_name.trim()
+    };
+    let from_email_clean = if from_email.trim().is_empty() {
+        "me@faizal.uk"
+    } else {
+        from_email.trim()
+    };
+    let reply_to_clean = if reply_to.trim().is_empty() {
+        "me@faizal.uk"
+    } else {
+        reply_to.trim()
+    };
+
+    let from_header = format!("\"{}\" <{}>", from_name_clean, from_email_clean);
+    let reply_to_header = format!("\"Mohammad Faizal\" <{}>", reply_to_clean);
     let to_header = if !to_name.is_empty() {
         format!("\"{}\" <{}>", to_name, to_addr)
     } else {
@@ -370,6 +390,7 @@ pub async fn send_auto_reply(
 
     let mut builder = Message::builder()
         .from(from_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
+        .reply_to(reply_to_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
         .to(to_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
         .subject(reply_subject)
         .raw_header(lettre::message::header::HeaderValue::new(

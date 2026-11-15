@@ -157,6 +157,10 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         .nest("/api", api_routes)
         .nest_service("/uploads", ServeDir::new(&uploads_dir))
         .nest_service(
+            "/images",
+            ServeDir::new(config.public_dir.join("images")),
+        )
+        .nest_service(
             "/releases",
             ServeDir::new(config.public_dir.join("releases")),
         )

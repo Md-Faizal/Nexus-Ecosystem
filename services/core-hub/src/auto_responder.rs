@@ -253,6 +253,9 @@ async fn check_inbox_and_reply(
         match send_auto_reply(
             &sender_email,
             &sender_name,
+            &ar_config.from_name,
+            &ar_config.from_email,
+            &ar_config.reply_to,
             if msg_id.is_empty() { None } else { Some(&msg_id) },
             &subject,
             &html,

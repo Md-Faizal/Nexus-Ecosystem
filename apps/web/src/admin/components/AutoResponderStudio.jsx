@@ -190,6 +190,9 @@ const DEFAULTS = {
   cooldown_days: '7',
   suppress_self: 'true',
   suppress_bulk: 'true',
+  from_name: 'Mohammad Faizal (Auto-Reply)',
+  from_email: 'me@faizal.uk',
+  reply_to: 'me@faizal.uk',
   hero_banner_url: 'https://faizal.uk/images/mail/hero_aurora_v2.jpg?v=2',
   headline: 'Got your message.',
   salutation: 'Hi there,',
@@ -449,6 +452,63 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                 label="Skip newsletters"
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Sender Identity & Deliverability ───────────────────────────────── */}
+      <div style={S.section}>
+        <div style={S.sectionHeader}>
+          <span style={{ fontSize: 16 }}>🛡️</span>
+          <h3 style={S.sectionTitle}>Sender Identity & Deliverability</h3>
+        </div>
+        <div style={S.sectionBody}>
+          <div style={S.row}>
+            <div style={{ ...S.field, flex: 1.5 }}>
+              <label style={S.label}>Sender Display Name</label>
+              <input
+                type="text"
+                value={config.from_name}
+                onChange={set('from_name')}
+                placeholder="Mohammad Faizal (Auto-Reply)"
+                style={S.input}
+                className="ar-input"
+              />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>Sending Address (From)</label>
+              <input
+                type="email"
+                value={config.from_email}
+                onChange={set('from_email')}
+                placeholder="me@faizal.uk"
+                style={S.input}
+                className="ar-input"
+              />
+            </div>
+            <div style={S.field}>
+              <label style={S.label}>Reply-To Address</label>
+              <input
+                type="email"
+                value={config.reply_to}
+                onChange={set('reply_to')}
+                placeholder="me@faizal.uk"
+                style={S.input}
+                className="ar-input"
+              />
+            </div>
+          </div>
+          <div style={{
+            padding: '8px 12px',
+            borderRadius: 6,
+            background: 'rgba(137,255,0,0.06)',
+            border: '1px solid rgba(137,255,0,0.18)',
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 11,
+            fontFamily: "'JetBrains Mono', monospace",
+            lineHeight: 1.5
+          }}>
+            ✓ <span style={{ color: '#89ff00' }}>Anti-Impersonation & Spam Score Optimized</span>: Identifies as an automated confirmation while directing incoming human replies straight to your primary inbox. Image assets and rainbow bars are self-hosted directly on faizal.uk.
           </div>
         </div>
       </div>
