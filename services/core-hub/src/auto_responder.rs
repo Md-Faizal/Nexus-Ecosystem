@@ -78,14 +78,19 @@ pub fn start_auto_responder(state: SharedState) {
 async fn check_inbox_and_reply(
     state: &SharedState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client_config = rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(DangerSkipCertVerifier))
-        .with_no_client_auth();
+    let client_config = rustls::ClientConfig::builder_with_provider(
+        rustls::crypto::ring::default_provider().into(),
+    )
+    .with_safe_default_protocol_versions()
+    .map_err(|e| format!("Failed to set TLS protocol versions: {}", e))?
+    .dangerous()
+    .with_custom_certificate_verifier(Arc::new(DangerSkipCertVerifier))
+    .with_no_client_auth();
 
     let connector = TlsConnector::from(Arc::new(client_config));
     let stream = TcpStream::connect(("127.0.0.1", 993)).await?;
-    let domain = ServerName::try_from("mail.faizal.uk").unwrap();
+    let domain = ServerName::try_from("mail.faizal.uk".to_string())
+        .map_err(|e| format!("Invalid DNS name: {}", e))?;
     let tls_stream = connector.connect(domain, stream).await?;
 
     let (reader, mut writer) = tokio::io::split(tls_stream);

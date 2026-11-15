@@ -373,15 +373,24 @@ pub async fn send_auto_reply(
         .from(from_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
         .to(to_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
         .subject(reply_subject)
-        .header(lettre::message::header::HeaderName::new_unchecked("Auto-Submitted"), "auto-replied")
-        .header(lettre::message::header::HeaderName::new_unchecked("Precedence"), "auto_reply")
-        .header(lettre::message::header::HeaderName::new_unchecked("X-Auto-Response-Suppress"), "All");
+        .raw_header(lettre::message::header::HeaderValue::new(
+            lettre::message::header::HeaderName::new_from_ascii_str("Auto-Submitted"),
+            "auto-replied".to_string(),
+        ))
+        .raw_header(lettre::message::header::HeaderValue::new(
+            lettre::message::header::HeaderName::new_from_ascii_str("Precedence"),
+            "auto_reply".to_string(),
+        ))
+        .raw_header(lettre::message::header::HeaderValue::new(
+            lettre::message::header::HeaderName::new_from_ascii_str("X-Auto-Response-Suppress"),
+            "All".to_string(),
+        ));
 
     if let Some(msg_id) = orig_msg_id {
         if !msg_id.is_empty() {
             builder = builder
-                .header(lettre::message::header::HeaderName::new_unchecked("In-Reply-To"), msg_id)
-                .header(lettre::message::header::HeaderName::new_unchecked("References"), msg_id);
+                .header(lettre::message::header::InReplyTo::from(msg_id.to_string()))
+                .header(lettre::message::header::References::from(msg_id.to_string()));
         }
     }
 
