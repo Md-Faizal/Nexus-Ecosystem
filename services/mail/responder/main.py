@@ -214,9 +214,13 @@ class AutoResponder:
             msg["In-Reply-To"] = orig_msg_id
             msg["References"] = orig_msg_id
 
+        # Personalize text & HTML bodies with actual recipient email
+        rendered_txt = self.txt_template.replace("{{ recipient_email }}", to_addr).replace("{{recipient_email}}", to_addr)
+        rendered_html = self.html_template.replace("{{ recipient_email }}", to_addr).replace("{{recipient_email}}", to_addr)
+
         # Attach text & HTML bodies
-        part_txt = MIMEText(self.txt_template, "plain", "utf-8")
-        part_html = MIMEText(self.html_template, "html", "utf-8")
+        part_txt = MIMEText(rendered_txt, "plain", "utf-8")
+        part_html = MIMEText(rendered_html, "html", "utf-8")
         msg.attach(part_txt)
         msg.attach(part_html)
 

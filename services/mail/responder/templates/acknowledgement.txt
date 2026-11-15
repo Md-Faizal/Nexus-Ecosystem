@@ -11,5 +11,5 @@ Mohammad Faizal
 https://faizal.uk
 
 ---
-Automated confirmation from faizal.uk · Made with love & curiosity 🤍
+This email was sent to {{ recipient_email }} · Made with love & curiosity 🤍
 Replies sent to this thread will reach me directly.
