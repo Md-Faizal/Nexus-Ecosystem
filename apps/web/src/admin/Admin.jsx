@@ -227,10 +227,10 @@ export default function Admin({ onExit }) {
   });
   const [analytics, setAnalytics] = useState({ totalViews: 0, uniqueVisitors: 0, recentVisitors: [] });
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
-  };
+  }, []);
 
   const getAuthToken = () => {
     return localStorage.getItem('nexus_auth_token') || localStorage.getItem('faizal_admin_pin') || '2004';

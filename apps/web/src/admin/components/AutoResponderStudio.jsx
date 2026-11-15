@@ -223,8 +223,9 @@ function Toggle({ on, onChange, label }) {
 
 export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const [config, setConfig] = useState(DEFAULTS);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingConfig, setRefreshingConfig] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewMode, setPreviewMode] = useState('desktop');
   const [previewEmail, setPreviewEmail] = useState('visitor@example.com');
@@ -234,10 +235,13 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const [logsLoading, setLogsLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewDebounce = useRef(null);
+  const isFirstMount = useRef(true);
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
 
   // ── Load config ─────────────────────────────────────────────────────────────
-  const loadConfig = useCallback(async () => {
-    setLoading(true);
+  const loadConfig = useCallback(async (isInitial = false) => {
+    if (!isInitial) setRefreshingConfig(true);
     try {
       const res = await fetchWithAuth('/api/auto-responder/config');
       const data = await res.json();
@@ -245,11 +249,12 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
         setConfig((prev) => ({ ...prev, ...data.config }));
       }
     } catch (e) {
-      showToast?.('Failed to load auto-responder config', 'error');
+      showToastRef.current?.('Failed to load auto-responder config', 'error');
     } finally {
-      setLoading(false);
+      if (isInitial) setInitialLoading(false);
+      else setRefreshingConfig(false);
     }
-  }, [fetchWithAuth, showToast]);
+  }, [fetchWithAuth]);
 
   // ── Load logs ────────────────────────────────────────────────────────────────
   const loadLogs = useCallback(async () => {
@@ -259,23 +264,19 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
       const data = await res.json();
       if (data.success) setLogs(data.logs || []);
     } catch (e) {
-      showToast?.('Failed to load logs', 'error');
+      // silent
     } finally {
       setLogsLoading(false);
     }
-  }, [fetchWithAuth, showToast]);
+  }, [fetchWithAuth]);
 
-  useEffect(() => {
-    loadConfig();
-    loadLogs();
-  }, [loadConfig, loadLogs]);
-
-  // ── Live preview (debounced) ─────────────────────────────────────────────────
-  const refreshPreview = useCallback(async () => {
+  // ── Live preview ─────────────────────────────────────────────────────────────
+  const refreshPreview = useCallback(async (targetEmail) => {
+    const emailToUse = targetEmail || previewEmail;
     setPreviewLoading(true);
     try {
       const res = await fetchWithAuth(
-        `/api/auto-responder/preview-html?email=${encodeURIComponent(previewEmail)}`
+        `/api/auto-responder/preview-html?email=${encodeURIComponent(emailToUse)}`
       );
       const html = await res.text();
       setPreviewHtml(html);
@@ -286,9 +287,24 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
     }
   }, [fetchWithAuth, previewEmail]);
 
+  // Initial load on mount only (guarantees zero flicker loops)
   useEffect(() => {
+    loadConfig(true);
+    loadLogs();
+    refreshPreview('visitor@example.com');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced live preview when user actively edits config or preview email
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     if (previewDebounce.current) clearTimeout(previewDebounce.current);
-    previewDebounce.current = setTimeout(refreshPreview, 800);
+    previewDebounce.current = setTimeout(() => {
+      refreshPreview();
+    }, 800);
     return () => clearTimeout(previewDebounce.current);
   }, [config, previewEmail, refreshPreview]);
 
@@ -372,7 +388,7 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
 
   const isOn = config.enabled === 'true';
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
         Loading auto-responder config…
@@ -665,8 +681,8 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
         <button onClick={saveConfig} disabled={saving} style={S.btnPrimary} className="ar-btn">
           {saving ? 'Saving…' : '💾 Save Configuration'}
         </button>
-        <button onClick={loadConfig} style={S.btnSecondary} className="ar-btn-sec">
-          ↺ Reset to Saved
+        <button onClick={() => loadConfig(false)} disabled={refreshingConfig} style={S.btnSecondary} className="ar-btn-sec">
+          {refreshingConfig ? 'Refreshing…' : '↺ Reset to Saved'}
         </button>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Server,
@@ -33,6 +33,20 @@ export default function AdminLayout({
   children
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navScrollRef = useRef(null);
+
+  useEffect(() => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const tabs = [
     { id: 'cluster', number: '01', label: 'Cluster', icon: Server, desc: 'Hardware & nodes' },
@@ -147,12 +161,9 @@ export default function AdminLayout({
 
         {/* ─── DESKTOP HORIZONTAL PILL NAVIGATION (HORIZONTALLY SCROLLABLE) ─── */}
         <div
-          onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY;
-            }
-          }}
-          className="hidden md:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 gap-2 overflow-x-auto pb-3 select-none scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent scroll-smooth"
+          ref={navScrollRef}
+          style={{ overscrollBehavior: 'contain' }}
+          className="hidden md:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 gap-2 overflow-x-auto pb-3 select-none scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
         >
           {tabs.map((tab) => {
             const active = activeTab === tab.id;
