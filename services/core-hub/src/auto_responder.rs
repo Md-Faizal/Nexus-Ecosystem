@@ -2,7 +2,9 @@ use crate::db::{
     is_mail_responder_cooldown, log_mail_responder_event, record_mail_responder_reply,
 };
 use crate::mailer::send_auto_reply;
-use crate::routes::auto_responder_api::{load_auto_responder_config, render_email_html, render_email_txt};
+use crate::routes::auto_responder_api::{
+    load_auto_responder_config, render_email_html, render_email_txt, AutoResponderConfig,
+};
 use crate::state::SharedState;
 use rustls_pki_types::ServerName;
 use std::sync::Arc;
@@ -217,7 +219,7 @@ async fn check_inbox_and_reply(
         }
 
         // Check Suppression
-        let (suppressed, reason) = evaluate_suppression(&headers, &sender_email, state).await;
+        let (suppressed, reason) = evaluate_suppression(&headers, &sender_email, state, &ar_config).await;
         if suppressed {
             info!(
                 "⏩ Rust Auto-Responder: Suppressed reply to '{}' (Reason: {})",
@@ -349,15 +351,47 @@ async fn evaluate_suppression(
     headers: &ParsedHeaders,
     sender: &str,
     state: &SharedState,
+    ar_config: &AutoResponderConfig,
 ) -> (bool, &'static str) {
     let sender_lower = sender.to_lowercase();
 
-    // 1. Never reply to self
-    if sender_lower == "me@faizal.uk" || sender_lower.ends_with("@faizal.uk") {
-        return (true, "Self or internal domain sender");
+    // 0. Blacklist Check (highest priority)
+    for entry in ar_config.blacklist.split(|c| c == ',' || c == '\n' || c == ';') {
+        let trimmed = entry.trim().to_lowercase();
+        if !trimmed.is_empty() {
+            if trimmed.starts_with('@') && sender_lower.ends_with(&trimmed) {
+                return (true, "Blacklisted sender domain");
+            } else if sender_lower == trimmed {
+                return (true, "Blacklisted sender address");
+            }
+        }
     }
 
-    // 2. Drop common automated bot patterns
+    // 1. Whitelist Check (bypasses self/bulk/cooldown if matched)
+    let is_whitelisted = ar_config.whitelist.split(|c| c == ',' || c == '\n' || c == ';').any(|entry| {
+        let trimmed = entry.trim().to_lowercase();
+        if trimmed.is_empty() {
+            false
+        } else if trimmed.starts_with('@') {
+            sender_lower.ends_with(&trimmed)
+        } else {
+            sender_lower == trimmed
+        }
+    });
+
+    if is_whitelisted {
+        info!("⭐ Rust Auto-Responder: Sender '{}' is whitelisted", sender_lower);
+        return (false, "Approved (Whitelisted)");
+    }
+
+    // 2. Never reply to self (if suppress_self enabled)
+    if ar_config.suppress_self.to_lowercase() == "true" {
+        if sender_lower == "me@faizal.uk" || sender_lower.ends_with("@faizal.uk") {
+            return (true, "Self or internal domain sender");
+        }
+    }
+
+    // 3. Drop common automated bot patterns
     for pattern in &[
         "noreply",
         "no-reply",
@@ -374,45 +408,37 @@ async fn evaluate_suppression(
         }
     }
 
-    // 3. RFC 3834 Loop Prevention
+    // 4. RFC 3834 Loop Prevention & Bulk Suppression
     if let Some(ref auto) = headers.auto_submitted {
         if !auto.eq_ignore_ascii_case("no") {
             return (true, "Auto-Submitted header present");
         }
     }
 
-    if let Some(ref prec) = headers.precedence {
-        let prec_lower = prec.to_lowercase();
-        if prec_lower.contains("bulk")
-            || prec_lower.contains("list")
-            || prec_lower.contains("junk")
-            || prec_lower.contains("auto_reply")
-        {
-            return (true, "Precedence bulk/list/junk/auto_reply");
+    if ar_config.suppress_bulk.to_lowercase() == "true" {
+        if let Some(ref prec) = headers.precedence {
+            let prec_lower = prec.to_lowercase();
+            if prec_lower.contains("bulk")
+                || prec_lower.contains("list")
+                || prec_lower.contains("junk")
+                || prec_lower.contains("auto_reply")
+            {
+                return (true, "Precedence bulk/list/junk/auto_reply");
+            }
+        }
+
+        if headers.is_list {
+            return (true, "Mailing list or newsletter header detected");
         }
     }
 
-    if headers.is_list {
-        return (true, "Mailing list or newsletter header detected");
-    }
-
-    // 4. Do not reply to threads with in-reply-to (prevents ping-pong loops)
+    // 5. Do not reply to threads with in-reply-to (prevents ping-pong loops)
     if headers.in_reply_to.is_some() {
         return (true, "Existing thread in-reply-to present");
     }
 
-    // 5. Cooldown Check (configurable via admin, default 7 days)
-    let cooldown_days: i64 = {
-        let conn = state.db.lock().await;
-        conn.query_row(
-            "SELECT value FROM settings WHERE key = 'auto_responder_cooldown_days'",
-            [],
-            |r| r.get::<_, String>(0),
-        )
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(7)
-    };
+    // 6. Cooldown Check (configurable via admin, default 7 days)
+    let cooldown_days: i64 = ar_config.cooldown_days.parse().unwrap_or(7);
     if is_mail_responder_cooldown(&state.db, &sender_lower, cooldown_days).await {
         return (true, "Within cooldown window");
     }

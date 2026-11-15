@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Menu,
   X,
-  Eye
+  Eye,
+  MailCheck
 } from 'lucide-react';
 import { MONOGRAM_PATHS } from './Admin';
 
@@ -39,11 +40,12 @@ export default function AdminLayout({
     { id: 'ai-studio', number: '03', label: 'Fleet AI', icon: Bot, desc: 'Local LLM Studio & VRAM' },
     { id: 'reports', number: '04', label: 'Supervision', icon: Zap, desc: '24h health & email' },
     { id: 'messages', number: '05', label: 'Inbox', icon: Mail, desc: 'Client inquiries', badge: inboxCount },
-    { id: 'portfolio', number: '06', label: 'Portfolio', icon: FolderGit2, desc: 'Curated projects', badge: projectCount },
-    { id: 'profile', number: '07', label: 'Profile', icon: UserCheck, desc: 'Avatars & vault' },
-    { id: 'analytics', number: '08', label: 'Analytics', icon: Users, desc: 'Audience & traffic' },
-    { id: 'security', number: '09', label: 'Security', icon: Shield, desc: 'Firewall & bans' },
-    { id: 'settings', number: '10', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
+    { id: 'mail-studio', number: '06', label: 'Auto-Responder', icon: MailCheck, desc: 'Mail Engine & Studio' },
+    { id: 'portfolio', number: '07', label: 'Portfolio', icon: FolderGit2, desc: 'Curated projects', badge: projectCount },
+    { id: 'profile', number: '08', label: 'Profile', icon: UserCheck, desc: 'Avatars & vault' },
+    { id: 'analytics', number: '09', label: 'Analytics', icon: Users, desc: 'Audience & traffic' },
+    { id: 'security', number: '10', label: 'Security', icon: Shield, desc: 'Firewall & bans' },
+    { id: 'settings', number: '11', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
   ];
 
   const handleTabSelect = (tabId) => {
@@ -143,8 +145,15 @@ export default function AdminLayout({
           </div>
         </div>
 
-        {/* ─── DESKTOP HORIZONTAL PILL NAVIGATION ─── */}
-        <div className="hidden md:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 gap-1.5 overflow-x-auto pb-3 scrollbar-none">
+        {/* ─── DESKTOP HORIZONTAL PILL NAVIGATION (HORIZONTALLY SCROLLABLE) ─── */}
+        <div
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}
+          className="hidden md:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 gap-2 overflow-x-auto pb-3 select-none scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent scroll-smooth"
+        >
           {tabs.map((tab) => {
             const active = activeTab === tab.id;
             const Icon = tab.icon;
@@ -152,7 +161,7 @@ export default function AdminLayout({
               <button
                 key={tab.id}
                 onClick={() => handleTabSelect(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer relative ${active
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer relative shrink-0 ${active
                   ? 'bg-[#89ff00]/15 text-[#89ff00] border border-[#89ff00]/30 shadow-[0_0_20px_rgba(137,255,0,0.15)] font-semibold'
                   : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
                   }`}

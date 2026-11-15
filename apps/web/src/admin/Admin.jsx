@@ -10,6 +10,7 @@ import ProfileTab from './tabs/ProfileTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import SecurityTab from './tabs/SecurityTab';
 import SettingsTab from './tabs/SettingsTab';
+import AutoResponderStudio from './components/AutoResponderStudio';
 import ToastNotification from './components/ToastNotification';
 import ReportPreviewModal from './components/ReportPreviewModal';
 
@@ -667,6 +668,13 @@ export default function Admin({ onExit }) {
           onDeleteMessage={handleDeleteMessage}
           onRefresh={fetchAllData}
           refreshing={refreshing}
+        />
+      )}
+
+      {activeTab === 'mail-studio' && (
+        <AutoResponderStudio
+          fetchWithAuth={fetchWithAuth}
+          showToast={showToast}
         />
       )}
 

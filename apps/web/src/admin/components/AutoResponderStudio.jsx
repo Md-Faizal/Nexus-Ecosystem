@@ -190,6 +190,8 @@ const DEFAULTS = {
   cooldown_days: '7',
   suppress_self: 'true',
   suppress_bulk: 'true',
+  whitelist: '',
+  blacklist: '',
   from_name: 'Mohammad Faizal (Auto-Reply)',
   from_email: 'me@faizal.uk',
   reply_to: 'me@faizal.uk',
@@ -509,6 +511,50 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
             lineHeight: 1.5
           }}>
             ✓ <span style={{ color: '#89ff00' }}>Anti-Impersonation & Spam Score Optimized</span>: Identifies as an automated confirmation while directing incoming human replies straight to your primary inbox. Image assets and rainbow bars are self-hosted directly on faizal.uk.
+          </div>
+        </div>
+      </div>
+
+      {/* ── Access Control (Whitelist & Blacklist) ────────────────────────── */}
+      <div style={S.section}>
+        <div style={S.sectionHeader}>
+          <span style={{ fontSize: 16 }}>📋</span>
+          <h3 style={S.sectionTitle}>Access Control (Whitelist & Blacklist)</h3>
+        </div>
+        <div style={S.sectionBody}>
+          <div style={S.row}>
+            <div style={S.field}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={S.label}>VIP Whitelist (Always Reply)</label>
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#89ff00' }}>Bypasses Cooldown</span>
+              </div>
+              <textarea
+                value={config.whitelist || ''}
+                onChange={set('whitelist')}
+                placeholder="vip@partner.com, @trusted-agency.org, client@example.com"
+                style={{ ...S.textarea, minHeight: 70, marginTop: 4 }}
+                className="ar-input"
+              />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Inter', sans-serif" }}>
+                Comma or newline-separated. Supports exact emails or <code>@domain.com</code> wildcards.
+              </span>
+            </div>
+            <div style={S.field}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={S.label}>Blacklist (Never Reply)</label>
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#ff5050' }}>Blocked Senders</span>
+              </div>
+              <textarea
+                value={config.blacklist || ''}
+                onChange={set('blacklist')}
+                placeholder="spammer@junk.com, @coldemail-blast.io, marketing@bad.net"
+                style={{ ...S.textarea, minHeight: 70, marginTop: 4, borderColor: config.blacklist ? 'rgba(255,80,80,0.3)' : undefined }}
+                className="ar-input"
+              />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Inter', sans-serif" }}>
+                Senders matching these addresses or domains will be immediately dropped with zero auto-reply.
+              </span>
+            </div>
           </div>
         </div>
       </div>
