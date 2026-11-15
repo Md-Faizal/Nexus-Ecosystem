@@ -22,14 +22,18 @@ on:
   push:
     paths:
       - 'apps/desktop/**'
+      - 'services/core-hub/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'public/releases/**'
       - '.github/workflows/fast-cli-release.yml'
 
 concurrency:
-  group: deploy-personal-site
+  group: fast-cli-release-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   resolve-version:
@@ -315,6 +319,8 @@ jobs:
             UserKnownHostsFile /dev/null
             PubkeyAcceptedKeyTypes +ssh-rsa,rsa-sha2-256,rsa-sha2-512
             HostkeyAlgorithms +ssh-rsa,rsa-sha2-256,rsa-sha2-512
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
           EOF
           chmod 600 ~/.ssh/config
 
