@@ -20,6 +20,16 @@ on:
       - 'assets/design/**'
       - 'archive/**'
       - 'public/releases/**'
+      - 'services/mail/**'
+      - 'docs/**'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - '**.cjs'
+      - 'example*.html'
+      - 'sample_*.html'
 
   workflow_dispatch:
     inputs:
@@ -34,7 +44,7 @@ on:
 
 concurrency:
   group: deploy-personal-site
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -81,16 +91,17 @@ jobs:
       - name: "⚡ Install & Build React Frontend and Admin Console"
         run: |
           cd apps/web
-          npm ci --prefer-offline
+          npm ci --prefer-offline --no-audit --no-fund
           # Build Main Portfolio SPA
           npm run build:portfolio
           # Build Standalone Admin Console
           npm run build:admin
-          # Synchronize dist-admin into public and dist
+          # Synchronize dist-admin into public and dist safely
+          mkdir -p ../../public/assets dist/assets
           cp dist-admin/admin.html ../../public/admin.html
-          cp -r dist-admin/assets/* ../../public/assets/
+          cp -r dist-admin/assets/* ../../public/assets/ || true
           cp dist-admin/admin.html dist/admin.html
-          cp -r dist-admin/assets/* dist/assets/
+          cp -r dist-admin/assets/* dist/assets/ || true
           cd ..
 
       - name: "📦 Upload Frontend Distribution Artifact"
@@ -119,8 +130,8 @@ jobs:
 
       - name: "📦 Install Linux GUI System Dependencies"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxkbcommon-dev
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev libxkbcommon-dev
 
       - name: "⚡ Cache Rust Dependencies & Build Artifacts"
         uses: Swatinem/rust-cache@v2
