@@ -245,8 +245,8 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const SIGNATURE_HTML = `<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 13px; color: #111111; line-height: 1.4; border-top: 2px solid #89ff00; padding-top: 14px; margin-top: 18px; max-width: 480px;">
   <tr>
     <td style="vertical-align: middle; padding-right: 14px; border-right: 1px solid #e0e0e0;">
-      <a href="https://faizal.uk" target="_blank" style="text-decoration: none;">
-        <img src="https://faizal.uk/images/mail/fz_logo.png" height="34" width="34" alt="FZ" style="display: block; border: 0;" />
+      <a href="https://faizal.uk" target="_blank" style="text-decoration: none; display: inline-block;">
+        <img src="https://faizal.uk/images/mail/fz_logo.png" height="28" alt="FZ" style="display: block; height: 28px; width: auto; border: 0;" />
       </a>
     </td>
     <td style="vertical-align: middle; padding-left: 14px;">
@@ -266,7 +266,8 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const copyRichSignature = async () => {
     try {
       const text = "Mohammad Faizal — Full-Stack Engineer & Systems Architect | https://faizal.uk";
-      const blobHtml = new Blob([SIGNATURE_HTML], { type: 'text/html' });
+      const htmlPayload = `<html><body><!--StartFragment-->${SIGNATURE_HTML}<!--EndFragment--></body></html>`;
+      const blobHtml = new Blob([htmlPayload], { type: 'text/html' });
       const blobText = new Blob([text], { type: 'text/plain' });
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -276,12 +277,40 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
       ]);
       setSigCopied(true);
       setTimeout(() => setSigCopied(false), 3000);
-      showToastRef.current?.('Rich signature copied! Ready to paste into Gmail / Apple Mail settings', 'success');
+      showToastRef.current?.('Rich signature copied! Paste into Gmail / Apple Mail settings', 'success');
     } catch (e) {
       await navigator.clipboard.writeText(SIGNATURE_HTML);
       setSigCopied(true);
       setTimeout(() => setSigCopied(false), 3000);
       showToastRef.current?.('HTML signature code copied to clipboard!', 'success');
+    }
+  };
+
+  const copyLogoUrl = async () => {
+    try {
+      await navigator.clipboard.writeText('https://faizal.uk/images/mail/fz_logo.png');
+      showToastRef.current?.('Logo URL copied! Paste into Gmail Signature → Insert Image icon', 'success');
+    } catch (e) {
+      showToastRef.current?.('Failed to copy logo URL', 'error');
+    }
+  };
+
+  const sendStarterEmail = async () => {
+    try {
+      showToastRef.current?.('Sending template & signature to me@faizal.uk…', 'info');
+      const res = await fetchWithAuth('/api/admin/auto-responder/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: 'me@faizal.uk' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToastRef.current?.('✓ Sent to me@faizal.uk! Open Gmail on phone or web to use as template', 'success');
+      } else {
+        showToastRef.current?.(`Send failed: ${data.error}`, 'error');
+      }
+    } catch (e) {
+      showToastRef.current?.('Network error sending starter email', 'error');
     }
   };
 
@@ -896,6 +925,18 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                 >
                   {sigCopied ? '✓ Copied to Clipboard!' : '📋 Copy Rich Signature'}
                 </button>
+                <button
+                  onClick={copyLogoUrl}
+                  style={{
+                    ...S.btnSecondary,
+                    padding: '8px 12px',
+                    fontSize: 11,
+                  }}
+                  className="ar-btn-sec"
+                  title="Copy direct PNG logo URL for Gmail's Insert Image button"
+                >
+                  🔗 Copy Logo URL
+                </button>
               </div>
             </div>
 
@@ -919,7 +960,7 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 12px' }}>
-                  Includes top pixelated bar, brand header, hero art banner, body card, and bottom pixelated bar. Ideal for Gmail Canned Templates or rich replies.
+                  Includes top pixelated bar, brand header, hero art banner, body card, and bottom pixelated bar. Save as a Gmail Canned Template for instant 1-click branded replies!
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -933,6 +974,17 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                   className="ar-btn-sec"
                 >
                   {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Full Template HTML'}
+                </button>
+                <button
+                  onClick={sendStarterEmail}
+                  style={{
+                    ...S.btnPrimary,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                  }}
+                  className="ar-btn"
+                >
+                  📥 Send Starter to me@faizal.uk
                 </button>
               </div>
             </div>
@@ -1002,10 +1054,15 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
             {sigGuideTab === 'templates' && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
                 <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>In Gmail Web, open <strong>Settings (⚙️) → See all settings → Advanced → Templates</strong> and select <strong>Enable</strong>.</li>
-                  <li>Click <strong>Compose</strong> a new email. Click <strong>📄 Copy Full Template HTML</strong> above or paste your styled content into the message body.</li>
-                  <li>Click the 3 dots <strong>More options (⋮)</strong> at the bottom right of the compose window → <strong>Templates → Save draft as template → Save as new template</strong> (e.g. &ldquo;Atelier Branded Reply&rdquo;).</li>
+                  <li>Click <strong>📥 Send Starter to me@faizal.uk</strong> above to dispatch the complete layout straight to your Gmail.</li>
+                  <li>In Gmail (on your computer or mobile browser), open the message you received.</li>
+                  <li>Click <strong>Reply</strong> or <strong>Forward</strong>, then click the 3 dots <strong>More options (⋮)</strong> at the bottom right → <strong>Templates → Save draft as template → Save as new template</strong> (e.g. &ldquo;Atelier Branded Reply&rdquo;).</li>
                   <li style={{ color: '#89ff00', marginTop: 4 }}>
+                    <strong>⭐ 1-Click Replies Anytime:</strong> Whenever replying to someone from your phone or laptop, tap <strong>⋮ → Templates → Atelier Branded Reply</strong>. The entire graphics, header, and styling insert automatically into your reply!
+                  </li>
+                </ol>
+              </div>
+            )}
                     <strong>Instant Reuse:</strong> Whenever replying to an email, click <strong>⋮ → Templates → Atelier Branded Reply</strong> to instantly load the full graphic layout ready for your message!
                   </li>
                 </ol>
