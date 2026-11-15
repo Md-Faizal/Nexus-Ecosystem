@@ -341,14 +341,13 @@ pub async fn send_auto_reply(
     let user = "me@faizal.uk";
     let pass = "FaizalMail2026!";
 
-    let tls = TlsParameters::builder(host.to_string())
-        .danger_accept_invalid_certs(true)
-        .danger_accept_invalid_hostnames(true)
+    let tls = TlsParameters::builder("mail.faizal.uk".to_string())
+        .dangerous_accept_invalid_certs(true)
+        .dangerous_accept_invalid_hostnames(true)
         .build()
         .map_err(|e| e.to_string())?;
 
-    let transport = AsyncSmtpTransport::<Tokio1Executor>::relay(host)
-        .map_err(|e| e.to_string())?
+    let transport = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host)
         .port(port)
         .tls(Tls::Wrapper(tls))
         .credentials(Credentials::new(user.to_string(), pass.to_string()))

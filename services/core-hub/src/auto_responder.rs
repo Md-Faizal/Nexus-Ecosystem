@@ -204,9 +204,9 @@ async fn check_inbox_and_reply(
 
         let headers = parse_headers(&header_lines);
         let sender_email = headers.from_email.to_lowercase();
-        let sender_name = headers.from_name;
-        let subject = headers.subject;
-        let msg_id = headers.message_id.unwrap_or_default();
+        let sender_name = headers.from_name.clone();
+        let subject = headers.subject.clone();
+        let msg_id = headers.message_id.clone().unwrap_or_default();
 
         if sender_email.is_empty() {
             continue;
