@@ -2,6 +2,7 @@ use crate::db::{
     is_mail_responder_cooldown, log_mail_responder_event, record_mail_responder_reply,
 };
 use crate::mailer::send_auto_reply;
+use crate::routes::auto_responder_api::{load_auto_responder_config, render_email_html, render_email_txt};
 use crate::state::SharedState;
 use rustls_pki_types::ServerName;
 use std::sync::Arc;
@@ -9,10 +10,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio_rustls::{rustls, TlsConnector};
 use tracing::{error, info, warn};
-
-// Default embedded templates as guaranteed fallback
-const EMBEDDED_HTML_TEMPLATE: &str = include_str!("../../mail/responder/templates/acknowledgement.html");
-const EMBEDDED_TXT_TEMPLATE: &str = include_str!("../../mail/responder/templates/acknowledgement.txt");
 
 #[derive(Debug)]
 struct DangerSkipCertVerifier;
@@ -176,9 +173,16 @@ async fn check_inbox_and_reply(
         unseen_ids.len()
     );
 
-    // Load templates (priority: dynamic file -> embedded fallback)
-    let template_html = load_html_template();
-    let template_txt = load_txt_template();
+    // Load runtime config from DB (enabled flag, cooldown, copy, etc.)
+    let ar_config = load_auto_responder_config(&state.db).await;
+
+    // Respect master on/off toggle
+    if ar_config.enabled.to_lowercase() != "true" {
+        info!("⏸ Rust Auto-Responder: Paused via admin panel (auto_responder_enabled=false). Skipping replies.");
+        let _ = writer.write_all(b"A99 LOGOUT\r\n").await;
+        let _ = writer.flush().await;
+        return Ok(());
+    }
 
     // 5. Process each unseen message
     for id in unseen_ids {
@@ -241,19 +245,9 @@ async fn check_inbox_and_reply(
             sender_email, subject
         );
 
-        // Personalize template with actual recipient email
-        let mut html = template_html.clone();
-        let mut txt = template_txt.clone();
-        for placeholder in &[
-            "{{ recipient_email }}",
-            "{{recipient_email}}",
-            "%7B%7B+recipient_email+%7D%7D",
-            "%7B%7Brecipient_email%7D%7D",
-            "%7B%7B%20recipient_email%20%7D%7D",
-        ] {
-            html = html.replace(placeholder, &sender_email);
-            txt = txt.replace(placeholder, &sender_email);
-        }
+        // Render template with DB config + recipient email substitution
+        let html = render_email_html(&ar_config, &sender_email);
+        let txt = render_email_txt(&ar_config, &sender_email);
 
         // Dispatch via Lettre SMTP
         match send_auto_reply(
@@ -404,42 +398,21 @@ async fn evaluate_suppression(
         return (true, "Existing thread in-reply-to present");
     }
 
-    // 5. Cooldown Check (7 days)
-    if is_mail_responder_cooldown(&state.db, &sender_lower, 7).await {
-        return (true, "Within 7-day cooldown window");
+    // 5. Cooldown Check (configurable via admin, default 7 days)
+    let cooldown_days: i64 = {
+        let conn = state.db.lock().await;
+        conn.query_row(
+            "SELECT value FROM settings WHERE key = 'auto_responder_cooldown_days'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7)
+    };
+    if is_mail_responder_cooldown(&state.db, &sender_lower, cooldown_days).await {
+        return (true, "Within cooldown window");
     }
 
     (false, "Approved")
-}
-
-fn load_html_template() -> String {
-    for candidate in &[
-        "/app/templates/acknowledgement.html",
-        "/home/ubuntu/stack/apps/personal-site/mail/responder/templates/acknowledgement.html",
-        "services/mail/responder/templates/acknowledgement.html",
-        "templates/acknowledgement.html",
-    ] {
-        if let Ok(content) = std::fs::read_to_string(candidate) {
-            if !content.trim().is_empty() {
-                return content;
-            }
-        }
-    }
-    EMBEDDED_HTML_TEMPLATE.to_string()
-}
-
-fn load_txt_template() -> String {
-    for candidate in &[
-        "/app/templates/acknowledgement.txt",
-        "/home/ubuntu/stack/apps/personal-site/mail/responder/templates/acknowledgement.txt",
-        "services/mail/responder/templates/acknowledgement.txt",
-        "templates/acknowledgement.txt",
-    ] {
-        if let Ok(content) = std::fs::read_to_string(candidate) {
-            if !content.trim().is_empty() {
-                return content;
-            }
-        }
-    }
-    EMBEDDED_TXT_TEMPLATE.to_string()
 }

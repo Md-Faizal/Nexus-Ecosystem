@@ -101,6 +101,16 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         .route("/fleet/mail-relay/status", get(routes::mesh_api::get_mail_relay_status))
         .route("/fleet/mail-relay/drain", post(routes::mesh_api::trigger_mail_spool_drain))
         .route("/snapshot/:db_name", get(routes::mesh_api::download_snapshot))
+        .route("/auto-responder/config", get(routes::auto_responder_api::get_config).post(routes::auto_responder_api::update_config))
+        .route("/auto-responder/preview-html", get(routes::auto_responder_api::get_preview_html))
+        .route("/auto-responder/test", post(routes::auto_responder_api::send_test))
+        .route("/auto-responder/logs", get(routes::auto_responder_api::get_logs))
+        .route("/auto-responder/clear-cooldown", post(routes::auto_responder_api::clear_cooldown))
+        .route("/admin/auto-responder/config", get(routes::auto_responder_api::get_config).post(routes::auto_responder_api::update_config))
+        .route("/admin/auto-responder/preview-html", get(routes::auto_responder_api::get_preview_html))
+        .route("/admin/auto-responder/test", post(routes::auto_responder_api::send_test))
+        .route("/admin/auto-responder/logs", get(routes::auto_responder_api::get_logs))
+        .route("/admin/auto-responder/clear-cooldown", post(routes::auto_responder_api::clear_cooldown))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::require_admin_middleware,

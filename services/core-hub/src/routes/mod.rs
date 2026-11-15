@@ -1,3 +1,4 @@
+pub mod auto_responder_api;
 pub mod contact;
 pub mod health_api;
 pub mod mesh_api;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sliders, Mail, ShieldAlert, Palette, CheckCircle2, Send, Lock, ExternalLink, RefreshCw, KeyRound, Eye, EyeOff, AlertCircle, Server, Cpu, Layers, Activity } from 'lucide-react';
+import AutoResponderStudio from '../components/AutoResponderStudio';
 
 export default function SettingsTab({
   siteTheme,
@@ -808,6 +809,9 @@ export default function SettingsTab({
               </form>
             </div>
           </div>
+
+          {/* Email Auto-Responder Studio */}
+          <AutoResponderStudio fetchWithAuth={fetchWithAuth} showToast={showToast} />
         </div >
         );
 }

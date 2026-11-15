@@ -223,8 +223,7 @@
                                                                                     align="-webkit-left">
                                                                                     <h1 class="hero-title"
                                                                                         style="margin: 0; color: #111111; direction: ltr; font-family: 'Inter','Arial'; font-size: 38px; font-weight: 800; letter-spacing: -1.6px; line-height: 1.15; text-align: left;">
-                                                                                        Got your message<span
-                                                                                            style="color: #1A1AE8;">.</span>
+                                                                                        {{headline}}
                                                                                     </h1>
                                                                                 </td>
                                                                             </tr>
@@ -245,7 +244,7 @@
                                                                                         style="max-width: 552px;">
                                                                                         <a href="https://faizal.uk"
                                                                                             target="_blank">
-                                                                                            <img src="https://faizal.uk/images/mail/hero_aurora_v2.jpg?v=2"
+                                                                                            <img src="{{hero_banner_url}}"
                                                                                                 style="display: block; height: auto; border: 0; width: 100%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12);"
                                                                                                 width="552"
                                                                                                 alt="Mohammad Faizal — Ingress Confirmed"
@@ -271,16 +270,11 @@
                                                                                         style="color:#111111;direction:ltr;font-family:'Inter','Arial';font-size:16px;font-weight:400;letter-spacing:-0.1px;line-height:1.65;text-align:left;">
                                                                                         <p
                                                                                             style="margin: 0 0 10px 0; font-size: 19px; font-weight: 700; color: #111111; letter-spacing: -0.3px;">
-                                                                                            Hi there,
+                                                                                            {{salutation}}
                                                                                         </p>
                                                                                         <p
                                                                                             style="margin: 0 0 16px 0; color: #2d3139; font-size: 15.5px;">
-                                                                                            Thanks so much for reaching
-                                                                                            out and taking the time to
-                                                                                            check out my work. This is a
-                                                                                            quick automated note to let
-                                                                                            you know your email landed
-                                                                                            safely in my inbox.
+                                                                                            {{body_paragraph}}
                                                                                         </p>
 
                                                                                         <!-- Elevated Editorial Callout Card (Fort Foundry Amber #FFAE39 + #6A2F11 Espresso) -->
@@ -293,17 +287,11 @@
                                                                                                     style="padding: 18px 22px;">
                                                                                                     <span
                                                                                                         style="display: block; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #6A2F11; margin-bottom: 6px;">
-                                                                                                        RESPONSE WINDOW
-                                                                                                        // 1–2 DAYS
+                                                                                                        RESPONSE WINDOW // {{response_window}}
                                                                                                     </span>
                                                                                                     <span
                                                                                                         style="display: block; font-family: 'Inter', Arial, sans-serif; font-size: 16px; font-weight: 700; color: #381504; line-height: 1.45; letter-spacing: -0.2px;">
-                                                                                                        I personally
-                                                                                                        read every
-                                                                                                        message and
-                                                                                                        typically reply
-                                                                                                        within 1 to 2
-                                                                                                        business days.
+                                                                                                        {{callout_message}}
                                                                                                     </span>
                                                                                                 </td>
                                                                                             </tr>
@@ -311,10 +299,7 @@
 
                                                                                         <p
                                                                                             style="margin: 14px 0 0 0; color: #2d3139; font-size: 15.5px;">
-                                                                                            In the meantime, feel free
-                                                                                            to browse some of my latest
-                                                                                            projects and engineering
-                                                                                            work below.
+                                                                                            {{closing_paragraph}}
                                                                                         </p>
                                                                                     </div>
                                                                                 </td>
@@ -338,10 +323,10 @@
                                                                                             <!-- Primary Button (Electric Ultramarine #1A1AE8 + Cream #FFF0E3) -->
                                                                                             <td
                                                                                                 style="background-color: #1A1AE8; border-radius: 6px; text-align: center;">
-                                                                                                <a href="https://faizal.uk"
+                                                                                                <a href="{{cta_primary_url}}"
                                                                                                     target="_blank"
                                                                                                     style="display: inline-block; padding: 13px 28px; font-family: 'Inter', Arial, sans-serif; font-size: 15px; font-weight: 700; color: #FFF0E3; text-decoration: none; letter-spacing: -0.2px;">
-                                                                                                    Explore Portfolio →
+                                                                                                    {{cta_primary_text}}
                                                                                                 </a>
                                                                                             </td>
                                                                                             <td style="width: 12px;">
@@ -349,10 +334,10 @@
                                                                                             <!-- Secondary Button (Jet Black #111111 + White) -->
                                                                                             <td
                                                                                                 style="background-color: #111111; border-radius: 6px; text-align: center;">
-                                                                                                <a href="https://faizal.uk/work"
+                                                                                                <a href="{{cta_secondary_url}}"
                                                                                                     target="_blank"
                                                                                                     style="display: inline-block; padding: 13px 24px; font-family: 'Inter', Arial, sans-serif; font-size: 15px; font-weight: 600; color: #FFFFFF; text-decoration: none;">
-                                                                                                    Selected Works
+                                                                                                    {{cta_secondary_text}}
                                                                                                 </a>
                                                                                             </td>
                                                                                         </tr>
@@ -414,7 +399,7 @@
                                                     <!-- Footer Notice -->
                                                     <p
                                                         style="margin: 0; font-family: 'Inter', Arial, sans-serif; font-size: 12px; color: #716e7e; line-height: 1.6;">
-                                                        This email was sent to <a href="mailto:{{recipient_email}}" style="color: #111111; text-decoration: underline; font-weight: 600;">{{recipient_email}}</a> · Made with love &amp; curiosity 🤍<br />
+                                                        This email was sent to <a href="mailto:{{recipient_email}}" style="color: #111111; text-decoration: underline; font-weight: 600;">{{recipient_email}}</a> · {{footer_note}}<br />
                                                         © 2026 Mohammad Faizal. All rights reserved.
                                                     </p>
 
