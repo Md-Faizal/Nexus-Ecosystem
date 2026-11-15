@@ -1063,11 +1063,6 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                 </ol>
               </div>
             )}
-                    <strong>Instant Reuse:</strong> Whenever replying to an email, click <strong>⋮ → Templates → Atelier Branded Reply</strong> to instantly load the full graphic layout ready for your message!
-                  </li>
-                </ol>
-              </div>
-            )}
           </div>
         </div>
       </div>
