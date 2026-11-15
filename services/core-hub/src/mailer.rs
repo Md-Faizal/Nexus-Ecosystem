@@ -3,6 +3,7 @@ use crate::db::{
     enqueue_mail_spool, get_setting, mark_mail_spool_sent, DbPool,
 };
 use lettre::message::header::ContentType;
+use lettre::message::{MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
@@ -325,4 +326,74 @@ pub async fn send_report_email(
     html_body: String,
 ) -> Result<(), String> {
     dispatch_resilient_email(config, db, recipient, subject, html_body, "health_report", 3).await
+}
+
+pub async fn send_auto_reply(
+    to_addr: &str,
+    to_name: &str,
+    orig_msg_id: Option<&str>,
+    orig_subject: &str,
+    html_body: &str,
+    text_body: &str,
+) -> Result<(), String> {
+    let host = "127.0.0.1";
+    let port = 465;
+    let user = "me@faizal.uk";
+    let pass = "FaizalMail2026!";
+
+    let tls = TlsParameters::builder(host.to_string())
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let transport = AsyncSmtpTransport::<Tokio1Executor>::relay(host)
+        .map_err(|e| e.to_string())?
+        .port(port)
+        .tls(Tls::Wrapper(tls))
+        .credentials(Credentials::new(user.to_string(), pass.to_string()))
+        .build();
+
+    let from_header = "\"Mohammad Faizal\" <me@faizal.uk>";
+    let to_header = if !to_name.is_empty() {
+        format!("\"{}\" <{}>", to_name, to_addr)
+    } else {
+        to_addr.to_string()
+    };
+
+    let reply_subject = if orig_subject.trim().is_empty() {
+        "Got your message! — Mohammad Faizal".to_string()
+    } else if orig_subject.to_lowercase().starts_with("re:") {
+        orig_subject.to_string()
+    } else {
+        format!("Re: {}", orig_subject)
+    };
+
+    let mut builder = Message::builder()
+        .from(from_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
+        .to(to_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
+        .subject(reply_subject)
+        .header(lettre::message::header::HeaderName::new_unchecked("Auto-Submitted"), "auto-replied")
+        .header(lettre::message::header::HeaderName::new_unchecked("Precedence"), "auto_reply")
+        .header(lettre::message::header::HeaderName::new_unchecked("X-Auto-Response-Suppress"), "All");
+
+    if let Some(msg_id) = orig_msg_id {
+        if !msg_id.is_empty() {
+            builder = builder
+                .header(lettre::message::header::HeaderName::new_unchecked("In-Reply-To"), msg_id)
+                .header(lettre::message::header::HeaderName::new_unchecked("References"), msg_id);
+        }
+    }
+
+    let email = builder
+        .multipart(
+            MultiPart::alternative()
+                .singlepart(SinglePart::plain(text_body.to_string()))
+                .singlepart(SinglePart::html(html_body.to_string())),
+        )
+        .map_err(|e| e.to_string())?;
+
+    transport.send(email).await.map_err(|e| e.to_string())?;
+    info!("✅ Rust Auto-Responder: Dispatched acknowledgement to {}", to_addr);
+    Ok(())
 }

@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod auto_responder;
 pub mod config;
 pub mod db;
 pub mod health;
@@ -48,6 +49,9 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
 
     // Spawn Tier-2 Periodic Spool Retry & Drain Worker (Exponential Backoff up to 72h)
     routes::mesh_api::start_spool_retry_worker(state.clone());
+
+    // Spawn Native Rust Mail Auto-Responder Engine (Direct IMAP Ingress & SMTP Acknowledgment)
+    auto_responder::start_auto_responder(state.clone());
 
     // Admin protected sub-router
     let admin_routes = Router::new()

@@ -346,6 +346,24 @@ fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_registered_apps_slug ON auth_registered_apps(slug);
         CREATE INDEX IF NOT EXISTS idx_user_grants_lookup ON auth_user_grants(user_id, app_id, is_revoked);
         CREATE INDEX IF NOT EXISTS idx_mail_spool_pending ON mail_spool (status, priority, scheduled_at);
+
+        -- Mail Auto-Responder Cooldown & Ingress Audit
+        CREATE TABLE IF NOT EXISTS mail_responder_cooldown (
+            sender_email TEXT PRIMARY KEY,
+            last_replied_at DATETIME NOT NULL,
+            reply_count INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS mail_responder_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT,
+            sender_email TEXT,
+            subject TEXT,
+            action TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_responder_sender ON mail_responder_cooldown(sender_email);
         "#,
     )?;
 
@@ -642,4 +660,61 @@ pub async fn get_spool_stats(db: &DbPool) -> (i64, i64, i64) {
     ).unwrap_or(0);
 
     (pending, sent, failed)
+}
+
+pub async fn is_mail_responder_cooldown(db: &DbPool, email: &str, cooldown_days: i64) -> bool {
+    let email_lower = email.to_lowercase();
+    let conn = db.lock().await;
+    let mut stmt = match conn.prepare(
+        "SELECT last_replied_at FROM mail_responder_cooldown WHERE sender_email = ?1",
+    ) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    let res: Result<String, _> = stmt.query_row(params![email_lower], |row| row.get(0));
+    if let Ok(last_str) = res {
+        if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(&last_str) {
+            let last_utc = parsed.with_timezone(&chrono::Utc);
+            let cutoff = chrono::Utc::now() - chrono::Duration::days(cooldown_days);
+            return last_utc > cutoff;
+        } else if let Ok(parsed_naive) = chrono::NaiveDateTime::parse_from_str(&last_str, "%Y-%m-%d %H:%M:%S") {
+            let last_utc = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(parsed_naive, chrono::Utc);
+            let cutoff = chrono::Utc::now() - chrono::Duration::days(cooldown_days);
+            return last_utc > cutoff;
+        }
+    }
+    false
+}
+
+pub async fn record_mail_responder_reply(db: &DbPool, email: &str) -> Result<()> {
+    let email_lower = email.to_lowercase();
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = db.lock().await;
+    conn.execute(
+        r#"
+        INSERT INTO mail_responder_cooldown (sender_email, last_replied_at, reply_count)
+        VALUES (?1, ?2, 1)
+        ON CONFLICT(sender_email) DO UPDATE SET
+            last_replied_at = excluded.last_replied_at,
+            reply_count = reply_count + 1
+        "#,
+        params![email_lower, now],
+    )?;
+    Ok(())
+}
+
+pub async fn log_mail_responder_event(
+    db: &DbPool,
+    msg_id: &str,
+    email: &str,
+    subject: &str,
+    action: &str,
+) -> Result<()> {
+    let conn = db.lock().await;
+    conn.execute(
+        "INSERT INTO mail_responder_logs (message_id, sender_email, subject, action) VALUES (?1, ?2, ?3, ?4)",
+        params![msg_id, email, subject, action],
+    )?;
+    Ok(())
 }
