@@ -1007,303 +1007,303 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
               flexDirection: 'column',
               justifyContent: 'space-between'
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
-                    Atelier Email Signature
-                  </span>
-                  <span style={{ fontSize: 10, background: '#1A1AE8', color: '#FFF0E3', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                    FOOTER LOCKUP
-                  </span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                      Atelier Email Signature
+                    </span>
+                    <span style={{ fontSize: 10, background: '#1A1AE8', color: '#FFF0E3', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                      FOOTER LOCKUP
+                    </span>
+                  </div>
+                  <div dangerouslySetInnerHTML={{ __html: SIGNATURE_HTML.replace('https://faizal.uk/images/mail/fz_logo.png', FZ_BASE64) }} />
                 </div>
-                <div dangerouslySetInnerHTML={{ __html: SIGNATURE_HTML.replace('https://faizal.uk/images/mail/fz_logo.png', FZ_BASE64) }} />
-              </div>
-              <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  onClick={copyRichSignature}
-                  style={{
-                    background: sigCopied ? '#89ff00' : '#111113',
-                    color: sigCopied ? '#000000' : '#ffffff',
-                    border: '1px solid #222225',
-                    borderRadius: 6,
-                    padding: '8px 14px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  className="ar-btn"
-                >
-                  {sigCopied ? '✓ Copied to Clipboard!' : '📋 Copy Rich Signature'}
-                </button>
-                <button
-                  onClick={copyLogoUrl}
-                  style={{
-                    ...S.btnSecondary,
-                    padding: '8px 12px',
-                    fontSize: 11,
-                  }}
-                  className="ar-btn-sec"
-                  title="Copy direct PNG logo URL for Gmail's Insert Image button"
-                >
-                  {logoCopied ? '✓ URL Copied!' : '🔗 Copy Logo URL'}
-                </button>
-              </div>
-            </div>
-
-            {/* Blank Composer Template Card */}
-            <div style={{
-              background: 'rgba(137,255,0,0.03)',
-              borderRadius: 10,
-              padding: 20,
-              border: '1px solid rgba(137,255,0,0.25)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
-                    Blank Composer Template
-                  </span>
-                  <span style={{ fontSize: 10, background: 'rgba(137,255,0,0.2)', color: '#89ff00', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                    BESPOKE EMAIL
-                  </span>
+                <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={copyRichSignature}
+                    style={{
+                      background: sigCopied ? '#89ff00' : '#111113',
+                      color: sigCopied ? '#000000' : '#ffffff',
+                      border: '1px solid #222225',
+                      borderRadius: 6,
+                      padding: '8px 14px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    className="ar-btn"
+                  >
+                    {sigCopied ? '✓ Copied to Clipboard!' : '📋 Copy Rich Signature'}
+                  </button>
+                  <button
+                    onClick={copyLogoUrl}
+                    style={{
+                      ...S.btnSecondary,
+                      padding: '8px 12px',
+                      fontSize: 11,
+                    }}
+                    className="ar-btn-sec"
+                    title="Copy direct PNG logo URL for Gmail's Insert Image button"
+                  >
+                    {logoCopied ? '✓ URL Copied!' : '🔗 Copy Logo URL'}
+                  </button>
                 </div>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: '0 0 12px' }}>
-                  Clean branded template with rainbow bars, FZ header, editable body container, and clean personal signature. No canned text, no orange callouts, and no recipient disclaimers.
-                </p>
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  onClick={copyBlankComposer}
-                  style={{
-                    ...S.btnPrimary,
-                    padding: '8px 14px',
-                    fontSize: 12,
-                  }}
-                  className="ar-btn"
-                >
-                  {blankCopied ? '✓ Blank HTML Copied!' : '📋 Copy Blank Template HTML'}
-                </button>
-                <button
-                  onClick={sendBlankStarter}
-                  disabled={blankSending}
-                  style={{
-                    ...S.btnSecondary,
-                    padding: '8px 14px',
-                    fontSize: 12,
-                  }}
-                  className="ar-btn-sec"
-                >
-                  {blankSending ? '⏳ Sending…' : '📥 Send Starter to me@faizal.uk'}
-                </button>
-              </div>
-            </div>
 
-            {/* Auto-Responder Layout Card */}
-            <div style={{
-              background: 'rgba(255,255,255,0.03)',
-              borderRadius: 10,
-              padding: 20,
-              border: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
-                    Auto-Responder Full HTML
-                  </span>
-                  <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                    LIVE RECEIPT
-                  </span>
+              {/* Blank Composer Template Card */}
+              <div style={{
+                background: 'rgba(137,255,0,0.03)',
+                borderRadius: 10,
+                padding: 20,
+                border: '1px solid rgba(137,255,0,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                      Blank Composer Template
+                    </span>
+                    <span style={{ fontSize: 10, background: 'rgba(137,255,0,0.2)', color: '#89ff00', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                      BESPOKE EMAIL
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                    Clean branded template with rainbow bars, FZ header, editable body container, and clean personal signature. No canned text, no orange callouts, and no recipient disclaimers.
+                  </p>
                 </div>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 12px' }}>
-                  The automated acknowledgment email layout including artwork hero banner, response window box, and configured copy.
-                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={copyBlankComposer}
+                    style={{
+                      ...S.btnPrimary,
+                      padding: '8px 14px',
+                      fontSize: 12,
+                    }}
+                    className="ar-btn"
+                  >
+                    {blankCopied ? '✓ Blank HTML Copied!' : '📋 Copy Blank Template HTML'}
+                  </button>
+                  <button
+                    onClick={sendBlankStarter}
+                    disabled={blankSending}
+                    style={{
+                      ...S.btnSecondary,
+                      padding: '8px 14px',
+                      fontSize: 12,
+                    }}
+                    className="ar-btn-sec"
+                  >
+                    {blankSending ? '⏳ Sending…' : '📥 Send Starter to me@faizal.uk'}
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  onClick={copyFullTemplate}
-                  style={{
-                    ...S.btnSecondary,
-                    background: templateCopied ? 'rgba(137,255,0,0.2)' : undefined,
-                    color: templateCopied ? '#89ff00' : undefined,
-                  }}
-                  className="ar-btn-sec"
-                >
-                  {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Auto-Reply HTML'}
-                </button>
-              </div>
-            </div>
-          </div>
 
-          {/* Setup Guide Tabs */}
-          <div style={{
-            background: 'rgba(0,0,0,0.25)',
-            borderRadius: 8,
-            padding: 16,
-            border: '1px solid rgba(255,255,255,0.06)'
-          }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', marginRight: 4, alignSelf: 'center' }}>
-                Setup Guide:
-              </span>
-              {[
-                { id: 'iphone', label: '📱 iPhone (Apple Mail)' },
-                { id: 'android', label: '🤖 Android (Gmail / Spark)' },
-                { id: 'templates', label: '📨 Gmail Canned Templates' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setSigGuideTab(t.id)}
-                  style={{
-                    background: sigGuideTab === t.id ? 'rgba(137,255,0,0.15)' : 'rgba(255,255,255,0.04)',
-                    color: sigGuideTab === t.id ? '#89ff00' : 'rgba(255,255,255,0.7)',
-                    border: `1px solid ${sigGuideTab === t.id ? 'rgba(137,255,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 6,
-                    padding: '5px 12px',
-                    fontSize: 11,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    cursor: 'pointer',
-                  }}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {sigGuideTab === 'iphone' && (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
-                <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li><strong>For Everyday Signature:</strong> Click <strong>📋 Copy Rich Signature</strong> above on this device. Open <strong>Settings → Mail → Signature</strong> on your iPhone, tap and hold to paste.</li>
-                  <li style={{ color: '#89ff00', marginTop: 4 }}>
-                    <strong>⭐ Crucial iPhone Step:</strong> Immediately <strong>shake your iPhone</strong> until the &ldquo;Undo Change Attributes&rdquo; popup appears, then tap <strong>Undo</strong> (prevents iOS from stripping formatting).
-                  </li>
-                  <li style={{ marginTop: 6 }}>
-                    <strong>For Full Graphical Emails on iPhone:</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In Apple Mail on your iPhone, open that email and tap <strong>Reply</strong> or <strong>Forward</strong>. The entire graphics, rainbow bars, header, and footer stay intact — simply type your text in the body and send!
-                  </li>
-                </ol>
-              </div>
-            )}
-
-            {sigGuideTab === 'android' && (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
-                <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>
-                    <strong>⭐ Instant Phone Method (Gmail Mobile App):</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In your Gmail mobile app, open the message and tap the <strong>Star (⭐)</strong> icon. Whenever you want to reply or write a branded email, tap Reply or Forward on that email, edit your message, and hit send!
-                  </li>
-                  <li style={{ marginTop: 6 }}>
-                    <strong>Gmail Web Signature:</strong> On laptop/desktop, open <strong>Gmail Settings ⚙️ → See all settings → General → Signature</strong>. Click <strong>📋 Copy Rich Signature</strong> and paste. If Gmail strips the logo, click Gmail&rsquo;s <strong>🖼️ Insert Image</strong> icon in the signature toolbar and paste the URL from <strong>🔗 Copy Logo URL</strong> above.
-                  </li>
-                  <li style={{ marginTop: 6 }}>
-                    <strong>Third-Party Apps (Spark / Outlook / FairEmail):</strong> Open Settings → Accounts → Signature, click <strong>📋 Copy Rich Signature</strong>, and paste directly.
-                  </li>
-                </ol>
-              </div>
-            )}
-
-            {sigGuideTab === 'templates' && (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
-                <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>In Gmail Web, open <strong>Settings (⚙️) → See all settings → Advanced → Templates</strong> and select <strong>Enable</strong>.</li>
-                  <li>Click <strong>Compose</strong> a new email. Click <strong>📋 Copy Blank Template HTML</strong> above and paste (or click <strong>📥 Send Starter</strong> and forward/copy it).</li>
-                  <li>Click the 3 dots <strong>More options (⋮)</strong> at the bottom right of the compose window → <strong>Templates → Save draft as template → Save as new template</strong> (name it: &ldquo;Mohammad Faizal Atelier Template&rdquo;).</li>
-                  <li style={{ color: '#89ff00', marginTop: 4 }}>
-                    <strong>⭐ 1-Click Reuse Forever:</strong> Whenever composing or replying in Gmail, click <strong>⋮ → Templates → Mohammad Faizal Atelier Template</strong>. The entire branded card loads with an empty message body ready for typing!
-                  </li>
-                </ol>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Audit Log ─────────────────────────────────────────────────────── */}
-      <div style={S.section}>
-        <div style={S.sectionHeader}>
-          <span style={{ fontSize: 16 }}>📋</span>
-          <h3 style={S.sectionTitle}>Audit Log</h3>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button onClick={() => clearCooldown(null)} style={S.btnDanger}>
-              Clear All Cooldowns
-            </button>
-            <button onClick={loadLogs} style={S.btnSecondary} className="ar-btn-sec">
-              ↺ Refresh
-            </button>
-          </div>
-        </div>
-        <div style={{ padding: '0 4px', overflowX: 'auto' }}>
-          {logsLoading ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-              Loading logs…
-            </div>
-          ) : logs.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-              No log entries yet
-            </div>
-          ) : (
-            <table style={S.logTable}>
-              <thead>
-                <tr>
-                  <th style={S.logTh}>#</th>
-                  <th style={S.logTh}>Sender</th>
-                  <th style={S.logTh}>Subject</th>
-                  <th style={S.logTh}>Action</th>
-                  <th style={S.logTh}>Time</th>
-                  <th style={S.logTh}>Cooldown</th>
-                  <th style={S.logTh}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="ar-log-row">
-                    <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.3)' }}>{log.id}</td>
-                    <td style={S.logTd}>
-                      <span style={{ color: '#89ff00' }}>{log.sender_email}</span>
-                    </td>
-                    <td style={{ ...S.logTd, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {log.subject || '—'}
-                    </td>
-                    <td style={S.logTd}>
-                      <span style={{
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        background: log.action === 'REPLIED' ? 'rgba(137,255,0,0.1)' : 'rgba(255,160,0,0.1)',
-                        color: log.action === 'REPLIED' ? '#89ff00' : '#ffa040',
-                        border: `1px solid ${log.action === 'REPLIED' ? 'rgba(137,255,0,0.2)' : 'rgba(255,160,0,0.2)'}`,
-                      }}>
-                        {log.action}
+              {/* Auto-Responder Layout Card */}
+              <div style={{
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: 10,
+                padding: 20,
+                border: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                        Auto-Responder Full HTML
                       </span>
-                    </td>
-                    <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>
-                      {log.created_at ? new Date(log.created_at + 'Z').toLocaleString() : '—'}
-                    </td>
-                    <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>
-                      {log.last_replied_at ? `${log.reply_count}x` : '—'}
-                    </td>
-                    <td style={S.logTd}>
-                      {log.last_replied_at && (
-                        <button
-                          onClick={() => clearCooldown(log.sender_email)}
-                          style={S.btnDanger}
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                        <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                          LIVE RECEIPT
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                        The automated acknowledgment email layout including artwork hero banner, response window box, and configured copy.
+                      </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={copyFullTemplate}
+                      style={{
+                        ...S.btnSecondary,
+                        background: templateCopied ? 'rgba(137,255,0,0.2)' : undefined,
+                        color: templateCopied ? '#89ff00' : undefined,
+                      }}
+                      className="ar-btn-sec"
+                    >
+                      {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Auto-Reply HTML'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Setup Guide Tabs */}
+              <div style={{
+                background: 'rgba(0,0,0,0.25)',
+                borderRadius: 8,
+                padding: 16,
+                border: '1px solid rgba(255,255,255,0.06)'
+              }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', marginRight: 4, alignSelf: 'center' }}>
+                    Setup Guide:
+                  </span>
+                  {[
+                    { id: 'iphone', label: '📱 iPhone (Apple Mail)' },
+                    { id: 'android', label: '🤖 Android (Gmail / Spark)' },
+                    { id: 'templates', label: '📨 Gmail Canned Templates' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSigGuideTab(t.id)}
+                      style={{
+                        background: sigGuideTab === t.id ? 'rgba(137,255,0,0.15)' : 'rgba(255,255,255,0.04)',
+                        color: sigGuideTab === t.id ? '#89ff00' : 'rgba(255,255,255,0.7)',
+                        border: `1px solid ${sigGuideTab === t.id ? 'rgba(137,255,0,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 6,
+                        padding: '5px 12px',
+                        fontSize: 11,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {sigGuideTab === 'iphone' && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                    <ol style={{ margin: 0, paddingLeft: 20 }}>
+                      <li><strong>For Everyday Signature:</strong> Click <strong>📋 Copy Rich Signature</strong> above on this device. Open <strong>Settings → Mail → Signature</strong> on your iPhone, tap and hold to paste.</li>
+                      <li style={{ color: '#89ff00', marginTop: 4 }}>
+                        <strong>⭐ Crucial iPhone Step:</strong> Immediately <strong>shake your iPhone</strong> until the &ldquo;Undo Change Attributes&rdquo; popup appears, then tap <strong>Undo</strong> (prevents iOS from stripping formatting).
+                      </li>
+                      <li style={{ marginTop: 6 }}>
+                        <strong>For Full Graphical Emails on iPhone:</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In Apple Mail on your iPhone, open that email and tap <strong>Reply</strong> or <strong>Forward</strong>. The entire graphics, rainbow bars, header, and footer stay intact — simply type your text in the body and send!
+                      </li>
+                    </ol>
+                  </div>
+                )}
+
+                {sigGuideTab === 'android' && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                    <ol style={{ margin: 0, paddingLeft: 20 }}>
+                      <li>
+                        <strong>⭐ Instant Phone Method (Gmail Mobile App):</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In your Gmail mobile app, open the message and tap the <strong>Star (⭐)</strong> icon. Whenever you want to reply or write a branded email, tap Reply or Forward on that email, edit your message, and hit send!
+                      </li>
+                      <li style={{ marginTop: 6 }}>
+                        <strong>Gmail Web Signature:</strong> On laptop/desktop, open <strong>Gmail Settings ⚙️ → See all settings → General → Signature</strong>. Click <strong>📋 Copy Rich Signature</strong> and paste. If Gmail strips the logo, click Gmail&rsquo;s <strong>🖼️ Insert Image</strong> icon in the signature toolbar and paste the URL from <strong>🔗 Copy Logo URL</strong> above.
+                      </li>
+                      <li style={{ marginTop: 6 }}>
+                        <strong>Third-Party Apps (Spark / Outlook / FairEmail):</strong> Open Settings → Accounts → Signature, click <strong>📋 Copy Rich Signature</strong>, and paste directly.
+                      </li>
+                    </ol>
+                  </div>
+                )}
+
+                {sigGuideTab === 'templates' && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+                    <ol style={{ margin: 0, paddingLeft: 20 }}>
+                      <li>In Gmail Web, open <strong>Settings (⚙️) → See all settings → Advanced → Templates</strong> and select <strong>Enable</strong>.</li>
+                      <li>Click <strong>Compose</strong> a new email. Click <strong> Copy Blank Template HTML</strong> above and paste (or click <strong>📥 Send Starter</strong> and forward/copy it).</li>
+                      <li>Click the 3 dots <strong>More options (⋮)</strong> at the bottom right of the compose window → <strong>Templates → Save draft as template → Save as new template</strong> (name it: &ldquo;Mohammad Faizal Atelier Template&rdquo;).</li>
+                      <li style={{ color: '#89ff00', marginTop: 4 }}>
+                        <strong>⭐ 1-Click Reuse Forever:</strong> Whenever composing or replying in Gmail, click <strong>⋮ → Templates → Mohammad Faizal Atelier Template</strong>. The entire branded card loads with an empty message body ready for typing!
+                      </li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Audit Log ─────────────────────────────────────────────────────── */}
+          <div style={S.section}>
+            <div style={S.sectionHeader}>
+              <span style={{ fontSize: 16 }}>📋</span>
+              <h3 style={S.sectionTitle}>Audit Log</h3>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={() => clearCooldown(null)} style={S.btnDanger}>
+                  Clear All Cooldowns
+                </button>
+                <button onClick={loadLogs} style={S.btnSecondary} className="ar-btn-sec">
+                  ↺ Refresh
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '0 4px', overflowX: 'auto' }}>
+              {logsLoading ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
+                  Loading logs…
+                </div>
+              ) : logs.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
+                  No log entries yet
+                </div>
+              ) : (
+                <table style={S.logTable}>
+                  <thead>
+                    <tr>
+                      <th style={S.logTh}>#</th>
+                      <th style={S.logTh}>Sender</th>
+                      <th style={S.logTh}>Subject</th>
+                      <th style={S.logTh}>Action</th>
+                      <th style={S.logTh}>Time</th>
+                      <th style={S.logTh}>Cooldown</th>
+                      <th style={S.logTh}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map((log) => (
+                      <tr key={log.id} className="ar-log-row">
+                        <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.3)' }}>{log.id}</td>
+                        <td style={S.logTd}>
+                          <span style={{ color: '#89ff00' }}>{log.sender_email}</span>
+                        </td>
+                        <td style={{ ...S.logTd, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {log.subject || '—'}
+                        </td>
+                        <td style={S.logTd}>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: log.action === 'REPLIED' ? 'rgba(137,255,0,0.1)' : 'rgba(255,160,0,0.1)',
+                            color: log.action === 'REPLIED' ? '#89ff00' : '#ffa040',
+                            border: `1px solid ${log.action === 'REPLIED' ? 'rgba(137,255,0,0.2)' : 'rgba(255,160,0,0.2)'}`,
+                          }}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>
+                          {log.created_at ? new Date(log.created_at + 'Z').toLocaleString() : '—'}
+                        </td>
+                        <td style={{ ...S.logTd, color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>
+                          {log.last_replied_at ? `${log.reply_count}x` : '—'}
+                        </td>
+                        <td style={S.logTd}>
+                          {log.last_replied_at && (
+                            <button
+                              onClick={() => clearCooldown(log.sender_email)}
+                              style={S.btnDanger}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  );
+        );
 }

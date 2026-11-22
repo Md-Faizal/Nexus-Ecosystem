@@ -428,6 +428,7 @@ fn init_schema(conn: &Connection) -> Result<()> {
             ("app_wife_mobile", "Wife Mobile Companion", "wife-companion", "Secure mobile interface for live orders, notifications, and store status.", "[\"nexus-mobile://auth-callback\"]", "[\"profile:read\", \"business:read\"]", 1),
             ("app_minecraft", "Minecraft Cloud Gateway", "minecraft-portal", "Distributed server orchestrator and edge tunnel management console.", "[\"https://minecraft.faizal.uk/callback\"]", "[\"profile:read\", \"minecraft:admin\"]", 1),
             ("app_web_admin", "Nexus Master Admin Console", "web-admin", "Central fleet commanding, IP firewalling, and identity governance.", "[\"https://faizal.uk/admin\", \"http://localhost:5173/admin\"]", "[\"*\"]", 1),
+            ("app_stalwart_mail", "Stalwart Mail Server", "stalwart-mail", "Enterprise ESMTP/IMAP mail stack and automated notifications.", "[\"https://mail.faizal.uk/auth/oidc/callback\", \"https://faizal.uk/callback\"]", "[\"profile:read\", \"mail:send\"]", 1),
         ];
 
         for (id, name, slug, desc, uris, scopes, first_party) in initial_apps {
@@ -439,6 +440,30 @@ fn init_schema(conn: &Connection) -> Result<()> {
                 params![id, name, slug, desc, uris, scopes, first_party],
             );
         }
+    }
+
+    // Pre-seed canonical owner account if users table is empty
+    let user_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM users",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    if user_count == 0 {
+        // Pre-seed canonical owner identity for seamless zero-setup parity
+        let _ = conn.execute(
+            r#"
+            INSERT OR IGNORE INTO users (id, email, username, full_name, avatar_url, role, status, token_version)
+            VALUES (?1, ?2, ?3, ?4, ?5, 'owner', 'active', 1)
+            "#,
+            params![
+                "admin_auth",
+                "fazztronic@gmail.com",
+                "faizal",
+                "Mohammad Faizal",
+                "https://lh3.googleusercontent.com/a/ACg8ocJZmpS8N2hlKJWhusmi0LwY6fAfvjg6mX-9u4pmOsMU6Rl-u6clVw=s96-c"
+            ],
+        );
     }
 
     Ok(())

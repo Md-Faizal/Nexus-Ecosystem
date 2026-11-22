@@ -189,9 +189,9 @@ When your local ISP or cellular connection is severed, or has **no active data r
 
 ## 🎯 Master Execution Tracking
 
-- [ ] **Step 1:** Finalize Rust Auth Engine data structures and cryptographic token schemes.
-- [ ] **Step 2:** Migrate Web Admin and Nexus CLI to the unified Rust Auth Engine.
-- [ ] **Step 3:** Migrate macOS Business App and companion web/mobile layouts.
+- [x] **Step 1:** Finalize Rust Auth Engine data structures and cryptographic token schemes (Argon2id, Ed25519, RFC 8628, PATs).
+- [x] **Step 2:** Migrate Web Admin and Nexus CLI to the unified Rust Auth Engine (`NexusAuthModal`, `nexus auth login`).
+- [ ] **Step 3:** Migrate macOS Business App and companion web/mobile layouts (point to central `/api/auth/login`).
 - [ ] **Step 4:** Implement local mDNS/Bonjour LAN discovery in desktop agent for in-home PC control.
 - [ ] **Step 5:** Configure Tailscale mesh node policies across Oracle Hyderabad and GCP Iowa.
 - [ ] **Step 6:** Design SMS/M2M emergency out-of-band gateway prototype.

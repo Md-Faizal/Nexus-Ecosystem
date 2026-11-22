@@ -2,6 +2,7 @@ pub mod crypto;
 pub mod device_flow;
 pub mod email_flows;
 pub mod middleware;
+pub mod migration;
 pub mod models;
 pub mod oauth;
 pub mod routes;
