@@ -55,6 +55,8 @@ server {
     location /images/ {
         alias /home/ubuntu/stack/apps/personal-site/public/images/;
         autoindex off;
+        add_header Access-Control-Allow-Origin "*";
+        add_header Cache-Control "public, max-age=86400";
     }
 
     location /admin-assets/ {

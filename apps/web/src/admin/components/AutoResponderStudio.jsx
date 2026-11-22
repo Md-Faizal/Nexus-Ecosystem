@@ -237,16 +237,21 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const [sigGuideTab, setSigGuideTab] = useState('iphone');
   const [sigCopied, setSigCopied] = useState(false);
   const [templateCopied, setTemplateCopied] = useState(false);
+  const [blankCopied, setBlankCopied] = useState(false);
+  const [blankSending, setBlankSending] = useState(false);
+  const [logoCopied, setLogoCopied] = useState(false);
   const previewDebounce = useRef(null);
   const isFirstMount = useRef(true);
   const showToastRef = useRef(showToast);
   showToastRef.current = showToast;
 
+  const FZ_BASE64 = "data:image/png;base64,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";
+
   const SIGNATURE_HTML = `<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 13px; color: #111111; line-height: 1.4; border-top: 2px solid #89ff00; padding-top: 14px; margin-top: 18px; max-width: 480px;">
   <tr>
     <td style="vertical-align: middle; padding-right: 14px; border-right: 1px solid #e0e0e0;">
-      <a href="https://faizal.uk" target="_blank" style="text-decoration: none; display: inline-block;">
-        <img src="https://faizal.uk/images/mail/fz_logo.png" height="28" alt="FZ" style="display: block; height: 28px; width: auto; border: 0;" />
+      <a href="https://faizal.uk" target="_blank" style="text-decoration: none;">
+        <img src="https://faizal.uk/images/mail/fz_logo.png" height="28" width="53" alt="FZ" style="display: block; height: 28px; width: 53px; border: 0;" />
       </a>
     </td>
     <td style="vertical-align: middle; padding-left: 14px;">
@@ -263,6 +268,88 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   </tr>
 </table>`;
 
+  const BLANK_COMPOSER_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mohammad Faizal</title>
+<style>
+  body { margin: 0; padding: 0; background-color: #f2f1f5; -webkit-text-size-adjust: none; }
+  @media only screen and (max-width: 620px) {
+    .main-tbl { width: 100% !important; }
+    .hdr-pad { padding: 14px 14px 12px 14px !important; }
+    .body-pad { padding: 24px 18px !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f2f1f5;">
+  <center style="width: 100%; background-color: #f2f1f5; padding: 24px 0 32px 0;">
+    <table class="main-tbl" border="0" cellpadding="0" cellspacing="0" width="600" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+      <!-- Top Pixelated Bar -->
+      <tr>
+        <td style="padding: 0; line-height: 0; font-size: 0;">
+          <img src="https://faizal.uk/images/mail/pixelated-bar.png" width="600" alt="" style="display: block; width: 100%; max-width: 600px; height: auto; border: 0;" />
+        </td>
+      </tr>
+      <!-- Brand Header -->
+      <tr>
+        <td class="hdr-pad" style="background-color: #ffffff; padding: 18px 24px 14px 24px; border-bottom: 1px solid #f0edf5;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td align="left" style="vertical-align: middle; white-space: nowrap;">
+                <img src="https://faizal.uk/images/mail/fz_logo.png" height="28" width="53" alt="FZ" style="display: inline-block; vertical-align: middle; height: 28px; width: 53px; border: 0;" />
+                <span style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 16px; font-weight: 800; letter-spacing: -0.2px; color: #111111; vertical-align: middle; margin-left: 10px; text-transform: uppercase;">
+                  MOHAMMAD FAIZAL
+                </span>
+              </td>
+              <td align="right" style="vertical-align: middle; white-space: nowrap;">
+                <span style="display: inline-block; padding: 4px 12px; border-radius: 50px; background-color: #111111; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: #89ff00; letter-spacing: 0.5px; text-transform: uppercase;">
+                  DIRECT
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <!-- Clean Content Container -->
+      <tr>
+        <td class="body-pad" style="background-color: #ffffff; padding: 32px 28px 24px 28px;">
+          <p style="margin: 0 0 16px 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 15px; color: #222222; line-height: 1.6;">Hi [Name],</p>
+          <p style="margin: 0 0 16px 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 15px; color: #222222; line-height: 1.6;">[Write your message here...]</p>
+          <p style="margin: 0 0 24px 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 15px; color: #222222; line-height: 1.6;">Best regards,<br /><strong style="color: #111111;">Mohammad Faizal</strong></p>
+        </td>
+      </tr>
+      <!-- Footer Navigation & Personal Signature -->
+      <tr>
+        <td style="background-color: #faf9fc; padding: 24px 24px 20px 24px; border-top: 1px solid #f0edf5; text-align: center;">
+          <div style="margin-bottom: 12px;">
+            <img src="https://faizal.uk/images/mail/fz_logo.png" height="24" width="45" alt="FZ" style="display: inline-block; height: 24px; width: 45px; border: 0;" />
+          </div>
+          <div style="margin-bottom: 12px; font-family: 'Inter', Arial, sans-serif; font-size: 12px; font-weight: 600;">
+            <a href="https://faizal.uk" style="color: #111111; text-decoration: none; margin: 0 8px;">Portfolio</a>
+            <span style="color: #d0cbd8;">•</span>
+            <a href="https://faizal.uk/work" style="color: #111111; text-decoration: none; margin: 0 8px;">Selected Works</a>
+            <span style="color: #d0cbd8;">•</span>
+            <a href="mailto:me@faizal.uk" style="color: #111111; text-decoration: none; margin: 0 8px;">Direct Contact</a>
+          </div>
+          <p style="margin: 0; font-family: 'Inter', Arial, sans-serif; font-size: 12px; color: #716e7e; line-height: 1.6;">
+            Mohammad Faizal · <a href="mailto:me@faizal.uk" style="color: #716e7e; text-decoration: none;">me@faizal.uk</a><br />
+            © 2026 Mohammad Faizal. All rights reserved.
+          </p>
+        </td>
+      </tr>
+      <!-- Bottom Pixelated Bar -->
+      <tr>
+        <td style="padding: 0; line-height: 0; font-size: 0;">
+          <img src="https://faizal.uk/images/mail/pixelated-bar.png" width="600" alt="" style="display: block; width: 100%; max-width: 600px; height: auto; border: 0;" />
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>`;
+
   const copyRichSignature = async () => {
     try {
       const text = "Mohammad Faizal — Full-Stack Engineer & Systems Architect | https://faizal.uk";
@@ -277,7 +364,7 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
       ]);
       setSigCopied(true);
       setTimeout(() => setSigCopied(false), 3000);
-      showToastRef.current?.('Rich signature copied! Paste into Gmail / Apple Mail settings', 'success');
+      showToastRef.current?.('Rich signature copied! Ready to paste into Gmail / Apple Mail settings', 'success');
     } catch (e) {
       await navigator.clipboard.writeText(SIGNATURE_HTML);
       setSigCopied(true);
@@ -289,28 +376,48 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
   const copyLogoUrl = async () => {
     try {
       await navigator.clipboard.writeText('https://faizal.uk/images/mail/fz_logo.png');
-      showToastRef.current?.('Logo URL copied! Paste into Gmail Signature → Insert Image icon', 'success');
+      setLogoCopied(true);
+      setTimeout(() => setLogoCopied(false), 3000);
+      showToastRef.current?.('Logo URL copied! In Gmail Signature settings, click the 🖼️ Image icon and paste this URL', 'success');
     } catch (e) {
       showToastRef.current?.('Failed to copy logo URL', 'error');
     }
   };
 
-  const sendStarterEmail = async () => {
+  const copyBlankComposer = async () => {
     try {
-      showToastRef.current?.('Sending template & signature to me@faizal.uk…', 'info');
+      await navigator.clipboard.writeText(BLANK_COMPOSER_HTML);
+      setBlankCopied(true);
+      setTimeout(() => setBlankCopied(false), 3000);
+      showToastRef.current?.('Blank Composer HTML copied to clipboard!', 'success');
+    } catch (e) {
+      showToastRef.current?.('Failed to copy blank composer HTML', 'error');
+    }
+  };
+
+  const sendBlankStarter = async () => {
+    setBlankSending(true);
+    try {
+      showToastRef.current?.('Sending blank composer starter to me@faizal.uk…', 'info');
       const res = await fetchWithAuth('/api/admin/auto-responder/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: 'me@faizal.uk' }),
+        body: JSON.stringify({
+          to: 'me@faizal.uk',
+          custom_html: BLANK_COMPOSER_HTML,
+          custom_subject: 'Mohammad Faizal — Email Template Starter',
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        showToastRef.current?.('✓ Sent to me@faizal.uk! Open Gmail on phone or web to use as template', 'success');
+        showToastRef.current?.('✓ Sent to me@faizal.uk! Star it or save as template in Gmail to reply/compose anytime!', 'success');
       } else {
         showToastRef.current?.(`Send failed: ${data.error}`, 'error');
       }
     } catch (e) {
       showToastRef.current?.('Network error sending starter email', 'error');
+    } finally {
+      setBlankSending(false);
     }
   };
 
@@ -895,17 +1002,22 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
               borderRadius: 10,
               padding: 20,
               boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              border: '1px solid #e5e5e5'
+              border: '1px solid #e5e5e5',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
-                  Atelier Email Signature
-                </span>
-                <span style={{ fontSize: 10, background: '#1A1AE8', color: '#FFF0E3', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                  FOOTER LOCKUP
-                </span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                    Atelier Email Signature
+                  </span>
+                  <span style={{ fontSize: 10, background: '#1A1AE8', color: '#FFF0E3', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                    FOOTER LOCKUP
+                  </span>
+                </div>
+                <div dangerouslySetInnerHTML={{ __html: SIGNATURE_HTML.replace('https://faizal.uk/images/mail/fz_logo.png', FZ_BASE64) }} />
               </div>
-              <div dangerouslySetInnerHTML={{ __html: SIGNATURE_HTML }} />
               <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   onClick={copyRichSignature}
@@ -935,12 +1047,62 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                   className="ar-btn-sec"
                   title="Copy direct PNG logo URL for Gmail's Insert Image button"
                 >
-                  🔗 Copy Logo URL
+                  {logoCopied ? '✓ URL Copied!' : '🔗 Copy Logo URL'}
                 </button>
               </div>
             </div>
 
-            {/* Full Layout Template Card */}
+            {/* Blank Composer Template Card */}
+            <div style={{
+              background: 'rgba(137,255,0,0.03)',
+              borderRadius: 10,
+              padding: 20,
+              border: '1px solid rgba(137,255,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                    Blank Composer Template
+                  </span>
+                  <span style={{ fontSize: 10, background: 'rgba(137,255,0,0.2)', color: '#89ff00', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                    BESPOKE EMAIL
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                  Clean branded template with rainbow bars, FZ header, editable body container, and clean personal signature. No canned text, no orange callouts, and no recipient disclaimers.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={copyBlankComposer}
+                  style={{
+                    ...S.btnPrimary,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                  }}
+                  className="ar-btn"
+                >
+                  {blankCopied ? '✓ Blank HTML Copied!' : '📋 Copy Blank Template HTML'}
+                </button>
+                <button
+                  onClick={sendBlankStarter}
+                  disabled={blankSending}
+                  style={{
+                    ...S.btnSecondary,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                  }}
+                  className="ar-btn-sec"
+                >
+                  {blankSending ? '⏳ Sending…' : '📥 Send Starter to me@faizal.uk'}
+                </button>
+              </div>
+            </div>
+
+            {/* Auto-Responder Layout Card */}
             <div style={{
               background: 'rgba(255,255,255,0.03)',
               borderRadius: 10,
@@ -952,15 +1114,15 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
             }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#89ff00', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
-                    Full Email Layout Template
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' }}>
+                    Auto-Responder Full HTML
                   </span>
-                  <span style={{ fontSize: 10, background: 'rgba(137,255,0,0.15)', color: '#89ff00', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
-                    600PX RESPONSIVE
+                  <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: 20, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                    LIVE RECEIPT
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 12px' }}>
-                  Includes top pixelated bar, brand header, hero art banner, body card, and bottom pixelated bar. Save as a Gmail Canned Template for instant 1-click branded replies!
+                  The automated acknowledgment email layout including artwork hero banner, response window box, and configured copy.
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -973,18 +1135,7 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
                   }}
                   className="ar-btn-sec"
                 >
-                  {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Full Template HTML'}
-                </button>
-                <button
-                  onClick={sendStarterEmail}
-                  style={{
-                    ...S.btnPrimary,
-                    padding: '8px 14px',
-                    fontSize: 12,
-                  }}
-                  className="ar-btn"
-                >
-                  📥 Send Starter to me@faizal.uk
+                  {templateCopied ? '✓ Full HTML Copied!' : '📄 Copy Auto-Reply HTML'}
                 </button>
               </div>
             </div>
@@ -1028,11 +1179,12 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
             {sigGuideTab === 'iphone' && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
                 <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>Click <strong>📋 Copy Rich Signature</strong> above on this device (or copy it from Safari).</li>
-                  <li>On your iPhone, open <strong>Settings → Mail → Signature</strong>.</li>
-                  <li>Tap and hold in the signature box, then tap <strong>Paste</strong>.</li>
+                  <li><strong>For Everyday Signature:</strong> Click <strong>📋 Copy Rich Signature</strong> above on this device. Open <strong>Settings → Mail → Signature</strong> on your iPhone, tap and hold to paste.</li>
                   <li style={{ color: '#89ff00', marginTop: 4 }}>
-                    <strong>⭐ Crucial iPhone Step:</strong> Gently <strong>shake your iPhone</strong> immediately until the &ldquo;Undo Change Attributes&rdquo; prompt appears, then tap <strong>Undo</strong>. (This prevents Apple Mail from stripping your custom colors, font sizes, and layout!).
+                    <strong>⭐ Crucial iPhone Step:</strong> Immediately <strong>shake your iPhone</strong> until the &ldquo;Undo Change Attributes&rdquo; popup appears, then tap <strong>Undo</strong> (prevents iOS from stripping formatting).
+                  </li>
+                  <li style={{ marginTop: 6 }}>
+                    <strong>For Full Graphical Emails on iPhone:</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In Apple Mail on your iPhone, open that email and tap <strong>Reply</strong> or <strong>Forward</strong>. The entire graphics, rainbow bars, header, and footer stay intact — simply type your text in the body and send!
                   </li>
                 </ol>
               </div>
@@ -1042,10 +1194,13 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
                 <ol style={{ margin: 0, paddingLeft: 20 }}>
                   <li>
-                    <strong>Gmail Web (Recommended for all Android Gmail users):</strong> Google&rsquo;s mobile app restricts local signature settings to plain text. However, if you paste this signature into <strong>Gmail Web (Settings ⚙️ → See all settings → General → Signature)</strong>, Gmail will automatically render your rich HTML signature on web and mobile replies!
+                    <strong>⭐ Instant Phone Method (Gmail Mobile App):</strong> Click <strong>📥 Send Starter to me@faizal.uk</strong> above. In your Gmail mobile app, open the message and tap the <strong>Star (⭐)</strong> icon. Whenever you want to reply or write a branded email, tap Reply or Forward on that email, edit your message, and hit send!
                   </li>
                   <li style={{ marginTop: 6 }}>
-                    <strong>Spark / Outlook / FairEmail on Android:</strong> Open the app&rsquo;s <strong>Settings → Accounts → Signature</strong>, click <strong>📋 Copy Rich Signature</strong> above, and paste directly into the signature editor.
+                    <strong>Gmail Web Signature:</strong> On laptop/desktop, open <strong>Gmail Settings ⚙️ → See all settings → General → Signature</strong>. Click <strong>📋 Copy Rich Signature</strong> and paste. If Gmail strips the logo, click Gmail&rsquo;s <strong>🖼️ Insert Image</strong> icon in the signature toolbar and paste the URL from <strong>🔗 Copy Logo URL</strong> above.
+                  </li>
+                  <li style={{ marginTop: 6 }}>
+                    <strong>Third-Party Apps (Spark / Outlook / FairEmail):</strong> Open Settings → Accounts → Signature, click <strong>📋 Copy Rich Signature</strong>, and paste directly.
                   </li>
                 </ol>
               </div>
@@ -1054,11 +1209,11 @@ export default function AutoResponderStudio({ fetchWithAuth, showToast }) {
             {sigGuideTab === 'templates' && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
                 <ol style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>Click <strong>📥 Send Starter to me@faizal.uk</strong> above to dispatch the complete layout straight to your Gmail.</li>
-                  <li>In Gmail (on your computer or mobile browser), open the message you received.</li>
-                  <li>Click <strong>Reply</strong> or <strong>Forward</strong>, then click the 3 dots <strong>More options (⋮)</strong> at the bottom right → <strong>Templates → Save draft as template → Save as new template</strong> (e.g. &ldquo;Atelier Branded Reply&rdquo;).</li>
+                  <li>In Gmail Web, open <strong>Settings (⚙️) → See all settings → Advanced → Templates</strong> and select <strong>Enable</strong>.</li>
+                  <li>Click <strong>Compose</strong> a new email. Click <strong>📋 Copy Blank Template HTML</strong> above and paste (or click <strong>📥 Send Starter</strong> and forward/copy it).</li>
+                  <li>Click the 3 dots <strong>More options (⋮)</strong> at the bottom right of the compose window → <strong>Templates → Save draft as template → Save as new template</strong> (name it: &ldquo;Mohammad Faizal Atelier Template&rdquo;).</li>
                   <li style={{ color: '#89ff00', marginTop: 4 }}>
-                    <strong>⭐ 1-Click Replies Anytime:</strong> Whenever replying to someone from your phone or laptop, tap <strong>⋮ → Templates → Atelier Branded Reply</strong>. The entire graphics, header, and styling insert automatically into your reply!
+                    <strong>⭐ 1-Click Reuse Forever:</strong> Whenever composing or replying in Gmail, click <strong>⋮ → Templates → Mohammad Faizal Atelier Template</strong>. The entire branded card loads with an empty message body ready for typing!
                   </li>
                 </ol>
               </div>

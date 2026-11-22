@@ -71,6 +71,8 @@ pub struct UpdateConfigRequest {
 #[derive(Deserialize)]
 pub struct SendTestRequest {
     pub to: String,
+    pub custom_html: Option<String>,
+    pub custom_subject: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -266,8 +268,9 @@ pub async fn send_test(
     Json(payload): Json<SendTestRequest>,
 ) -> impl IntoResponse {
     let config = load_auto_responder_config(&state.db).await;
-    let html = render_email_html(&config, &payload.to);
+    let html = payload.custom_html.unwrap_or_else(|| render_email_html(&config, &payload.to));
     let txt = render_email_txt(&config, &payload.to);
+    let subject = payload.custom_subject.unwrap_or_else(|| format!("Re: Test — {}", config.headline));
 
     info!("Admin: sending test auto-reply to {}", payload.to);
 
@@ -278,7 +281,7 @@ pub async fn send_test(
         &config.from_email,
         &config.reply_to,
         None,
-        &format!("Re: Test — {}", config.headline),
+        &subject,
         &html,
         &txt,
     )
