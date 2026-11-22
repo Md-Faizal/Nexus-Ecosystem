@@ -1,7 +1,7 @@
 use crate::auth::crypto::hash_password;
 use crate::state::SharedState;
 use axum::{
-    extract::State,
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
@@ -9,7 +9,19 @@ use axum::{
 use chrono::Utc;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tracing::{error, info, warn};
+
+fn verify_internal_key(headers: &HeaderMap, state_pin: &str) -> bool {
+    let auth_header = headers
+        .get("x-nexus-internal-key")
+        .and_then(|v| v.to_str().ok());
+
+    let internal_key = std::env::var("NEXUS_INTERNAL_KEY")
+        .unwrap_or_else(|_| state_pin.to_string());
+
+    auth_header == Some(&internal_key) || auth_header == Some(state_pin)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct MigrateUserPayload {
@@ -39,14 +51,7 @@ pub async fn migrate_user(
     headers: HeaderMap,
     Json(payload): Json<MigrateUserPayload>,
 ) -> impl IntoResponse {
-    let auth_header = headers
-        .get("x-nexus-internal-key")
-        .and_then(|v| v.to_str().ok());
-
-    let internal_key = std::env::var("NEXUS_INTERNAL_KEY")
-        .unwrap_or_else(|_| state.config.admin_pin.clone());
-
-    if auth_header != Some(&internal_key) && auth_header != Some(state.config.admin_pin.as_str()) {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
         warn!("Unauthorized migration attempt from client");
         return (
             StatusCode::UNAUTHORIZED,
@@ -166,3 +171,314 @@ pub async fn migrate_user(
         }
     }
 }
+
+// ─── Connected Devices & Sessions Internal Gateway ───────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SyncDevicePayload {
+    pub user_id: String,
+    pub device_id: Option<String>,
+    pub device_name: String,
+    pub device_type: Option<String>,
+    pub client_app: Option<String>,
+    pub ip_address: Option<String>,
+}
+
+/// Register or heartbeat a device from an edge app (macOS Suite / Mobile)
+pub async fn sync_device(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Json(payload): Json<SyncDevicePayload>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let conn = state.db.lock().await;
+
+    // Resolve user ID
+    let resolved_user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE id = ?1 OR LOWER(email) = LOWER(?1) OR (username IS NOT NULL AND LOWER(username) = LOWER(?1)) LIMIT 1",
+            params![payload.user_id.trim()],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = match resolved_user_id {
+        Some(uid) => uid,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let dev_id = payload
+        .device_id
+        .filter(|d| !d.trim().is_empty())
+        .unwrap_or_else(|| format!("dev_{}", uuid::Uuid::new_v4().simple()));
+    let dev_type = payload.device_type.unwrap_or_else(|| "web".into());
+    let client_app = payload.client_app.unwrap_or_else(|| "macos-suite".into());
+
+    let res = conn.execute(
+        r#"
+        INSERT INTO user_devices (id, user_id, device_name, device_type, client_app, ip_address, last_seen)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+            device_name = excluded.device_name,
+            device_type = excluded.device_type,
+            client_app = excluded.client_app,
+            ip_address = COALESCE(excluded.ip_address, user_devices.ip_address),
+            last_seen = CURRENT_TIMESTAMP
+        "#,
+        params![
+            dev_id,
+            user_id,
+            payload.device_name.trim(),
+            dev_type,
+            client_app,
+            payload.ip_address,
+        ],
+    );
+
+    match res {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": true, "device_id": dev_id })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+/// List sessions for a specific user via internal service call
+pub async fn list_sessions_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let user_id_param = match query.get("user_id") {
+        Some(u) => u.trim(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "user_id query param is required" })),
+            )
+                .into_response();
+        }
+    };
+
+    let conn = state.db.lock().await;
+
+    // Resolve user ID
+    let resolved_user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE id = ?1 OR LOWER(email) = LOWER(?1) OR (username IS NOT NULL AND LOWER(username) = LOWER(?1)) LIMIT 1",
+            params![user_id_param],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = match resolved_user_id {
+        Some(uid) => uid,
+        None => {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({ "success": true, "sessions": [] })),
+            )
+                .into_response();
+        }
+    };
+
+    let mut stmt = match conn.prepare(
+        r#"
+        SELECT id, device_name, device_type, client_app, ip_address, last_seen, created_at
+        FROM user_devices
+        WHERE user_id = ?1
+        ORDER BY last_seen DESC
+        "#,
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    let sessions = stmt
+        .query_map(params![user_id], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "device_name": row.get::<_, String>(1)?,
+                "device_type": row.get::<_, String>(2)?,
+                "client_app": row.get::<_, String>(3)?,
+                "ip_address": row.get::<_, Option<String>>(4)?,
+                "last_seen": row.get::<_, String>(5)?,
+                "created_at": row.get::<_, String>(6)?,
+            }))
+        })
+        .map(|rows| rows.filter_map(Result::ok).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "success": true, "sessions": sessions })),
+    )
+        .into_response()
+}
+
+/// Terminate an individual device session via internal call
+pub async fn revoke_session_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(device_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let conn = state.db.lock().await;
+
+    let res = if let Some(user_id_param) = query.get("user_id") {
+        let _ = conn.execute(
+            "DELETE FROM refresh_tokens WHERE device_id = ?1",
+            params![device_id],
+        );
+        conn.execute(
+            "DELETE FROM user_devices WHERE id = ?1 AND (user_id = ?2 OR user_id IN (SELECT id FROM users WHERE LOWER(email) = LOWER(?2)))",
+            params![device_id, user_id_param],
+        )
+    } else {
+        let _ = conn.execute(
+            "DELETE FROM refresh_tokens WHERE device_id = ?1",
+            params![device_id],
+        );
+        conn.execute(
+            "DELETE FROM user_devices WHERE id = ?1",
+            params![device_id],
+        )
+    };
+
+    match res {
+        Ok(rows) if rows > 0 => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": true, "message": "Device session terminated" })),
+        )
+            .into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "success": false, "error": "Session not found" })),
+        )
+            .into_response(),
+    }
+}
+
+/// Global sign-out / revoke all other sessions for a user via internal call
+pub async fn revoke_all_sessions_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let user_id_param = match query.get("user_id") {
+        Some(u) => u.trim(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "user_id query param is required" })),
+            )
+                .into_response();
+        }
+    };
+
+    let conn = state.db.lock().await;
+
+    // Resolve user ID
+    let resolved_user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE id = ?1 OR LOWER(email) = LOWER(?1) OR (username IS NOT NULL AND LOWER(username) = LOWER(?1)) LIMIT 1",
+            params![user_id_param],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = match resolved_user_id {
+        Some(uid) => uid,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let keep_device = query.get("keep_device_id");
+
+    if let Some(keep) = keep_device {
+        let _ = conn.execute(
+            "DELETE FROM user_devices WHERE user_id = ?1 AND id != ?2",
+            params![user_id, keep],
+        );
+        let _ = conn.execute(
+            "DELETE FROM refresh_tokens WHERE user_id = ?1 AND device_id != ?2",
+            params![user_id, keep],
+        );
+    } else {
+        let _ = conn.execute(
+            "DELETE FROM user_devices WHERE user_id = ?1",
+            params![user_id],
+        );
+        let _ = conn.execute(
+            "DELETE FROM refresh_tokens WHERE user_id = ?1",
+            params![user_id],
+        );
+    }
+
+    // Bump token version
+    let _ = conn.execute(
+        "UPDATE users SET token_version = token_version + 1 WHERE id = ?1",
+        params![user_id],
+    );
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "success": true, "message": "All other sessions signed out" })),
+    )
+        .into_response()
+}
+

@@ -62,8 +62,11 @@ pub fn auth_router() -> Router<SharedState> {
         // User App Grants & Delegated Permissions
         .route("/grants", get(list_user_grants))
         .route("/grants/:app_id", delete(revoke_user_grant))
-        // Zero-Downtime JIT Account Migration (Internal)
+        // Zero-Downtime JIT Account Migration & Device Sync (Internal)
         .route("/internal/migrate-user", post(crate::auth::migration::migrate_user))
+        .route("/internal/sync-device", post(crate::auth::migration::sync_device))
+        .route("/internal/sessions", get(crate::auth::migration::list_sessions_internal).delete(crate::auth::migration::revoke_all_sessions_internal))
+        .route("/internal/sessions/:id", delete(crate::auth::migration::revoke_session_internal))
 }
 
 // ─── Token Issuance Helper ────────────────────────────────────────────────────
