@@ -1,4 +1,6 @@
-use crate::auth::crypto::hash_password;
+use crate::auth::crypto::{
+    hash_password, hash_security_answer, verify_security_answer,
+};
 use crate::state::SharedState;
 use axum::{
     extract::{Path, Query, State},
@@ -481,4 +483,295 @@ pub async fn revoke_all_sessions_internal(
     )
         .into_response()
 }
+
+// ─── Security Questions & Credential Synchronization ─────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSecurityInternalPayload {
+    pub user_id: String,
+    pub password: Option<String>,
+    pub security_question: Option<String>,
+    pub security_answer: Option<String>,
+    pub email: Option<String>,
+    pub username: Option<String>,
+}
+
+pub async fn update_security_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateSecurityInternalPayload>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let conn = state.db.lock().await;
+
+    let resolved_user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE id = ?1 OR LOWER(email) = LOWER(?1) OR (username IS NOT NULL AND LOWER(username) = LOWER(?1)) LIMIT 1",
+            params![payload.user_id.trim()],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = match resolved_user_id {
+        Some(uid) => uid,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    if let Some(plain_pass) = payload.password {
+        if !plain_pass.trim().is_empty() {
+            if let Ok(new_hash) = hash_password(&plain_pass) {
+                let _ = conn.execute(
+                    "UPDATE users SET password_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+                    params![new_hash, user_id],
+                );
+            }
+        }
+    }
+
+    if let (Some(q), Some(a)) = (payload.security_question, payload.security_answer) {
+        if !q.trim().is_empty() && !a.trim().is_empty() {
+            if let Ok(a_hash) = hash_security_answer(&a) {
+                let _ = conn.execute(
+                    "UPDATE users SET security_question = ?1, security_answer_hash = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?3",
+                    params![q.trim(), a_hash, user_id],
+                );
+            }
+        }
+    }
+
+    if let Some(em) = payload.email {
+        if !em.trim().is_empty() {
+            let _ = conn.execute(
+                "UPDATE users SET email = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+                params![em.trim(), user_id],
+            );
+        }
+    }
+
+    if let Some(un) = payload.username {
+        if !un.trim().is_empty() {
+            let _ = conn.execute(
+                "UPDATE users SET username = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+                params![un.trim(), user_id],
+            );
+        }
+    }
+
+    // Bump token version to ensure security propagation
+    let _ = conn.execute(
+        "UPDATE users SET token_version = token_version + 1 WHERE id = ?1",
+        params![user_id],
+    );
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "success": true, "message": "Security settings updated successfully" })),
+    )
+        .into_response()
+}
+
+pub async fn get_security_question_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let identifier = match query.get("identifier") {
+        Some(i) => i.trim().to_lowercase(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "identifier query param is required" })),
+            )
+                .into_response();
+        }
+    };
+
+    let conn = state.db.lock().await;
+    let row: Option<(String, Option<String>)> = conn
+        .query_row(
+            "SELECT id, security_question FROM users WHERE id = ?1 OR LOWER(email) = ?1 OR (username IS NOT NULL AND LOWER(username) = ?1) LIMIT 1",
+            params![identifier],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .ok();
+
+    match row {
+        Some((user_id, Some(q))) if !q.trim().is_empty() => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": true, "user_id": user_id, "question": q })),
+        )
+            .into_response(),
+        Some((_, _)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": false, "error": "No security question configured" })),
+        )
+            .into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "success": false, "error": "User not found" })),
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifySecurityAnswerInternalPayload {
+    pub identifier: String,
+    pub answer: String,
+}
+
+pub async fn verify_security_answer_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Json(payload): Json<VerifySecurityAnswerInternalPayload>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let identifier = payload.identifier.trim().to_lowercase();
+    let conn = state.db.lock().await;
+
+    let user_row: Option<(String, Option<String>, String, String)> = conn
+        .query_row(
+            "SELECT id, security_answer_hash, role, status FROM users WHERE id = ?1 OR LOWER(email) = ?1 OR (username IS NOT NULL AND LOWER(username) = ?1) LIMIT 1",
+            params![identifier],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .ok();
+
+    let (user_id, answer_hash, role, status) = match user_row {
+        Some(u) => u,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "success": false, "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let hash = match answer_hash {
+        Some(h) if !h.trim().is_empty() => h,
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "success": false, "error": "No security question configured" })),
+            )
+                .into_response();
+        }
+    };
+
+    if verify_security_answer(&payload.answer, &hash) {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "success": true,
+                "user_id": user_id,
+                "role": role,
+                "status": status,
+                "message": "Security answer verified successfully"
+            })),
+        )
+            .into_response()
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "success": false, "error": "Security answer is incorrect" })),
+        )
+            .into_response()
+    }
+}
+
+// ─── RFC 8628 Device Authorization Approval Gateway ───────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ApproveDeviceCodeInternalPayload {
+    pub user_code: String,
+    pub user_id: String,
+}
+
+pub async fn approve_device_code_internal(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Json(payload): Json<ApproveDeviceCodeInternalPayload>,
+) -> impl IntoResponse {
+    if !verify_internal_key(&headers, &state.config.admin_pin) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "Invalid internal authorization key" })),
+        )
+            .into_response();
+    }
+
+    let code_norm = crate::auth::device_flow::normalize_user_code(&payload.user_code);
+    let conn = state.db.lock().await;
+
+    let resolved_user_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM users WHERE id = ?1 OR LOWER(email) = LOWER(?1) OR (username IS NOT NULL AND LOWER(username) = LOWER(?1)) LIMIT 1",
+            params![payload.user_id.trim()],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let user_id = match resolved_user_id {
+        Some(uid) => uid,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "User not found" })),
+            )
+                .into_response();
+        }
+    };
+
+    let updated = conn.execute(
+        r#"
+        UPDATE device_codes
+        SET status = 'approved', approved_user_id = ?1
+        WHERE user_code = ?2 AND status = 'pending' AND expires_at > datetime('now')
+        "#,
+        params![user_id, code_norm],
+    );
+
+    match updated {
+        Ok(rows) if rows > 0 => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": true, "message": "Device authorization code approved successfully" })),
+        )
+            .into_response(),
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "success": false, "error": "Code invalid, already processed, or expired" })),
+        )
+            .into_response(),
+    }
+}
+
 

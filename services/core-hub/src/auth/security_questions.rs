@@ -41,6 +41,7 @@ pub fn get_question_prompt(key: &str) -> Option<&'static str> {
 }
 
 pub fn is_valid_question_key(key: &str) -> bool {
-    STANDARD_SECURITY_QUESTIONS.iter().any(|q| q.key == key)
+    let trimmed = key.trim();
+    trimmed.len() >= 3
 }
 

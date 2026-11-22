@@ -30,7 +30,11 @@ pub fn auth_router() -> Router<SharedState> {
         .route("/login", post(login))
         .route("/me", get(get_current_user))
         .route("/logout", post(logout))
-        .route("/keys", get(get_public_keys))
+        .route("/keys", get(crate::auth::oidc::get_jwks))
+        .route("/openid-configuration", get(crate::auth::oidc::get_openid_configuration))
+        .route("/authorize", get(crate::auth::oidc::oauth_authorize).post(crate::auth::oidc::oauth_authorize))
+        .route("/token", post(crate::auth::oidc::oauth_token))
+        .route("/userinfo", get(crate::auth::oidc::oauth_userinfo).post(crate::auth::oidc::oauth_userinfo))
         // Passwordless Flows
         .route("/magic-link", post(request_magic_link))
         .route("/verify-magic-link", get(verify_magic_link))
@@ -67,6 +71,10 @@ pub fn auth_router() -> Router<SharedState> {
         .route("/internal/sync-device", post(crate::auth::migration::sync_device))
         .route("/internal/sessions", get(crate::auth::migration::list_sessions_internal).delete(crate::auth::migration::revoke_all_sessions_internal))
         .route("/internal/sessions/:id", delete(crate::auth::migration::revoke_session_internal))
+        .route("/internal/update-security", post(crate::auth::migration::update_security_internal))
+        .route("/internal/security-question", get(crate::auth::migration::get_security_question_internal))
+        .route("/internal/verify-security-answer", post(crate::auth::migration::verify_security_answer_internal))
+        .route("/internal/device/approve", post(crate::auth::migration::approve_device_code_internal))
 }
 
 // ─── Token Issuance Helper ────────────────────────────────────────────────────

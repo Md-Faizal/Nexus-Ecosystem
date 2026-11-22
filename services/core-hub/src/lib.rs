@@ -148,6 +148,12 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
     let admin_file = config.public_dir.join("admin.html");
 
     let app = Router::new()
+        // Standard OpenID Connect (OIDC) & OAuth 2.0 Discovery and Endpoints (e.g. Stalwart Mail SSO)
+        .route("/.well-known/openid-configuration", get(auth::oidc::get_openid_configuration))
+        .route("/.well-known/jwks.json", get(auth::oidc::get_jwks))
+        .route("/oauth/authorize", get(auth::oidc::oauth_authorize).post(auth::oidc::oauth_authorize))
+        .route("/oauth/token", post(auth::oidc::oauth_token))
+        .route("/oauth/userinfo", get(auth::oidc::oauth_userinfo).post(auth::oidc::oauth_userinfo))
         .route("/api/mesh/ws", get(routes::mesh_api::handle_mesh_ws))
         .route("/api/mesh/crashes", get(routes::mesh_api::get_mesh_crashes))
         .route("/install.sh", get(routes::mesh_api::serve_install_sh))

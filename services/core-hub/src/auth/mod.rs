@@ -5,6 +5,7 @@ pub mod middleware;
 pub mod migration;
 pub mod models;
 pub mod oauth;
+pub mod oidc;
 pub mod routes;
 pub mod security_questions;
 
