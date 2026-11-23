@@ -5,11 +5,10 @@ import PasscodeModal from '../shared/PasscodeModal';
 import './admin.css';
 
 function StandaloneAdminApp() {
-  // Check if valid Nexus JWT token or legacy admin PIN exists
+  // Enforce valid signed Nexus JWT or PAT
   const [authenticated, setAuthenticated] = useState(() => {
     const token = localStorage.getItem('nexus_auth_token');
-    const legacyPin = localStorage.getItem('faizal_admin_pin');
-    return Boolean(token || (legacyPin && /^\d{4}$/.test(legacyPin)));
+    return Boolean(token && (token.startsWith('eyJ') || token.startsWith('nex_live_')));
   });
 
   const handleSuccess = () => {

@@ -37,10 +37,10 @@ export default function FleetMeshSection() {
   const [featureModalNode, setFeatureModalNode] = useState(null);
 
   const getAuthHeaders = () => {
-    const pin = localStorage.getItem('faizal_admin_pin') || localStorage.getItem('admin_token') || '2004';
+    const token = localStorage.getItem('nexus_auth_token') || localStorage.getItem('admin_token') || '';
+    const authHeader = (token.startsWith('eyJ') || token.startsWith('nex_live_')) ? `Bearer ${token}` : token;
     return {
-      'Authorization': pin,
-      'X-Admin-Pin': pin,
+      'Authorization': authHeader,
     };
   };
 

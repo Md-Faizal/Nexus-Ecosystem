@@ -85,7 +85,7 @@ export default function AiStudioTab({ onToast }) {
   const abortControllerRef = useRef(null);
 
   const getAdminPin = () => {
-    return localStorage.getItem('faizal_admin_pin') || '';
+    return localStorage.getItem('nexus_auth_token') || localStorage.getItem('admin_token') || '';
   };
 
   const getAuthHeaders = () => {

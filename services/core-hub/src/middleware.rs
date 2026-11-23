@@ -135,27 +135,12 @@ pub async fn require_admin_middleware(
         }
     }
 
-    // 3. Backward Compatibility Fallback: Legacy 4-digit PIN
-    let conn = state.db.lock().await;
-    let effective_pin: String = conn
-        .query_row(
-            "SELECT value FROM settings WHERE key = 'admin_pin' AND length(value) = 4",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or_else(|_| state.config.admin_pin.clone());
-    drop(conn);
-
-    if !raw_token.is_empty() && raw_token == effective_pin {
-        next.run(req).await
-    } else {
-        (
-            StatusCode::FORBIDDEN,
-            Json(serde_json::json!({
-                "success": false,
-                "error": "Unauthorized. Valid Nexus session token or admin credential required."
-            })),
-        )
-            .into_response()
-    }
+    (
+        StatusCode::FORBIDDEN,
+        Json(serde_json::json!({
+            "success": false,
+            "error": "Unauthorized. Valid Nexus session token or active admin credential required."
+        })),
+    )
+        .into_response()
 }

@@ -283,13 +283,6 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
               Password
               {activeTab === 'password' && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />}
             </button>
-            <button
-              onClick={() => setActiveTab('legacy_pin')}
-              className={`pb-2 transition-colors relative ${activeTab === 'legacy_pin' ? 'text-amber-400' : 'hover:text-white'}`}
-            >
-              PIN
-              {activeTab === 'legacy_pin' && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />}
-            </button>
           </div>
 
           {/* Notifications */}
@@ -497,29 +490,6 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                 {loading ? 'Verifying...' : 'Recover Account →'}
               </button>
             </form>
-          )}
-
-          {/* TAB 5: LEGACY 4-DIGIT PIN */}
-          {activeTab === 'legacy_pin' && (
-            <div className="space-y-5 text-center">
-              <p className="text-xs text-neutral-400">
-                Legacy 4-digit PIN for migration compatibility.
-              </p>
-              <div className="flex justify-center gap-3">
-                {pinDigits.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={pinRefs[i]}
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleLegacyPinChange(i, e.target.value)}
-                    className="w-12 h-14 text-center text-2xl font-bold bg-neutral-900 border border-amber-500/30 rounded-xl text-amber-400 focus:border-amber-400 focus:outline-none transition-all"
-                  />
-                ))}
-              </div>
-            </div>
           )}
 
           {/* Social Provider Buttons */}

@@ -42,11 +42,12 @@ export default function OciProvisionerCard() {
     setSendingMail(true);
     setMailFeedback(null);
     try {
-      const pin = localStorage.getItem('faizal_admin_pin') || '2004';
+      const token = localStorage.getItem('nexus_auth_token') || localStorage.getItem('admin_token') || '';
+      const authHeader = (token.startsWith('eyJ') || token.startsWith('nex_live_')) ? `Bearer ${token}` : token;
       const res = await fetch('/api/oci-allocator/send-mail', {
         method: 'POST',
         headers: {
-          'Authorization': pin,
+          'Authorization': authHeader,
           'Content-Type': 'application/json'
         }
       });
@@ -68,11 +69,12 @@ export default function OciProvisionerCard() {
     setTriggeringCheck(true);
     setMailFeedback(null);
     try {
-      const pin = localStorage.getItem('faizal_admin_pin') || '2004';
+      const token = localStorage.getItem('nexus_auth_token') || localStorage.getItem('admin_token') || '';
+      const authHeader = (token.startsWith('eyJ') || token.startsWith('nex_live_')) ? `Bearer ${token}` : token;
       const res = await fetch('/api/oci-allocator/trigger', {
         method: 'POST',
         headers: {
-          'Authorization': pin,
+          'Authorization': authHeader,
           'Content-Type': 'application/json'
         }
       });
