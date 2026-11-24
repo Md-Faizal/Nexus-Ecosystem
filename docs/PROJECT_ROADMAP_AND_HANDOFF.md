@@ -97,8 +97,13 @@ All active production services are verified healthy:
 - **Step 4**: Retired PM2 permanently (`pm2 kill`, disabled startup service).
 - **Step 5**: Scheduled nightly backups at 03:00 via crontab with log output to `/var/log/stack_backup.log`.
 
-### Future Opportunities
-1. **Progressively migrate application and game backends to Rust**:
-   - Keep each existing backend available while it is migrated; all application and game backends will move to Rust incrementally, with Nexus as one of several services in that migration.
-2. **Offsite Cloud Sync for Backups**:
-   - Configure `rclone` with an S3 or Google Drive bucket to mirror `/opt/backups/*.tar.gz` offsite automatically after each nightly run.
+### Future Opportunities & Edge Cases Note
+> [!NOTE]
+> **Phase Status: COMPLETED**
+> Core architectural updates (Unified Nexus Auth, Local LAN mDNS Discovery, DTN Offline WAL Queue, Offsite Cloud Backup, and Android Companion Scaffolding) have been implemented and verified.
+> 
+> **Refinements & Edge Cases Roadmap**:
+> A series of small edge cases and non-critical refinements remain to be ironed out progressively across future development:
+> - Migration of legacy security questions to email Magic Link / OTP on MacOS profile settings.
+> - Full decomposition of oversized Compose screens in the Android companion app into atomic widgets.
+> - Continuous UI polish and localized feedback states across edge networks.

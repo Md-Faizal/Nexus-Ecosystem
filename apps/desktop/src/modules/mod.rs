@@ -15,6 +15,8 @@ pub mod telemetry;
 pub mod tray;
 pub mod tunnel;
 pub mod survivor;
+pub mod mdns_discovery;
+pub mod offline_queue;
 
 use crate::config::AgentConfig;
 use crate::mesh::protocol::TelemetryPayload;

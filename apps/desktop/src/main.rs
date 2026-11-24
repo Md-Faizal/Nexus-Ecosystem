@@ -225,6 +225,17 @@ enum Commands {
         #[command(subcommand)]
         action: SurvivorCommands,
     },
+
+    /// Discover Nexus peer nodes and services on the local Wi-Fi / LAN via mDNS
+    Discover {
+        /// Scan duration in seconds (defaults to 3)
+        #[arg(short, long, default_value = "3")]
+        timeout: u64,
+
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -758,6 +769,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(_) => println!("\x1b[1;32m✓ Local Docker survivor stack spin-up test PASSED.\x1b[0m"),
                         Err(e) => eprintln!("\x1b[1;31m✗ Local Docker test failed: {}\x1b[0m", e),
                     }
+                }
+            }
+        }
+
+        Some(Commands::Discover { timeout, json }) => {
+            println!("🛰️ Scanning local Wi-Fi / LAN for Nexus peer nodes (timeout: {}s)...", timeout);
+            let peers = modules::mdns_discovery::MdnsDiscoveryManager::scan_local_lan(timeout).await;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&peers).unwrap_or_default());
+            } else if peers.is_empty() {
+                println!("No other Nexus peer nodes discovered on this local subnet.");
+                println!("Hint: Ensure other workstations have 'nexus' running on the same Wi-Fi / LAN.");
+            } else {
+                println!("\x1b[1;36m============================================================\x1b[0m");
+                println!("\x1b[1;37m   DISCOVERED LOCAL NEXUS PEERS ({})\x1b[0m", peers.len());
+                println!("\x1b[1;36m============================================================\x1b[0m");
+                for p in peers {
+                    println!("   • Node:     \x1b[1;32m{}\x1b[0m", p.node_id);
+                    println!("     Host:     {}", p.hostname);
+                    println!("     IPs:      {}", p.ip_addresses.join(", "));
+                    println!("     Port:     {}", p.port);
+                    println!("     Role:     {}", p.role);
+                    println!("     Version:  {}", p.version);
+                    println!();
                 }
             }
         }
