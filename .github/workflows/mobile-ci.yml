@@ -62,7 +62,7 @@ jobs:
             --out-dir apps/mobile/android/app/build/generated/source/uniffi/kotlin || true
       - name: Build Debug APK
         working-directory: apps/mobile/android
-        run: gradle assembleDebug --no-daemon
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - name: Compute APK SHA-256 & Generate mobile-latest.json
         run: |
           APK_PATH=$(ls apps/mobile/android/app/build/outputs/apk/debug/*.apk | head -n 1)
