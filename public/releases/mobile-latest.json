@@ -1,0 +1,9 @@
+{
+  "version_code": 1,
+  "version_name": "2.0.0",
+  "release_notes": "Initial Rust-first Nexus Mobile foundation: Nexus Auth (RFC 8628), Biometric/PIN Page Auth, and SHA-256 verified OTA updater.",
+  "apk_url": "https://faizal.uk/releases/nexus-mobile-latest.apk",
+  "sha256": "pending-first-ci-build",
+  "mandatory": false,
+  "published_at": "2026-11-25T11:45:00Z"
+}

@@ -3,6 +3,8 @@ name: Mobile CI (Rust Core + Android)
 on:
   push:
     branches: [ master, main ]
+    tags:
+      - 'mobile-v*'
     paths:
       - 'apps/mobile/**'
       - 'crates/nexus-protocol/**'
@@ -77,3 +79,11 @@ jobs:
             apps/mobile/android/app/build/outputs/apk/debug/*.apk
             apps/mobile/android/app/build/outputs/apk/debug/mobile-latest.json
           retention-days: 7
+      - name: Publish GitHub Release (on mobile-v* tag)
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/mobile/android/app/build/outputs/apk/debug/*.apk
+            apps/mobile/android/app/build/outputs/apk/debug/mobile-latest.json
+          generate_release_notes: true

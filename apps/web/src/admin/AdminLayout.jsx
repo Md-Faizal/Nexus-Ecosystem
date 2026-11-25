@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   Eye,
-  MailCheck
+  MailCheck,
+  Smartphone
 } from 'lucide-react';
 import { MONOGRAM_PATHS } from './Admin';
 
@@ -59,7 +60,8 @@ export default function AdminLayout({
     { id: 'profile', number: '08', label: 'Profile', icon: UserCheck, desc: 'Avatars & vault' },
     { id: 'analytics', number: '09', label: 'Analytics', icon: Users, desc: 'Audience & traffic' },
     { id: 'security', number: '10', label: 'Security', icon: Shield, desc: 'Firewall & bans' },
-    { id: 'settings', number: '11', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
+    { id: 'mobile-releases', number: '11', label: 'Mobile APK', icon: Smartphone, desc: 'Releases & logs' },
+    { id: 'settings', number: '12', label: 'Settings', icon: Sliders, desc: 'Engine preferences' }
   ];
 
   const handleTabSelect = (tabId) => {

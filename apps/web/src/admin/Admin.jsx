@@ -9,6 +9,7 @@ import PortfolioTab from './tabs/PortfolioTab';
 import ProfileTab from './tabs/ProfileTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import SecurityTab from './tabs/SecurityTab';
+import MobileReleasesTab from './tabs/MobileReleasesTab';
 import SettingsTab from './tabs/SettingsTab';
 import AutoResponderStudio from './components/AutoResponderStudio';
 import ToastNotification from './components/ToastNotification';
@@ -709,6 +710,10 @@ export default function Admin({ onExit }) {
           fetchWithAuth={fetchWithAuth}
           showToast={showToast}
         />
+      )}
+
+      {activeTab === 'mobile-releases' && (
+        <MobileReleasesTab showToast={showToast} />
       )}
 
       {activeTab === 'settings' && (
