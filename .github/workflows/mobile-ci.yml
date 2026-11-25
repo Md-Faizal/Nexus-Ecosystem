@@ -1,0 +1,79 @@
+name: Mobile CI (Rust Core + Android)
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'apps/mobile/**'
+      - 'crates/nexus-protocol/**'
+      - '.github/workflows/mobile-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  rust-core-test:
+    name: "Rust Core & Protocol Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p nexus-protocol -p nexus-mobile-core
+
+  android-build:
+    name: "Build Android APK (cargo-ndk + UniFFI + Gradle)"
+    needs: rust-core-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-ndk and uniffi-bindgen
+        run: cargo install cargo-ndk
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build Rust .so libraries for Android
+        run: |
+          cargo ndk -t arm64-v8a -t armeabi-v7a \
+            -o apps/mobile/android/app/src/main/jniLibs \
+            build --release -p nexus-mobile-core
+      - name: Generate UniFFI Kotlin bindings
+        run: |
+          cargo run -p nexus-mobile-core --features uniffi/cli --bin uniffi-bindgen generate \
+            --library apps/mobile/android/app/src/main/jniLibs/arm64-v8a/libnexus_mobile_core.so \
+            --language kotlin \
+            --out-dir apps/mobile/android/app/build/generated/source/uniffi/kotlin || true
+      - name: Build Debug APK
+        working-directory: apps/mobile/android
+        run: gradle assembleDebug --no-daemon
+      - name: Compute APK SHA-256 & Generate mobile-latest.json
+        run: |
+          APK_PATH=$(ls apps/mobile/android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          SHA=$(sha256sum "$APK_PATH" | awk '{print $1}')
+          cat <<EOF > apps/mobile/android/app/build/outputs/apk/debug/mobile-latest.json
+          {
+            "version_code": 1,
+            "version_name": "2.0.0",
+            "release_notes": "Automated CI build",
+            "apk_url": "https://faizal.uk/releases/nexus-mobile-latest.apk",
+            "sha256": "$SHA",
+            "mandatory": false,
+            "published_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-mobile-debug-apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/*.apk
+            apps/mobile/android/app/build/outputs/apk/debug/mobile-latest.json
+          retention-days: 7
