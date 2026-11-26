@@ -41,6 +41,14 @@ on:
         options:
           - 'false'
           - 'true'
+      build_agents:
+        description: 'Also compile Windows/Linux/macOS CLI agent binaries (slow, ~25m)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 concurrency:
   group: deploy-personal-site
@@ -156,6 +164,7 @@ jobs:
 
   build-agent-linux:
     name: "🐧 Swarm Worker: Linux Agent Compilation"
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -205,6 +214,7 @@ jobs:
 
   build-agent-windows:
     name: "🪟 Swarm Worker: Windows Agent Compilation"
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
     runs-on: windows-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -246,6 +256,7 @@ jobs:
 
   build-agent-macos:
     name: "🍎 Swarm Worker: macOS Agent Compilation (Universal / ARM64 & Intel)"
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
     runs-on: macos-latest
     steps:
       - name: "📥 Checkout Source Code"
@@ -294,7 +305,15 @@ jobs:
   deploy-cluster:
     name: "🚀 Swarm Deploy: Tri-Node Cluster (my-mac > cos > pro)"
     needs: [preflight-check, build-frontend, build-site, build-agent-linux, build-agent-windows, build-agent-macos]
-    if: github.event.inputs.dry_run != 'true'
+    if: |
+      always() &&
+      github.event.inputs.dry_run != 'true' &&
+      needs.preflight-check.result == 'success' &&
+      needs.build-frontend.result == 'success' &&
+      needs.build-site.result == 'success' &&
+      (needs.build-agent-linux.result == 'success' || needs.build-agent-linux.result == 'skipped') &&
+      (needs.build-agent-windows.result == 'success' || needs.build-agent-windows.result == 'skipped') &&
+      (needs.build-agent-macos.result == 'success' || needs.build-agent-macos.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Repository"
@@ -319,18 +338,21 @@ jobs:
           path: .
 
       - name: "📥 Download Linux Agent Binary"
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
         uses: actions/download-artifact@v4
         with:
           name: linux-agent-binary
           path: .
 
       - name: "📥 Download Windows Agent Binary"
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
         uses: actions/download-artifact@v4
         with:
           name: windows-agent-binary
           path: .
 
       - name: "📥 Download macOS Agent Binary"
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_agents == 'true'
         uses: actions/download-artifact@v4
         with:
           name: macos-agent-binary
