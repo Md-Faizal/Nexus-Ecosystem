@@ -73,6 +73,34 @@ server {
         try_files /admin.html =404;
     }
 
+    # Nexus Auth Web Flows & OAuth Endpoints (Proxied to Core Hub Axum)
+    location /admin/auth/ {
+        proxy_pass http://personal_site_cluster;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location /auth/ {
+        proxy_pass http://personal_site_cluster;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location /oauth/ {
+        proxy_pass http://personal_site_cluster;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
     # Fleet Agent Release Binaries & Installer
     location /releases/ {
         alias /home/ubuntu/stack/apps/personal-site/public/releases/;
