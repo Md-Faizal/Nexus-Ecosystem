@@ -11,13 +11,13 @@ export function NexusMonogramIcon({ className = "w-5 h-5", glow = false }) {
   return (
     <svg
       viewBox="0 0 171.16 89.17"
-      className={`${className} ${glow ? 'drop-shadow-[0_0_8px_rgba(137,255,0,0.6)]' : ''}`}
+      className={`${className} ${glow ? 'drop-shadow-[0_0_8px_rgba(85,255,0,0.55)]' : ''}`}
       fill="currentColor"
     >
-      <path d={NEXUS_MONOGRAM_PATHS.wingDown} fill="#89ff00" />
-      <path d={NEXUS_MONOGRAM_PATHS.wingUp} fill="#00e5ff" />
-      <polygon points={NEXUS_MONOGRAM_PATHS.centerPoly} fill="#ffffff" />
-      <path d={NEXUS_MONOGRAM_PATHS.centerWhite} fill="#ffffff" />
+      <path d={NEXUS_MONOGRAM_PATHS.wingDown} fill="#55ff00" />
+      <path d={NEXUS_MONOGRAM_PATHS.wingUp} fill="#55ff00" />
+      <polygon points={NEXUS_MONOGRAM_PATHS.centerPoly} fill="#0d0e12" />
+      <path d={NEXUS_MONOGRAM_PATHS.centerWhite} fill="#55ff00" />
     </svg>
   );
 }

@@ -372,7 +372,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="faizal@faizal.uk"
+                      placeholder="user@mail.xyz"
                       required
                       className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00] transition-colors"
                     />
@@ -439,7 +439,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="faizal@faizal.uk"
+                  placeholder="user@mail.xyz"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#00e5ff] transition-colors"
                 />
@@ -463,7 +463,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="faizal or me@faizal.uk"
+                  placeholder="username or user@mail.xyz"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-white transition-colors"
                 />
@@ -520,7 +520,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Mohammad Faizal"
+                  placeholder="Full Name"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00]"
                 />
@@ -531,7 +531,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="me@faizal.uk"
+                  placeholder="user@mail.xyz"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00]"
                 />
@@ -578,7 +578,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="email"
                   value={recoveryIdentifier}
                   onChange={(e) => setRecoveryIdentifier(e.target.value)}
-                  placeholder="me@faizal.uk"
+                  placeholder="user@mail.xyz"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#00e5ff]"
                 />
@@ -619,7 +619,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   type="text"
                   value={recoveryIdentifier}
                   onChange={(e) => setRecoveryIdentifier(e.target.value)}
-                  placeholder="faizal"
+                  placeholder="username or user@mail.xyz"
                   required
                   className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-purple-400"
                 />
