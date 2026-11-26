@@ -176,6 +176,9 @@ pub async fn run_server(config: AppConfig) -> Result<(), Box<dyn std::error::Err
         )
         .route_service("/admin", ServeFile::new(&admin_file))
         .route_service("/admin.html", ServeFile::new(&admin_file))
+        .route("/admin/auth/verify", get(auth::pages::magic_link_page))
+        .route("/admin/auth/reset", get(auth::pages::password_reset_page))
+        .route("/auth/device", get(auth::pages::device_approval_page))
         .fallback_service(spa_service)
         .layer(from_fn_with_state(
             state.clone(),

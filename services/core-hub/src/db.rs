@@ -371,6 +371,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
     let _ = conn.execute("ALTER TABLE mail_spool ADD COLUMN scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP", []);
     let _ = conn.execute("ALTER TABLE mail_spool ADD COLUMN carrier_type TEXT DEFAULT 'mesh_auto'", []);
 
+    // Safe migration for central synced 4-digit unlock PIN
+    let _ = conn.execute("ALTER TABLE users ADD COLUMN pin_hash TEXT", []);
+
     // Seed default settings if missing
     let defaults = [
         ("maintenance_mode", "false"),

@@ -49,6 +49,8 @@ export default function SecurityTab({
   // Sessions state
   const [sessions, setSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [deviceCodeInput, setDeviceCodeInput] = useState('');
+  const [approvingDevice, setApprovingDevice] = useState(false);
 
   // PATs state
   const [pats, setPats] = useState([]);
@@ -214,6 +216,32 @@ export default function SecurityTab({
     }
   };
 
+  const handleApproveDeviceCode = async (e) => {
+    e.preventDefault();
+    const cleanCode = deviceCodeInput.trim().toUpperCase();
+    if (!cleanCode) return;
+    setApprovingDevice(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/device/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_code: cleanCode })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast && showToast(`Approved device onboarding code ${cleanCode}`);
+        setDeviceCodeInput('');
+        loadSessions();
+      } else {
+        showToast && showToast(data.error || 'Invalid or expired device code', 'error');
+      }
+    } catch (_) {
+      showToast && showToast('Failed to approve device code', 'error');
+    } finally {
+      setApprovingDevice(false);
+    }
+  };
+
   const handleRevokeAllOtherSessions = async () => {
     if (!confirm('Sign out of all other devices across the entire Nexus Fleet?')) return;
     try {
@@ -376,6 +404,34 @@ export default function SecurityTab({
             </button>
           </div>
 
+          <div className="p-5 rounded-2xl bg-neutral-900/60 border border-[#00e5ff]/25 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-[#00e5ff]" />
+                Onboard New Device (macOS / Mobile / CLI)
+              </h4>
+              <p className="text-xs text-neutral-400 mt-1">
+                Enter the 8-character onboarding code displayed on a new device to authorize it with your Nexus account.
+              </p>
+            </div>
+            <form onSubmit={handleApproveDeviceCode} className="flex items-center gap-2.5">
+              <input
+                type="text"
+                value={deviceCodeInput}
+                onChange={(e) => setDeviceCodeInput(e.target.value.toUpperCase())}
+                placeholder="XXXX-XXXX"
+                className="w-36 px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs tracking-widest uppercase text-center focus:outline-none focus:border-[#00e5ff]"
+              />
+              <button
+                type="submit"
+                disabled={approvingDevice || !deviceCodeInput.trim()}
+                className="px-4 py-2 rounded-xl bg-[#00e5ff] text-black font-semibold text-xs tracking-wider uppercase hover:bg-[#00cbe2] transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {approvingDevice ? 'Approving...' : 'Approve Device'}
+              </button>
+            </form>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {apps.map((app) => (
               <div
@@ -464,6 +520,34 @@ export default function SecurityTab({
               <Power className="w-4 h-4" />
               Sign Out All Other Devices
             </button>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-neutral-900/60 border border-[#00e5ff]/25 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-[#00e5ff]" />
+                Onboard New Device (macOS / Mobile / CLI)
+              </h4>
+              <p className="text-xs text-neutral-400 mt-1">
+                Enter the 8-character onboarding code displayed on a new device to authorize it with your Nexus account.
+              </p>
+            </div>
+            <form onSubmit={handleApproveDeviceCode} className="flex items-center gap-2.5">
+              <input
+                type="text"
+                value={deviceCodeInput}
+                onChange={(e) => setDeviceCodeInput(e.target.value.toUpperCase())}
+                placeholder="XXXX-XXXX"
+                className="w-36 px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-white font-mono text-xs tracking-widest uppercase text-center focus:outline-none focus:border-[#00e5ff]"
+              />
+              <button
+                type="submit"
+                disabled={approvingDevice || !deviceCodeInput.trim()}
+                className="px-4 py-2 rounded-xl bg-[#00e5ff] text-black font-semibold text-xs tracking-wider uppercase hover:bg-[#00cbe2] transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {approvingDevice ? 'Approving...' : 'Approve Device'}
+              </button>
+            </form>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -4,10 +4,12 @@ import { nexusAuth } from '../sdk/nexus-auth';
 import { NexusMonogramIcon } from './NexusSignInButton';
 
 export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
-  const [activeTab, setActiveTab] = useState('otp'); // 'otp' | 'magic' | 'password' | 'recovery' | 'legacy_pin'
+  const [activeTab, setActiveTab] = useState('otp'); // 'otp' | 'magic' | 'password' | 'signup' | 'forgot' | 'recovery' | 'legacy_pin'
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [identifier, setIdentifier] = useState('');
+  const [needsAccountPrompt, setNeedsAccountPrompt] = useState(false);
   
   // OTP State
   const [otpSent, setOtpSent] = useState(false);
@@ -63,13 +65,17 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
     }
     setLoading(true);
     setErrorMsg(null);
+    setNeedsAccountPrompt(false);
     try {
-      await nexusAuth.sendOtp(email.trim());
+      await nexusAuth.sendOtp(email.trim(), false);
       setOtpSent(true);
       setCountdown(60);
       setSuccessMsg('6-digit code dispatched to your email.');
       setTimeout(() => otpRefs[0].current?.focus(), 200);
     } catch (err) {
+      if (err.account_exists === false) {
+        setNeedsAccountPrompt(true);
+      }
       setErrorMsg(err.message || 'Failed to send verification code.');
     } finally {
       setLoading(false);
@@ -133,11 +139,15 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
     }
     setLoading(true);
     setErrorMsg(null);
+    setNeedsAccountPrompt(false);
     try {
-      await nexusAuth.sendMagicLink(email.trim());
+      await nexusAuth.sendMagicLink(email.trim(), false);
       setSuccessMsg('Magic link dispatched! Check your email inbox to sign in.');
       setCountdown(60);
     } catch (err) {
+      if (err.account_exists === false) {
+        setNeedsAccountPrompt(true);
+      }
       setErrorMsg(err.message || 'Failed to dispatch magic link.');
     } finally {
       setLoading(false);
@@ -161,6 +171,44 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
       }
     } catch (err) {
       setErrorMsg(err.message || 'Invalid username/email or password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    if (!fullName.trim() || !email.trim() || !email.includes('@')) {
+      setErrorMsg('Please enter your name and a valid email address.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await nexusAuth.register(email.trim(), fullName.trim(), password || null);
+      if (res.success && res.token) {
+        handleAuthSuccess(res.token, res.user);
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Could not create Nexus account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestResetLink = async (e) => {
+    e.preventDefault();
+    if (!recoveryIdentifier.trim() || !recoveryIdentifier.includes('@')) {
+      setErrorMsg('Please enter your account email address.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      await nexusAuth.requestPasswordReset(recoveryIdentifier.trim());
+      setSuccessMsg('Password reset link sent! Check your email to set a new password.');
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to send password reset link.');
     } finally {
       setLoading(false);
     }
@@ -287,8 +335,21 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
 
           {/* Notifications */}
           {errorMsg && (
-            <div className="mb-4 p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-xs text-red-200">
-              {errorMsg}
+            <div className="mb-4 p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-xs text-red-200 space-y-2">
+              <div>{errorMsg}</div>
+              {needsAccountPrompt && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNeedsAccountPrompt(false);
+                    setErrorMsg(null);
+                    setActiveTab('signup');
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#89ff00] text-black font-semibold text-xs hover:bg-[#7ce600] transition-colors"
+                >
+                  Create Nexus Account →
+                </button>
+              )}
             </div>
           )}
           {successMsg && (
@@ -412,10 +473,13 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   <label className="text-xs font-medium text-neutral-300">Password</label>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('recovery')}
+                    onClick={() => {
+                      setRecoveryIdentifier(identifier.includes('@') ? identifier : email);
+                      setActiveTab('forgot');
+                    }}
                     className="text-xs text-neutral-400 hover:text-white hover:underline"
                   >
-                    Forgot / Recover?
+                    Forgot Password?
                   </button>
                 </div>
                 <input
@@ -437,7 +501,106 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
             </form>
           )}
 
-          {/* TAB 4: RECOVERY VIA SECURITY QUESTION */}
+          {/* TAB 3B: CREATE ACCOUNT / ONBOARDING */}
+          {activeTab === 'signup' && (
+            <form onSubmit={handleSignUp} className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#89ff00]">Create Nexus Account</h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('otp')}
+                  className="text-xs text-neutral-500 hover:text-white"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">Full Name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Mohammad Faizal"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="me@faizal.uk"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">Password (Optional for Passwordless)</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#89ff00]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-[#89ff00] text-black font-semibold text-sm rounded-xl hover:bg-[#7ce600] active:scale-[0.99] transition-all disabled:opacity-50"
+              >
+                {loading ? 'Creating Account...' : 'Create Nexus Account →'}
+              </button>
+            </form>
+          )}
+
+          {/* TAB 4A: LINK-BASED PASSWORD RESET */}
+          {activeTab === 'forgot' && (
+            <form onSubmit={handleRequestResetLink} className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-300">Reset Password via Email</h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('password')}
+                  className="text-xs text-neutral-500 hover:text-white"
+                >
+                  Back to Login
+                </button>
+              </div>
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                We will email you a secure one-time link to set a new password.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">Account Email</label>
+                <input
+                  type="email"
+                  value={recoveryIdentifier}
+                  onChange={(e) => setRecoveryIdentifier(e.target.value)}
+                  placeholder="me@faizal.uk"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#00e5ff]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-[#00e5ff] text-black font-semibold text-sm rounded-xl hover:bg-[#00cbe2] active:scale-[0.99] transition-all disabled:opacity-50"
+              >
+                {loading ? 'Sending Reset Link...' : 'Send Password Reset Link →'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('recovery')}
+                className="w-full text-center text-xs text-neutral-400 hover:text-white pt-1"
+              >
+                Use Security Question Instead
+              </button>
+            </form>
+          )}
+
+          {/* TAB 4B: RECOVERY VIA SECURITY QUESTION */}
           {activeTab === 'recovery' && (
             <form onSubmit={handleSecurityRecovery} className="space-y-4">
               <div className="flex justify-between items-center">

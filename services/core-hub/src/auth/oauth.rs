@@ -130,3 +130,52 @@ pub async fn verify_meta_access_token(
         avatar_url,
     })
 }
+
+#[derive(Debug, Deserialize)]
+struct XUserEnvelope {
+    data: Option<XUserData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct XUserData {
+    id: Option<String>,
+    name: Option<String>,
+    username: Option<String>,
+    profile_image_url: Option<String>,
+}
+
+/// Verify X (Twitter) OAuth2 User Context access token against X API v2
+pub async fn verify_x_access_token(
+    client: &reqwest::Client,
+    access_token: &str,
+) -> Result<NormalizedOAuthIdentity, String> {
+    let res = client
+        .get("https://api.x.com/2/users/me?user.fields=profile_image_url,name,username")
+        .bearer_auth(access_token.trim())
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach X API: {}", e))?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(format!("X token verification failed: {}", err_text));
+    }
+
+    let envelope: XUserEnvelope = res
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse X response: {}", e))?;
+
+    let data = envelope.data.ok_or_else(|| "Missing X user data".to_string())?;
+    let id = data.id.ok_or_else(|| "Missing X user ID".to_string())?;
+    let handle = data.username.unwrap_or_else(|| format!("x_{}", id));
+    let email = format!("{}@x.faizal.uk", handle.to_lowercase());
+
+    Ok(NormalizedOAuthIdentity {
+        provider: "x".to_string(),
+        provider_user_id: id,
+        email,
+        full_name: data.name.unwrap_or_else(|| format!("@{}", handle)),
+        avatar_url: data.profile_image_url,
+    })
+}

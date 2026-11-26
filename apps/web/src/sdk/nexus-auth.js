@@ -81,7 +81,10 @@ export class NexusAuthClient {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || `HTTP ${res.status}`);
+      const err = new Error(data.error || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.account_exists = data.account_exists;
+      throw err;
     }
     return data;
   }
@@ -114,10 +117,10 @@ export class NexusAuthClient {
 
   // ── Passwordless Authentication ────────────────────────────────────────────
 
-  async sendMagicLink(email) {
+  async sendMagicLink(email, allowCreate = true) {
     return this.request('/api/auth/magic-link', {
       method: 'POST',
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, allow_create: allowCreate })
     });
   }
 
@@ -129,10 +132,10 @@ export class NexusAuthClient {
     return data;
   }
 
-  async sendOtp(email) {
+  async sendOtp(email, allowCreate = true) {
     return this.request('/api/auth/otp/send', {
       method: 'POST',
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, allow_create: allowCreate })
     });
   }
 

@@ -7,7 +7,7 @@ use crate::auth::device_flow::{generate_user_code, normalize_user_code};
 use crate::auth::email_flows::{send_magic_link_email, send_otp_email, send_reset_password_email};
 use crate::auth::middleware::AuthenticatedUser;
 use crate::auth::models::*;
-use crate::auth::oauth::{verify_google_id_token, verify_meta_access_token};
+use crate::auth::oauth::{verify_google_id_token, verify_meta_access_token, verify_x_access_token};
 use crate::auth::security_questions::{is_valid_question_key, STANDARD_SECURITY_QUESTIONS};
 use crate::state::SharedState;
 use axum::{
@@ -50,6 +50,11 @@ pub fn auth_router() -> Router<SharedState> {
         // Social OAuth
         .route("/google", post(google_auth))
         .route("/meta", post(meta_auth))
+        .route("/x", post(x_auth))
+        // Central Synced 4-Digit PIN
+        .route("/pin/setup", post(setup_pin))
+        .route("/pin/verify", post(verify_pin))
+        .route("/pin/update", post(update_pin))
         // RFC 8628 Device Flow (CLI)
         .route("/device/code", post(request_device_code))
         .route("/device/token", post(poll_device_token))
@@ -158,6 +163,7 @@ async fn register(
                 full_name,
                 avatar_url: None,
                 password_hash,
+                pin_hash: None,
                 security_question: None,
                 security_answer_hash: None,
                 role: role.to_string(),
@@ -203,7 +209,7 @@ async fn login(
         r#"
         SELECT id, email, username, full_name, avatar_url, password_hash,
                security_question, security_answer_hash, role, status, token_version,
-               created_at, updated_at
+               created_at, updated_at, pin_hash
         FROM users
         WHERE LOWER(email) = ?1 OR LOWER(username) = ?1
         LIMIT 1
@@ -224,6 +230,7 @@ async fn login(
                 token_version: row.get(10)?,
                 created_at: row.get(11)?,
                 updated_at: row.get(12)?,
+                pin_hash: row.get(13)?,
             })
         },
     );
@@ -307,7 +314,7 @@ async fn get_current_user(
         r#"
         SELECT id, email, username, full_name, avatar_url, password_hash,
                security_question, security_answer_hash, role, status, token_version,
-               created_at, updated_at
+               created_at, updated_at, pin_hash
         FROM users
         WHERE id = ?1
         "#,
@@ -327,6 +334,7 @@ async fn get_current_user(
                 token_version: row.get(10)?,
                 created_at: row.get(11)?,
                 updated_at: row.get(12)?,
+                pin_hash: row.get(13)?,
             })
         },
     );
@@ -379,12 +387,28 @@ async fn request_magic_link(
     Json(payload): Json<MagicLinkRequest>,
 ) -> impl IntoResponse {
     let email = payload.email.trim().to_lowercase();
+    let conn = state.db.lock().await;
+    if payload.allow_create == Some(false) {
+        let exists: bool = conn
+            .query_row("SELECT 1 FROM users WHERE LOWER(email) = ?1", params![email], |_| Ok(true))
+            .unwrap_or(false);
+        if !exists {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "success": false,
+                    "account_exists": false,
+                    "error": "No Nexus account found for this email. Create an account first."
+                })),
+            );
+        }
+    }
+
     let raw_token = generate_random_token(32);
     let token_hash = sha256_hash(&raw_token);
     let code_id = format!("code_{}", uuid::Uuid::new_v4().simple());
     let expires_at = (Utc::now() + chrono::Duration::minutes(15)).to_rfc3339();
 
-    let conn = state.db.lock().await;
     let _ = conn.execute(
         r#"
         INSERT INTO auth_codes (id, email, code_hash, code_type, expires_at)
@@ -494,12 +518,28 @@ async fn send_otp(
     Json(payload): Json<OtpSendRequest>,
 ) -> impl IntoResponse {
     let email = payload.email.trim().to_lowercase();
+    let conn = state.db.lock().await;
+    if payload.allow_create == Some(false) {
+        let exists: bool = conn
+            .query_row("SELECT 1 FROM users WHERE LOWER(email) = ?1", params![email], |_| Ok(true))
+            .unwrap_or(false);
+        if !exists {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "success": false,
+                    "account_exists": false,
+                    "error": "No Nexus account found for this email. Create an account first."
+                })),
+            );
+        }
+    }
+
     let otp_code = generate_otp_code();
     let code_hash = sha256_hash(&otp_code);
     let code_id = format!("otp_{}", uuid::Uuid::new_v4().simple());
     let expires_at = (Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
 
-    let conn = state.db.lock().await;
     // Invalidate previous unused OTPs for this email
     let _ = conn.execute(
         "DELETE FROM auth_codes WHERE email = ?1 AND code_type = 'otp' AND used_at IS NULL",
@@ -817,7 +857,7 @@ async fn recover_with_security_question(
         r#"
         SELECT id, email, username, full_name, avatar_url, password_hash,
                security_question, security_answer_hash, role, status, token_version,
-               created_at, updated_at
+               created_at, updated_at, pin_hash
         FROM users
         WHERE LOWER(email) = ?1 OR LOWER(username) = ?1
         LIMIT 1
@@ -838,6 +878,7 @@ async fn recover_with_security_question(
                 token_version: row.get(10)?,
                 created_at: row.get(11)?,
                 updated_at: row.get(12)?,
+                pin_hash: row.get(13)?,
             })
         },
     );
@@ -985,7 +1026,241 @@ async fn meta_auth(
     )
 }
 
-// ─── RFC 8628 Device Flow (CLI Agent: 'nexus auth login') ─────────────────────
+async fn x_auth(
+    State(state): State<SharedState>,
+    Json(payload): Json<GoogleAuthRequest>,
+) -> impl IntoResponse {
+    let access_token = match payload.credential {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "error": "Missing X access token" })),
+            );
+        }
+    };
+
+    let client = reqwest::Client::new();
+    let identity = match verify_x_access_token(&client, &access_token).await {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "success": false, "error": e })),
+            );
+        }
+    };
+
+    let conn = state.db.lock().await;
+    let user = get_or_create_social_user(&conn, &identity);
+
+    let jwt_secret = state.config.admin_pin.as_bytes();
+    let token = issue_user_session(&user, None, jwt_secret).ok();
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "success": true,
+            "token": token,
+            "user": PublicUserProfile::from(&user)
+        })),
+    )
+}
+
+// ─── Central Synced 4-Digit PIN ───────────────────────────────────────────────
+
+fn is_valid_pin(pin: &str) -> bool {
+    let p = pin.trim();
+    p.len() == 4 && p.chars().all(|c| c.is_ascii_digit())
+}
+
+async fn setup_pin(
+    State(state): State<SharedState>,
+    auth: AuthenticatedUser,
+    Json(payload): Json<PinSetupRequest>,
+) -> impl IntoResponse {
+    let pin = payload.pin.trim();
+    if !is_valid_pin(pin) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "PIN must be exactly 4 digits" })),
+        );
+    }
+
+    let pin_hash = match hash_password(pin) {
+        Ok(h) => h,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "error": e })),
+            );
+        }
+    };
+
+    let conn = state.db.lock().await;
+    let _ = conn.execute(
+        "UPDATE users SET pin_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+        params![pin_hash, auth.user_id],
+    );
+
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "has_pin": true, "message": "Central PIN saved" })),
+    )
+}
+
+async fn verify_pin(
+    State(state): State<SharedState>,
+    auth: AuthenticatedUser,
+    Json(payload): Json<PinVerifyRequest>,
+) -> impl IntoResponse {
+    let pin = payload.pin.trim();
+    let conn = state.db.lock().await;
+    let pin_hash_opt: Option<String> = conn
+        .query_row(
+            "SELECT pin_hash FROM users WHERE id = ?1",
+            params![auth.user_id],
+            |r| r.get(0),
+        )
+        .ok()
+        .flatten();
+
+    let Some(pin_hash) = pin_hash_opt else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "No central PIN is configured for this account" })),
+        );
+    };
+
+    if verify_password(pin, &pin_hash) {
+        (StatusCode::OK, Json(json!({ "success": true })))
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "success": false, "error": "Incorrect PIN" })),
+        )
+    }
+}
+
+async fn update_pin(
+    State(state): State<SharedState>,
+    auth: AuthenticatedUser,
+    Json(payload): Json<PinUpdateRequest>,
+) -> impl IntoResponse {
+    let conn = state.db.lock().await;
+    let user_row = conn.query_row(
+        "SELECT email, password_hash, security_answer_hash FROM users WHERE id = ?1",
+        params![auth.user_id],
+        |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<String>>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
+        },
+    );
+
+    let (email, password_hash_opt, sec_answer_hash_opt) = match user_row {
+        Ok(r) => r,
+        Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": "User not found" })),
+            );
+        }
+    };
+
+    let mut verified = false;
+
+    if let Some(pw) = payload.password.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if let Some(ref pw_hash) = password_hash_opt {
+            if verify_password(pw, pw_hash) {
+                verified = true;
+            }
+        }
+    }
+
+    if !verified {
+        if let Some(ans) = payload.security_answer.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(ref ans_hash) = sec_answer_hash_opt {
+                if verify_security_answer(ans, ans_hash) {
+                    verified = true;
+                }
+            }
+        }
+    }
+
+    if !verified {
+        if let Some(code) = payload.otp_code.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            let code_hash = sha256_hash(code);
+            let otp_row = conn.query_row(
+                "SELECT id, expires_at FROM auth_codes WHERE LOWER(email) = ?1 AND code_type = 'otp' AND used_at IS NULL AND code_hash = ?2 ORDER BY created_at DESC LIMIT 1",
+                params![email.to_lowercase(), code_hash],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            );
+            if let Ok((code_id, expires_at_str)) = otp_row {
+                let not_expired = chrono::DateTime::parse_from_rfc3339(&expires_at_str)
+                    .map(|exp| exp >= Utc::now())
+                    .unwrap_or(true);
+                if not_expired {
+                    let _ = conn.execute(
+                        "UPDATE auth_codes SET used_at = CURRENT_TIMESTAMP WHERE id = ?1",
+                        params![code_id],
+                    );
+                    verified = true;
+                }
+            }
+        }
+    }
+
+    if !verified {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({
+                "success": false,
+                "error": "Re-authentication failed. Provide a valid password, 6-digit email OTP, or security answer."
+            })),
+        );
+    }
+
+    if payload.remove.unwrap_or(false) {
+        let _ = conn.execute(
+            "UPDATE users SET pin_hash = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            params![auth.user_id],
+        );
+        return (
+            StatusCode::OK,
+            Json(json!({ "success": true, "has_pin": false, "message": "Central PIN removed" })),
+        );
+    }
+
+    let Some(new_pin) = payload.new_pin.as_deref().map(str::trim).filter(|p| is_valid_pin(p)) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "New PIN must be exactly 4 digits" })),
+        );
+    };
+
+    let pin_hash = match hash_password(new_pin) {
+        Ok(h) => h,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "error": e })),
+            );
+        }
+    };
+
+    let _ = conn.execute(
+        "UPDATE users SET pin_hash = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+        params![pin_hash, auth.user_id],
+    );
+
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "has_pin": true, "message": "Central PIN updated" })),
+    )
+}
 
 async fn request_device_code(
     State(state): State<SharedState>,
@@ -1067,7 +1342,7 @@ async fn poll_device_token(
     if status == "approved" {
         if let Some(uid) = user_id_opt {
             let user = conn.query_row(
-                "SELECT id, email, username, full_name, avatar_url, password_hash, security_question, security_answer_hash, role, status, token_version, created_at, updated_at FROM users WHERE id = ?1",
+                "SELECT id, email, username, full_name, avatar_url, password_hash, security_question, security_answer_hash, role, status, token_version, created_at, updated_at, pin_hash FROM users WHERE id = ?1",
                 params![uid],
                 |r| {
                     Ok(User {
@@ -1084,6 +1359,7 @@ async fn poll_device_token(
                         token_version: r.get(10)?,
                         created_at: r.get(11)?,
                         updated_at: r.get(12)?,
+                        pin_hash: r.get(13)?,
                     })
                 },
             );
@@ -1237,7 +1513,7 @@ fn get_or_create_user_by_email(conn: &rusqlite::Connection, email: &str) -> User
         r#"
         SELECT id, email, username, full_name, avatar_url, password_hash,
                security_question, security_answer_hash, role, status, token_version,
-               created_at, updated_at
+               created_at, updated_at, pin_hash
         FROM users WHERE LOWER(email) = ?1 LIMIT 1
         "#,
         params![email],
@@ -1256,6 +1532,7 @@ fn get_or_create_user_by_email(conn: &rusqlite::Connection, email: &str) -> User
                 token_version: r.get(10)?,
                 created_at: r.get(11)?,
                 updated_at: r.get(12)?,
+                pin_hash: r.get(13)?,
             })
         },
     );
@@ -1281,6 +1558,7 @@ fn get_or_create_user_by_email(conn: &rusqlite::Connection, email: &str) -> User
         full_name: default_name,
         avatar_url: None,
         password_hash: None,
+        pin_hash: None,
         security_question: None,
         security_answer_hash: None,
         role: role.to_string(),
@@ -1300,7 +1578,7 @@ fn get_or_create_social_user(
         r#"
         SELECT u.id, u.email, u.username, u.full_name, u.avatar_url, u.password_hash,
                u.security_question, u.security_answer_hash, u.role, u.status, u.token_version,
-               u.created_at, u.updated_at
+               u.created_at, u.updated_at, u.pin_hash
         FROM user_oauth_accounts oa
         JOIN users u ON u.id = oa.user_id
         WHERE oa.provider = ?1 AND oa.provider_user_id = ?2
@@ -1322,6 +1600,7 @@ fn get_or_create_social_user(
                 token_version: r.get(10)?,
                 created_at: r.get(11)?,
                 updated_at: r.get(12)?,
+                pin_hash: r.get(13)?,
             })
         },
     );

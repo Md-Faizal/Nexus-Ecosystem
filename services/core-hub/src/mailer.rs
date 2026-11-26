@@ -163,6 +163,18 @@ pub async fn send_via_smtp(
     subject: &str,
     html_body: &str,
 ) -> Result<(), String> {
+    send_via_smtp_with_sender(config, db, recipient, subject, html_body, None).await
+}
+
+/// Send email via standard SMTP transport with an optional display name override.
+pub async fn send_via_smtp_with_sender(
+    config: &AppConfig,
+    db: &DbPool,
+    recipient: &str,
+    subject: &str,
+    html_body: &str,
+    sender_name_override: Option<&str>,
+) -> Result<(), String> {
     let (transport, default_dest) = build_transport(config, db).await?;
     let raw_recipients = if !recipient.trim().is_empty() {
         recipient.trim()
@@ -170,7 +182,11 @@ pub async fn send_via_smtp(
         &default_dest
     };
 
-    let from_header = format!("\"{}\" <{}>", config.sender_name, config.sender_email);
+    let sender_name = sender_name_override
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&config.sender_name);
+    let from_header = format!("\"{}\" <{}>", sender_name, config.sender_email);
     let mut builder = Message::builder()
         .from(from_header.parse().map_err(|e: lettre::address::AddressError| e.to_string())?)
         .subject(subject)
@@ -211,7 +227,34 @@ pub async fn dispatch_resilient_email(
     message_type: &str,
     priority: i32,
 ) -> Result<(), String> {
+    dispatch_resilient_email_with_sender(
+        config,
+        db,
+        recipient,
+        subject,
+        html_body,
+        message_type,
+        priority,
+        None,
+    )
+    .await
+}
+
+pub async fn dispatch_resilient_email_with_sender(
+    config: &AppConfig,
+    db: &DbPool,
+    recipient: &str,
+    subject: &str,
+    html_body: String,
+    message_type: &str,
+    priority: i32,
+    sender_name_override: Option<&str>,
+) -> Result<(), String> {
     let mail_id = uuid::Uuid::new_v4().to_string();
+    let effective_sender_name = sender_name_override
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&config.sender_name);
 
     // ── Tier 1A: Resend Cloud HTTPS API (Port 443) ───────────────────────────
     let resend_key = if !config.resend_api_key.trim().is_empty() {
@@ -225,7 +268,7 @@ pub async fn dispatch_resilient_email(
     if let Some(ref api_key) = resend_key {
         match send_via_resend(
             api_key,
-            &config.sender_name,
+            effective_sender_name,
             &config.sender_email,
             recipient,
             subject,
@@ -247,7 +290,16 @@ pub async fn dispatch_resilient_email(
     }
 
     // ── Tier 1B: Primary SMTP Relay (Brevo port 587) ─────────────────────────
-    match send_via_smtp(config, db, recipient, subject, &html_body).await {
+    match send_via_smtp_with_sender(
+        config,
+        db,
+        recipient,
+        subject,
+        &html_body,
+        Some(effective_sender_name),
+    )
+    .await
+    {
         Ok(_) => {
             let _ = mark_mail_spool_sent(db, &mail_id, "brevo_smtp").await;
             return Ok(());
@@ -326,6 +378,29 @@ pub async fn send_report_email(
     html_body: String,
 ) -> Result<(), String> {
     dispatch_resilient_email(config, db, recipient, subject, html_body, "health_report", 3).await
+}
+
+/// Send high-priority Nexus Auth emails (OTP, Magic Link, Password Reset) with
+/// the "Nexus Auth" display name instead of the system health report sender name.
+pub async fn send_auth_email(
+    config: &AppConfig,
+    db: &DbPool,
+    recipient: &str,
+    subject: &str,
+    html_body: String,
+    message_type: &str,
+) -> Result<(), String> {
+    dispatch_resilient_email_with_sender(
+        config,
+        db,
+        recipient,
+        subject,
+        html_body,
+        message_type,
+        1,
+        Some("Nexus Auth"),
+    )
+    .await
 }
 
 pub async fn send_auto_reply(

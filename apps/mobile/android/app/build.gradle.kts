@@ -73,4 +73,6 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.biometric.ktx)
     implementation("${libs.jna.get()}@aar")
+
+    testImplementation("junit:junit:4.13.2")
 }

@@ -123,7 +123,7 @@ pub async fn send_otp_email(
 ) -> Result<(), String> {
     let subject = format!("Nexus Security Code: {}", code);
     let html = render_otp_email(code);
-    mailer::send_report_email(config, db, recipient, &subject, html).await
+    mailer::send_auth_email(config, db, recipient, &subject, html, "auth_otp").await
 }
 
 pub async fn send_magic_link_email(
@@ -134,7 +134,7 @@ pub async fn send_magic_link_email(
 ) -> Result<(), String> {
     let subject = "Sign In to Nexus Fleet (Magic Link)".to_string();
     let html = render_magic_link_email(verify_url);
-    mailer::send_report_email(config, db, recipient, &subject, html).await
+    mailer::send_auth_email(config, db, recipient, &subject, html, "auth_magic_link").await
 }
 
 pub async fn send_reset_password_email(
@@ -145,6 +145,6 @@ pub async fn send_reset_password_email(
 ) -> Result<(), String> {
     let subject = "Reset Your Nexus Password".to_string();
     let html = render_password_reset_email(reset_url);
-    mailer::send_report_email(config, db, recipient, &subject, html).await
+    mailer::send_auth_email(config, db, recipient, &subject, html, "auth_password_reset").await
 }
 

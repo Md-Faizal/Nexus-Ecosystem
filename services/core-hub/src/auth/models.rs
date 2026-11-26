@@ -9,6 +9,8 @@ pub struct User {
     pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: Option<String>,
+    #[serde(skip_serializing)]
+    pub pin_hash: Option<String>,
     pub security_question: Option<String>,
     #[serde(skip_serializing)]
     pub security_answer_hash: Option<String>,
@@ -29,6 +31,7 @@ pub struct PublicUserProfile {
     pub role: String,
     pub status: String,
     pub has_password: bool,
+    pub has_pin: bool,
     pub has_security_question: bool,
     pub active_device_id: Option<String>,
 }
@@ -44,6 +47,7 @@ impl From<&User> for PublicUserProfile {
             role: u.role.clone(),
             status: u.status.clone(),
             has_password: u.password_hash.is_some(),
+            has_pin: u.pin_hash.is_some(),
             has_security_question: u.security_question.is_some() && u.security_answer_hash.is_some(),
             active_device_id: None,
         }
@@ -70,11 +74,13 @@ pub struct RegisterRequest {
 #[derive(Debug, Deserialize)]
 pub struct MagicLinkRequest {
     pub email: String,
+    pub allow_create: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OtpSendRequest {
     pub email: String,
+    pub allow_create: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -129,6 +135,25 @@ pub struct DeviceTokenPollRequest {
 #[derive(Debug, Deserialize)]
 pub struct DeviceApproveRequest {
     pub user_code: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PinSetupRequest {
+    pub pin: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PinVerifyRequest {
+    pub pin: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PinUpdateRequest {
+    pub new_pin: Option<String>,
+    pub remove: Option<bool>,
+    pub password: Option<String>,
+    pub otp_code: Option<String>,
+    pub security_answer: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
