@@ -11,7 +11,9 @@ The visual language of Nexus Mobile is built around two strict references:
 2. **Twitter / X** for the **pitch-black dramatic portal intro**.
 
 ### Core Principles (User-Specified Rules)
-- **Subtlety Over Flash:** Specular highlights, borders, and shimmer MUST be understated (like Apple Music's thin rim highlight) — never overdone, loud, or neon-flooded.
+- **No Shadows on Chrome:** Floating navigation pills, status banners, profile orb, and circular buttons have `shadowElevation = 0.dp` and zero `.shadow(...)` modifiers — Apple Music's chrome never casts grey drop shadows.
+- **Subtlety Over Flash:** Specular borders (`0.75.dp` `nexusSpecularBorder`) and highlights (`nexusSpecularSheen`) remain understated, while floating glass itself uses stronger translucent frost (`18.dp` blur, `0.62f` alpha, `0.22f` tint on `#1F2128` dark / `#F3F4F8` light) so buttons/nav pills read cleanly as translucent frosted surfaces rather than clear/invisible or milky.
+- **No OS System Logo Splash:** `Theme.NexusMobile` (`values-v31/styles.xml`) uses `#000000` `windowSplashScreenBackground`, a transparent icon (`splash_transparent`), `0` duration, and `splashScreen.setOnExitAnimationListener { it.remove() }` so cold launches enter `FzPortalSplash` directly like X without a 2-second Android app-logo screen.
 - **Single Ring Only:** Circular buttons and pills have **one** subtle `0.75.dp` specular border. Never stack two concentric rings/borders.
 - **Zero Square Shadow Artifacts:** Circular buttons (`NexusCircularButton`, `NexusCircularBackButton`, keypad keys) must NEVER show a faint rectangular/square box shadow behind the circle. Always `.clip(CircleShape)` **before** applying background, haze, or sheen modifiers.
 - **True Pitch-Black OLED & Pure Light:** Dark mode is `#000000` (not dark gray Material 3 `surfaceContainer`), and Light mode is `#FFFFFF` (never Material 3 pastel/pinkish dynamic tints).
@@ -50,13 +52,13 @@ The visual language of Nexus Mobile is built around two strict references:
 
 ### B. Circular Buttons (`NexusCircularButton.kt`)
 - **Why:** Apple Music's top-left back / top-right action buttons float fixed in the corner over scrolling content with a lightweight frosted mask and zero outer square halo.
-- **How:** Placed in an outer `Box` overlay (`Alignment.TopEnd` / `Alignment.TopStart` with `.statusBarsPadding()`) above `NexusEdgeFadeContainer`, using `Surface(shape = CircleShape, border = nexusSpecularBorder(palette.isDark, 0.75f))`, `.clip(CircleShape)`, lightweight `nexusFloatingGlass` (`10.dp` blur, `0.40f` alpha), and `nexusSpecularSheen(palette.isDark)`. Header text below reserves `padding(end = 52.dp)`. No elevation shadow box.
+- **How:** Placed in an outer `Box` overlay (`Alignment.TopEnd` / `Alignment.TopStart` with `.statusBarsPadding()`) above `NexusEdgeFadeContainer`, using `Surface(shape = CircleShape, border = nexusSpecularBorder(palette.isDark, 0.75f), shadowElevation = 0.dp, tonalElevation = 0.dp)`, `.clip(CircleShape)`, translucent stronger-frost `nexusFloatingGlass` (`18.dp` blur, `0.62f` alpha), and `nexusSpecularSheen(palette.isDark)`. Header text below reserves `padding(end = 52.dp)`. Zero drop shadows.
 
-### C. Edge Fades & Lightweight Frosted Mask (`NexusEdgeFade.kt`, `NexusTheme.kt`)
-- **Why:** Scrolling content should melt smoothly behind the status bar and floating dock without blurring/distorting text, and floating chrome should softly tint underlying colors (not heavy opaque blur).
+### C. Edge Fades & Translucent Frosted Mask (`NexusEdgeFade.kt`, `NexusTheme.kt`)
+- **Why:** Scrolling content should melt smoothly behind the status bar and floating dock without blurring/distorting text, and floating chrome should render as translucent stronger-frosted glass (never completely clear/transparent or shadow-rimmed).
 - **How:**
   - `NexusEdgeFadeContainer` + `nexusEdgeGradientScrim` uses `topExtraHeight = 46.dp`, `bottomExtraHeight = 44.dp`, `maxAlpha = 0.94f`, and `triggerOffsetPx = 40`.
-  - `nexusFloatingGlass` uses a lightweight frosted mask (`blurRadius = 10.dp`, `backgroundColor = containerColor.copy(alpha = 0.40f)`, `tint = HazeTint(containerColor.copy(alpha = 0.08f))`).
+  - `nexusFloatingGlass` uses translucent stronger frost (`blurRadius = 18.dp`, `backgroundColor = containerColor.copy(alpha = 0.62f)`, `tint = HazeTint(containerColor.copy(alpha = 0.22f))` with `glassSurface = #1F2128` dark / `#F3F4F8` light).
 
 ### D. Floating Bottom Navigation Dock (`NexusFloatingDock.kt`)
 - **Why:** Matches Apple Music's compact floating pill bar that sits **low** near the bottom edge and reacts to scroll.

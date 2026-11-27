@@ -1,6 +1,7 @@
 package com.nexus.mobile
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -70,6 +71,11 @@ class MainActivity : FragmentActivity() {
     private val deepLinkTokenState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            splashScreen.setOnExitAnimationListener { splashView ->
+                splashView.remove()
+            }
+        }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         extractDeepLinkToken(intent)

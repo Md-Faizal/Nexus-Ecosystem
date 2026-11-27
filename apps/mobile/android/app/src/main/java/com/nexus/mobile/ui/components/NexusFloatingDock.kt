@@ -67,7 +67,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -299,10 +298,11 @@ fun NexusFloatingDock(
                         shape = RoundedCornerShape(22.dp),
                         color = Color.Transparent,
                         border = nexusSpecularBorder(palette.isDark, widthDp = 1.1f),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp)
-                            .shadow(10.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.35f))
                             .clip(RoundedCornerShape(22.dp))
                             .nexusFloatingGlass(hazeState, palette.glassSurface)
                             .nexusSpecularSheen(palette.isDark),
@@ -372,10 +372,11 @@ fun NexusFloatingDock(
                             shape = RoundedCornerShape(30.dp),
                             color = Color.Transparent,
                             border = nexusSpecularBorder(palette.isDark, widthDp = 0.85f),
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp,
                             modifier = Modifier
                                 .width(leftPillWidth)
                                 .height(58.dp)
-                                .shadow(5.dp, RoundedCornerShape(30.dp), ambientColor = Color.Black.copy(alpha = 0.22f))
                                 .clip(RoundedCornerShape(30.dp))
                                 .nexusFloatingGlass(hazeState, palette.glassSurface)
                                 .nexusSpecularSheen(palette.isDark)
@@ -506,11 +507,12 @@ fun NexusFloatingDock(
                                 shape = RoundedCornerShape(26.dp),
                                 color = Color.Transparent,
                                 border = nexusSpecularBorder(palette.isDark, widthDp = 1.1f),
+                                tonalElevation = 0.dp,
+                                shadowElevation = 0.dp,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(50.dp)
                                     .graphicsLayer { alpha = centerAlpha }
-                                    .shadow(6.dp, RoundedCornerShape(26.dp), ambientColor = Color.Black.copy(alpha = 0.25f))
                                     .clip(RoundedCornerShape(26.dp))
                                     .nexusFloatingGlass(hazeState, palette.glassSurface)
                                     .nexusSpecularSheen(palette.isDark),
@@ -546,13 +548,14 @@ fun NexusFloatingDock(
                     shape = CircleShape,
                     color = if (isProfileMenuOpen) MaterialTheme.colorScheme.primary else Color.Transparent,
                     border = nexusSpecularBorder(palette.isDark, widthDp = 0.9f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
                     modifier = Modifier
                         .size(54.dp)
                         .graphicsLayer {
                             scaleX = profileScale
                             scaleY = profileScale
                         }
-                        .shadow(5.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.22f))
                         .clip(CircleShape)
                         .then(
                             if (isProfileMenuOpen) {

@@ -138,7 +138,7 @@ fun NexusTheme(
             onlineDot = Color(0xFF22C55E),
             warningDot = Color(0xFFF59E0B),
             dangerAccent = Color(0xFFEF4444),
-            glassSurface = Color(0xFF141519),
+            glassSurface = Color(0xFF1F2128),
         )
     } else {
         NexusPalette(
@@ -149,7 +149,7 @@ fun NexusTheme(
             onlineDot = Color(0xFF16A34A),
             warningDot = Color(0xFFD97706),
             dangerAccent = Color(0xFFDC2626),
-            glassSurface = Color(0xFFF8FAFC),
+            glassSurface = Color(0xFFF3F4F8),
         )
     }
 
@@ -213,7 +213,7 @@ fun Modifier.nexusEdgeGradientScrim(
 )
 
 /**
- * Lightweight Apple Music-style frosted glass mask strictly for floating pill/orb chrome.
+ * Apple Music-style translucent frosted glass mask (zero shadows, balanced frost) for floating pills & buttons.
  */
 fun Modifier.nexusFloatingGlass(
     hazeState: HazeState,
@@ -221,9 +221,9 @@ fun Modifier.nexusFloatingGlass(
 ): Modifier = this.hazeEffect(
     state = hazeState,
     style = HazeStyle(
-        backgroundColor = containerColor.copy(alpha = 0.40f),
-        tint = HazeTint(containerColor.copy(alpha = 0.08f)),
-        blurRadius = 10.dp,
+        backgroundColor = containerColor.copy(alpha = 0.62f),
+        tint = HazeTint(containerColor.copy(alpha = 0.22f)),
+        blurRadius = 18.dp,
     ),
 )
 
