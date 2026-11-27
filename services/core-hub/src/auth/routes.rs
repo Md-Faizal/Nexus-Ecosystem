@@ -709,11 +709,26 @@ async fn request_password_reset(
         );
 
         let reset_url = format!("https://faizal.uk/admin/auth/reset?token={}", raw_token);
+
+        // Also generate a single-use 15m Magic Link for Spotify-style immediate sign-in
+        let magic_raw_token = generate_random_token(32);
+        let magic_token_hash = sha256_hash(&magic_raw_token);
+        let magic_code_id = format!("code_{}", uuid::Uuid::new_v4().simple());
+        let magic_expires_at = (Utc::now() + chrono::Duration::minutes(15)).to_rfc3339();
+        let _ = conn.execute(
+            r#"
+            INSERT INTO auth_codes (id, email, code_hash, code_type, expires_at)
+            VALUES (?1, ?2, ?3, 'magic_link', ?4)
+            "#,
+            params![magic_code_id, email, magic_token_hash, magic_expires_at],
+        );
+        let magic_login_url = format!("https://faizal.uk/admin/auth/verify?token={}", magic_raw_token);
+
         let config = state.config.clone();
         let db = state.db.clone();
         let recipient = email.clone();
         tokio::spawn(async move {
-            if let Err(e) = send_reset_password_email(&config, &db, &recipient, &reset_url).await {
+            if let Err(e) = send_reset_password_email(&config, &db, &recipient, &reset_url, &magic_login_url).await {
                 error!("Failed to send password reset email: {}", e);
             }
         });
@@ -723,7 +738,7 @@ async fn request_password_reset(
         StatusCode::OK,
         Json(json!({
             "success": true,
-            "message": "If an account exists, password reset instructions have been sent."
+            "message": "If an account exists, we sent an instant login and password reset link to your email."
         })),
     )
 }

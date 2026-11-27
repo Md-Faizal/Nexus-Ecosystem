@@ -79,13 +79,13 @@ Reference aesthetic: **Apple Music iOS/Android** floating controls and pill navi
 ## 7. Authentication, Onboarding & Security Flow Rules
 - **Central Auth (`services/core-hub`):**
   - All mobile auth flows talk to `https://faizal.uk/api/auth/*`:
-    - Password (`POST /api/auth/login`)
-    - Create Account / Onboarding (`POST /api/auth/register` + optional Security Question)
-    - 6-Digit Email OTP (`POST /api/auth/otp/send` with `allow_create: false` on Sign In -> prompts Create Account if unregistered; `POST /api/auth/otp/verify`)
-    - Magic Link (`POST /api/auth/magic-link` with `allow_create: false` -> opens `/admin/auth/verify?token=...` -> deep links `nexus-mobile://auth-callback?token=...`)
-    - Link-Based Password Reset (`POST /api/auth/password-reset/request` -> opens `/admin/auth/reset?token=...`)
-    - Device Code Onboarding (`POST /api/auth/device/code` -> `/auth/device?code=XXXX-XXXX` or Admin Console -> Security -> Devices)
-    - Social OAuth: Google (`/api/auth/google`), Meta (`/api/auth/meta`), X (`/api/auth/x`)
+    - **Password-First Default (`POST /api/auth/login`):** Both Mobile and Web Admin open directly on Username/Email + Password (no cluttered top tab bars or filler copy like `"Nexus Identity"`).
+    - **Netflix/Amazon-Style Secondary OTP (`POST /api/auth/otp/send` + `verify`):** Clean `"Use Email OTP instead"` button below Sign In; carries over any typed email, auto-submits on 6th digit, includes a `60s` resend cooldown, and prompts `"Create Account"` if `account_exists: false`.
+    - **Spotify-Style Reset & Instant Login Email (`POST /api/auth/password-reset/request`):** Sends a single email with both **"Log in immediately without a password"** (one-time Magic Link -> `/admin/auth/verify` / `nexus-mobile://auth-callback`) and **"Reset Password"** (`/admin/auth/reset`).
+    - **Create Account / Onboarding (`POST /api/auth/register` + optional Security Question)**
+    - **Device Code (`POST /api/auth/device/*` & `/auth/device`):** Kept on backend & Web Admin for macOS / TV / Car AI Box onboarding (QR/camera approval in Mobile to be added later).
+    - **Social OAuth:** **Google** (`/api/auth/google`) and **Meta** (`/api/auth/meta`) only (no X).
+    - **Subtle Footer:** `"Powered by Nexus Central Auth"` with `#55FF00` status dot.
 - **Mandatory Post-Login Security Gate (`MainActivity.kt`):**
   1. Unauthenticated users cannot enter the app (`AuthScreen`).
   2. Authenticated users **must** have a 4-digit PIN:

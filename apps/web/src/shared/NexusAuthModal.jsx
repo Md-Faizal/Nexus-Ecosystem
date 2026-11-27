@@ -4,7 +4,7 @@ import { nexusAuth } from '../sdk/nexus-auth';
 import { NexusMonogramIcon } from './NexusSignInButton';
 
 export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
-  const [activeTab, setActiveTab] = useState('otp'); // 'otp' | 'magic' | 'password' | 'signup' | 'forgot' | 'recovery' | 'legacy_pin'
+  const [activeTab, setActiveTab] = useState('password'); // 'password' | 'otp' | 'signup' | 'forgot' | 'recovery' | 'legacy_pin'
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -295,41 +295,21 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <NexusMonogramIcon className="w-7 h-7" glow />
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-white">Nexus Identity</h2>
-                <p className="text-xs text-neutral-400">Unified Fleet Authentication</p>
-              </div>
+              <h2 className="text-lg font-bold tracking-tight text-white">
+                {activeTab === 'otp'
+                  ? 'Email OTP'
+                  : activeTab === 'signup'
+                    ? 'Create account'
+                    : activeTab === 'forgot' || activeTab === 'recovery'
+                      ? 'Reset password'
+                      : 'Sign in'}
+              </h2>
             </div>
             <button
               onClick={onClose}
               className="text-neutral-500 hover:text-white p-1 rounded-lg transition-colors text-sm"
             >
               ✕
-            </button>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex border-b border-white/10 mb-6 gap-4 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-            <button
-              onClick={() => { setActiveTab('otp'); setOtpSent(false); }}
-              className={`pb-2 transition-colors relative ${activeTab === 'otp' ? 'text-[#89ff00]' : 'hover:text-white'}`}
-            >
-              Email OTP
-              {activeTab === 'otp' && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#89ff00]" />}
-            </button>
-            <button
-              onClick={() => setActiveTab('magic')}
-              className={`pb-2 transition-colors relative ${activeTab === 'magic' ? 'text-[#00e5ff]' : 'hover:text-white'}`}
-            >
-              Magic Link
-              {activeTab === 'magic' && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#00e5ff]" />}
-            </button>
-            <button
-              onClick={() => setActiveTab('password')}
-              className={`pb-2 transition-colors relative ${activeTab === 'password' ? 'text-white' : 'hover:text-white'}`}
-            >
-              Password
-              {activeTab === 'password' && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />}
             </button>
           </div>
 
@@ -380,9 +360,16 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 bg-[#89ff00] text-black font-semibold text-sm rounded-xl hover:bg-[#7ce600] active:scale-[0.99] transition-all disabled:opacity-50"
+                    className="w-full py-2.5 bg-[#55ff00] text-black font-semibold text-sm rounded-xl hover:bg-[#49db00] active:scale-[0.99] transition-all disabled:opacity-50"
                   >
                     {loading ? 'Dispatching Code...' : 'Send Verification Code →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('password')}
+                    className="w-full text-center text-xs text-neutral-400 hover:text-white pt-1"
+                  >
+                    Use Password instead
                   </button>
                 </form>
               ) : (
@@ -427,34 +414,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
             </div>
           )}
 
-          {/* TAB 2: MAGIC LINK */}
-          {activeTab === 'magic' && (
-            <form onSubmit={handleSendMagicLink} className="space-y-4">
-              <p className="text-xs text-neutral-400 leading-relaxed">
-                Sign in with a one-click authentication link dispatched to your inbox. No passwords needed.
-              </p>
-              <div>
-                <label className="block text-xs font-medium text-neutral-300 mb-1.5">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@mail.xyz"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-neutral-900 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#00e5ff] transition-colors"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading || countdown > 0}
-                className="w-full py-2.5 bg-[#00e5ff] text-black font-semibold text-sm rounded-xl hover:bg-[#00cbe2] active:scale-[0.99] transition-all disabled:opacity-50"
-              >
-                {loading ? 'Dispatching...' : countdown > 0 ? `Resend Link in ${countdown}s` : 'Send Magic Link →'}
-              </button>
-            </form>
-          )}
-
-          {/* TAB 3: PASSWORD LOGIN */}
+          {/* TAB 1: PASSWORD LOGIN (DEFAULT) */}
           {activeTab === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
@@ -474,7 +434,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => {
-                      setRecoveryIdentifier(identifier.includes('@') ? identifier : email);
+                      if (identifier.includes('@')) setRecoveryIdentifier(identifier.trim());
                       setActiveTab('forgot');
                     }}
                     className="text-xs text-neutral-400 hover:text-white hover:underline"
@@ -494,10 +454,41 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 bg-white text-black font-semibold text-sm rounded-xl hover:bg-neutral-200 active:scale-[0.99] transition-all disabled:opacity-50"
+                className="w-full py-2.5 bg-[#55ff00] text-black font-semibold text-sm rounded-xl hover:bg-[#49db00] active:scale-[0.99] transition-all disabled:opacity-50"
               >
-                {loading ? 'Authenticating...' : 'Sign In with Password →'}
+                {loading ? 'Signing in...' : 'Sign In →'}
               </button>
+
+              <div className="flex items-center gap-3 pt-1">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[11px] uppercase tracking-wider text-neutral-500">or</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (identifier.includes('@')) setEmail(identifier.trim());
+                  setOtpSent(false);
+                  setActiveTab('otp');
+                }}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-sm rounded-xl transition-all"
+              >
+                Use Email OTP instead
+              </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (identifier.includes('@')) setEmail(identifier.trim());
+                    setActiveTab('signup');
+                  }}
+                  className="text-xs text-neutral-400 hover:text-white transition-colors"
+                >
+                  New here? <span className="text-[#55ff00] font-semibold">Create an account</span>
+                </button>
+              </div>
             </form>
           )}
 
@@ -505,10 +496,10 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
           {activeTab === 'signup' && (
             <form onSubmit={handleSignUp} className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#89ff00]">Create Nexus Account</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#55ff00]">Create Account</h3>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('otp')}
+                  onClick={() => setActiveTab('password')}
                   className="text-xs text-neutral-500 hover:text-white"
                 >
                   Back to Sign In
@@ -658,7 +649,7 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
           {/* Social Provider Buttons */}
           <div className="mt-6 pt-5 border-t border-white/10">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 text-center mb-3">
-              Or continue with Identity Providers
+              Or continue with
             </p>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -689,6 +680,10 @@ export default function NexusAuthModal({ isOpen, onClose, onSuccess }) {
                 Meta
               </button>
             </div>
+            <p className="mt-4 text-[11px] text-neutral-500 text-center flex items-center justify-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#55ff00]" />
+              Powered by Nexus Central Auth
+            </p>
           </div>
         </motion.div>
       </div>

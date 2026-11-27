@@ -77,41 +77,43 @@ pub fn render_magic_link_email(verify_url: &str) -> String {
     )
 }
 
-pub fn render_password_reset_email(reset_url: &str) -> String {
+pub fn render_password_reset_email(reset_url: &str, magic_login_url: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Reset Nexus Password</title>
+  <title>Sign in or Reset Nexus Password</title>
   <style>
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #08090a; color: #f3f4f6; margin: 0; padding: 40px 20px; }}
     .card {{ max-width: 480px; margin: 0 auto; background: #121316; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 36px 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }}
-    .logo {{ font-size: 20px; font-weight: 700; letter-spacing: 2px; color: #ff0055; text-transform: uppercase; margin-bottom: 24px; }}
+    .logo {{ font-size: 16px; font-weight: 700; letter-spacing: 2px; color: #55ff00; text-transform: uppercase; margin-bottom: 24px; }}
     h1 {{ font-size: 22px; margin: 0 0 12px; font-weight: 600; color: #ffffff; }}
-    p {{ color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 24px; }}
-    .btn {{ display: block; width: 100%; box-sizing: border-box; text-align: center; background: #ff0055; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 20px; border-radius: 10px; margin: 28px 0; }}
+    p {{ color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 20px; }}
+    .btn {{ display: block; width: 100%; box-sizing: border-box; text-align: center; background: #55ff00; color: #000000; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 20px; border-radius: 12px; margin: 20px 0 12px; }}
+    .btn-secondary {{ display: block; width: 100%; box-sizing: border-box; text-align: center; background: rgba(255,255,255,0.06); color: #ffffff; border: 1px solid rgba(255,255,255,0.16); text-decoration: none; font-weight: 600; font-size: 14px; padding: 13px 20px; border-radius: 12px; margin: 0 0 22px; }}
     .link-alt {{ font-size: 12px; color: #6b7280; word-break: break-all; margin-top: 16px; }}
     .footer {{ font-size: 12px; color: #6b7280; text-align: center; margin-top: 32px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 20px; }}
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="logo">🌌 Nexus Identity</div>
-    <h1>Reset Account Password</h1>
-    <p>A request was received to reset your Nexus Fleet account password. Click the button below to choose a new password. This link is valid for <strong>1 hour</strong>.</p>
-    <a href="{}" class="btn" target="_blank">Reset Password →</a>
+    <div class="logo">NEXUS AUTH</div>
+    <h1>Get back into your account</h1>
+    <p>You can sign in right away with a one-time link (valid for <strong>15 minutes</strong>), or choose a new password below (valid for <strong>1 hour</strong>).</p>
+    <a href="{}" class="btn" target="_blank">Log in immediately without a password →</a>
+    <a href="{}" class="btn-secondary" target="_blank">Reset Password →</a>
     <div class="link-alt">
-      Or copy & paste this link directly:<br/>
-      <a href="{}" style="color: #ff0055;">{}</a>
+      Reset password link:<br/>
+      <a href="{}" style="color: #9ca3af;">{}</a>
     </div>
     <div class="footer">
-      Nexus Fleet System · Autonomous Cockroach Resilience · faizal.uk
+      Powered by Nexus Central Auth · faizal.uk
     </div>
   </div>
 </body>
 </html>"#,
-        reset_url, reset_url, reset_url
+        magic_login_url, reset_url, reset_url, reset_url
     )
 }
 
@@ -142,9 +144,10 @@ pub async fn send_reset_password_email(
     db: &DbPool,
     recipient: &str,
     reset_url: &str,
+    magic_login_url: &str,
 ) -> Result<(), String> {
-    let subject = "Reset Your Nexus Password".to_string();
-    let html = render_password_reset_email(reset_url);
+    let subject = "Sign in or Reset Your Nexus Password".to_string();
+    let html = render_password_reset_email(reset_url, magic_login_url);
     mailer::send_auth_email(config, db, recipient, &subject, html, "auth_password_reset").await
 }
 
