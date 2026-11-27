@@ -77,3 +77,25 @@
 
 ### SQLite Tables (`services/core-hub/src/db.rs`)
 `users`, `user_oauth_accounts`, `auth_codes`, `device_codes`, `user_devices`, `api_tokens`, `auth_registered_apps`, `user_app_grants`
+
+---
+
+## 5. Planned Roadmap: End-to-End Account Creation & Full Nexus Auth Control
+
+> **Status:** Documented for future implementation.
+
+### 1. Admin Console — Full Nexus Auth Control Page (`apps/web`)
+- **Account Directory & Restrictions:** View all Nexus users, roles (`owner`, `admin`, `user`), account status (`active`, `suspended`, `restricted`), force password/PIN resets, and revoke active sessions per user.
+- **App Access & Grants Matrix:** Inspect which registered apps (`auth_registered_apps`) each account has used or is permitted to access (`user_app_grants`), toggle allowed scopes, and enforce per-app restrictions.
+- **Auth Activity & Security Audit Log:** Track sign-in events (timestamp, IP address, device name, auth method such as Password / Email OTP / Magic Link / Google / Meta / Device Code), failed login attempts, PIN/password changes, and suspicious-activity blocks.
+
+### 2. Designed Welcome Email (`services/core-hub/src/auth/email_flows.rs`)
+- Automatically dispatched via `mailer::send_auth_email` (`"Nexus Auth <reports@faizal.uk>"`) whenever a new account is created via `/api/auth/register` or first-time OAuth sign-up.
+- **Bespoke Brand Design:** Pitch-Black OLED (`#000000` / `#121316`) + FZ Lime (`#55FF00`) HTML template with a welcome hero, account summary (email/username), quick links to Web Console & Mobile app, and a security checklist (4-digit PIN, security question, passwordless OTP).
+
+### 3. Web & Mobile "Create Account" UI/UX Overhaul
+- Upgrade both [NexusAuthModal.jsx](file:///e:/Workspaces/core/nexus-fleet/apps/web/src/shared/NexusAuthModal.jsx) and [AuthScreen.kt](file:///e:/Workspaces/core/nexus-fleet/apps/mobile/android/app/src/main/java/com/nexus/mobile/ui/auth/AuthScreen.kt) from a single-screen form into a guided onboarding flow:
+  1. **Identity:** Full Name, Email, and live Username availability check.
+  2. **Credentials & Recovery:** Password strength indicator (or explicit passwordless choice) + interactive Security Question selector populated from `GET /api/auth/security-questions`.
+  3. **Email Verification:** Inline 6-digit Email OTP confirmation before issuing the full session (followed by mandatory 4-digit PIN + Fingerprint opt-in on Mobile).
+
