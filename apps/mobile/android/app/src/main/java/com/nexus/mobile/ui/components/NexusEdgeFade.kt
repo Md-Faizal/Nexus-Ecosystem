@@ -46,8 +46,8 @@ sealed interface EdgeFadeReaction {
     data object AlwaysVisible : EdgeFadeReaction
     /** Hidden at scroll top, smoothly fades in once scrolled past [triggerItemIndex]/[triggerOffsetPx]. */
     data class ScrollLinked(
-        val triggerItemIndex: Int = 1,
-        val triggerOffsetPx: Int = 120,
+        val triggerItemIndex: Int = 0,
+        val triggerOffsetPx: Int = 40,
     ) : EdgeFadeReaction
     /** Fixed custom opacity [0f..1f]. */
     data class Static(val alpha: Float) : EdgeFadeReaction
@@ -60,10 +60,10 @@ data class NexusEdgeFadeConfig(
     val bottomColor: EdgeFadeColor = EdgeFadeColor.AutoTheme,
     val topReaction: EdgeFadeReaction = EdgeFadeReaction.ScrollLinked(),
     val bottomReaction: EdgeFadeReaction = EdgeFadeReaction.AlwaysVisible,
-    val topExtraHeight: Dp = 36.dp,
-    val bottomExtraHeight: Dp = 32.dp,
-    val topMaxAlpha: Float = 0.88f,
-    val bottomMaxAlpha: Float = 0.88f,
+    val topExtraHeight: Dp = 46.dp,
+    val bottomExtraHeight: Dp = 44.dp,
+    val topMaxAlpha: Float = 0.94f,
+    val bottomMaxAlpha: Float = 0.94f,
 )
 
 val LocalNexusEdgeFadeConfig = staticCompositionLocalOf { NexusEdgeFadeConfig() }

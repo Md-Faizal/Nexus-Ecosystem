@@ -49,12 +49,14 @@ The visual language of Nexus Mobile is built around two strict references:
   - **Dramatic Pullback Bounce:** Scales down slightly (`0.84f`) for `~0.1s` first, then springs forward rapidly to reveal the app underneath.
 
 ### B. Circular Buttons (`NexusCircularButton.kt`)
-- **Why:** Apple Music's top-left back / top-right action buttons have a clean single glass rim with zero outer square halo.
-- **How:** `Surface(shape = CircleShape, border = nexusSpecularBorder(palette.isDark, 0.75f))` with `.clip(CircleShape)` applied before `nexusSpecularSheen(palette.isDark)`. No elevation shadow box.
+- **Why:** Apple Music's top-left back / top-right action buttons float fixed in the corner over scrolling content with a lightweight frosted mask and zero outer square halo.
+- **How:** Placed in an outer `Box` overlay (`Alignment.TopEnd` / `Alignment.TopStart` with `.statusBarsPadding()`) above `NexusEdgeFadeContainer`, using `Surface(shape = CircleShape, border = nexusSpecularBorder(palette.isDark, 0.75f))`, `.clip(CircleShape)`, lightweight `nexusFloatingGlass` (`10.dp` blur, `0.40f` alpha), and `nexusSpecularSheen(palette.isDark)`. Header text below reserves `padding(end = 52.dp)`. No elevation shadow box.
 
-### C. Edge Fades (`NexusEdgeFade.kt`)
-- **Why:** Scrolling content should melt smoothly behind the status bar and floating dock without blurring/distorting text.
-- **How:** `NexusEdgeFadeContainer` + `nexusEdgeGradientScrim(containerColor, topToBottom)` renders a progressive opacity scrim matched to `#000000` or `#FFFFFF`.
+### C. Edge Fades & Lightweight Frosted Mask (`NexusEdgeFade.kt`, `NexusTheme.kt`)
+- **Why:** Scrolling content should melt smoothly behind the status bar and floating dock without blurring/distorting text, and floating chrome should softly tint underlying colors (not heavy opaque blur).
+- **How:**
+  - `NexusEdgeFadeContainer` + `nexusEdgeGradientScrim` uses `topExtraHeight = 46.dp`, `bottomExtraHeight = 44.dp`, `maxAlpha = 0.94f`, and `triggerOffsetPx = 40`.
+  - `nexusFloatingGlass` uses a lightweight frosted mask (`blurRadius = 10.dp`, `backgroundColor = containerColor.copy(alpha = 0.40f)`, `tint = HazeTint(containerColor.copy(alpha = 0.08f))`).
 
 ### D. Floating Bottom Navigation Dock (`NexusFloatingDock.kt`)
 - **Why:** Matches Apple Music's compact floating pill bar that sits **low** near the bottom edge and reacts to scroll.

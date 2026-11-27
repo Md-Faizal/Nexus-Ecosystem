@@ -53,7 +53,7 @@ fun NexusCircularButton(
             onClick()
         },
         shape = CircleShape,
-        color = if (hazeState != null) Color.Transparent else palette.cardSurface.copy(alpha = 0.88f),
+        color = if (hazeState != null) Color.Transparent else palette.glassSurface.copy(alpha = 0.68f),
         border = nexusSpecularBorder(palette.isDark, widthDp = 0.75f),
         modifier = modifier
             .size(size)

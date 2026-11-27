@@ -50,6 +50,7 @@ import com.nexus.mobile.ui.components.NexusCircularButton
 import com.nexus.mobile.ui.components.NexusEdgeFadeContainer
 import com.nexus.mobile.ui.theme.LocalNexusPalette
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 
 @Composable
 fun HomePlaceholderScreen(
@@ -59,53 +60,54 @@ fun HomePlaceholderScreen(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalNexusPalette.current
+    val listState = rememberLazyListState()
+    val localHaze = remember { HazeState() }
+    val edgeConfig = LocalNexusEdgeFadeConfig.current.copy(placement = EdgeFadePlacement.BOTH)
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 156.dp, start = 20.dp, end = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Row(
+    Box(modifier = modifier.fillMaxSize()) {
+        NexusEdgeFadeContainer(
+            listState = listState,
+            config = edgeConfig,
+        ) {
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+                    .fillMaxSize()
+                    .hazeSource(localHaze),
+                contentPadding = PaddingValues(top = 20.dp, bottom = 156.dp, start = 20.dp, end = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Good day,\n$displayName",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(end = 52.dp),
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(palette.onlineDot),
-                        )
                         Text(
-                            text = "Home placeholder • Ready for live wiring",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "Good day,\n$displayName",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
                         )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(palette.onlineDot),
+                            )
+                            Text(
+                                text = "Home placeholder • Ready for live wiring",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NexusCircularButton(
-                        icon = Icons.Rounded.Lock,
-                        contentDescription = "Lock App",
-                        onClick = onLockClick,
-                    )
-                }
-            }
-        }
 
         // Weather card placeholder (Homelab PA reference)
         item {
@@ -199,6 +201,19 @@ fun HomePlaceholderScreen(
                 )
             }
         }
+            }
+        }
+
+        NexusCircularButton(
+            icon = Icons.Rounded.Lock,
+            contentDescription = "Lock App",
+            onClick = onLockClick,
+            hazeState = localHaze,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+        )
     }
 }
 
@@ -212,39 +227,34 @@ fun ServerPlaceholderScreen(
 ) {
     val palette = LocalNexusPalette.current
     val listState = rememberLazyListState()
-    val edgeConfig = LocalNexusEdgeFadeConfig.current.copy(placement = EdgeFadePlacement.TOP)
+    val localHaze = remember { HazeState() }
+    val edgeConfig = LocalNexusEdgeFadeConfig.current.copy(placement = EdgeFadePlacement.BOTH)
 
-    NexusEdgeFadeContainer(
-        modifier = modifier,
-        listState = listState,
-        config = edgeConfig,
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 156.dp, start = 20.dp, end = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+    Box(modifier = modifier.fillMaxSize()) {
+        NexusEdgeFadeContainer(
+            listState = listState,
+            config = edgeConfig,
         ) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(localHaze),
+                contentPadding = PaddingValues(top = 20.dp, bottom = 156.dp, start = 20.dp, end = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(end = 52.dp),
+                    ) {
                         Text("Server & Apps", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
                         Text("Placeholder telemetry", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    NexusCircularButton(
-                        icon = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh telemetry",
-                        onClick = {},
-                    )
                 }
-            }
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -320,6 +330,18 @@ fun ServerPlaceholderScreen(
                 }
             }
         }
+        }
+
+        NexusCircularButton(
+            icon = Icons.Rounded.Refresh,
+            contentDescription = "Refresh telemetry",
+            onClick = {},
+            hazeState = localHaze,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+        )
     }
 }
 

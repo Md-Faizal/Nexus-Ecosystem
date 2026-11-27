@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -38,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexus.mobile.ui.components.EdgeFadePlacement
+import com.nexus.mobile.ui.components.LocalNexusEdgeFadeConfig
+import com.nexus.mobile.ui.components.NexusEdgeFadeContainer
 import com.nexus.mobile.ui.theme.LocalNexusPalette
 import com.nexus.mobile.ui.theme.ThemePreference
 
@@ -65,17 +69,25 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalNexusPalette.current
+    val listState = rememberLazyListState()
+    val edgeConfig = LocalNexusEdgeFadeConfig.current.copy(placement = EdgeFadePlacement.BOTH)
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            top = 20.dp,
-            bottom = 156.dp,
-            start = 20.dp,
-            end = 20.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+    NexusEdgeFadeContainer(
+        modifier = modifier,
+        listState = listState,
+        config = edgeConfig,
     ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = 20.dp,
+                bottom = 156.dp,
+                start = 20.dp,
+                end = 20.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
         item {
             Column(modifier = Modifier.statusBarsPadding()) {
                 Text(
@@ -252,6 +264,7 @@ fun SettingsScreen(
                 )
             }
         }
+    }
     }
 }
 

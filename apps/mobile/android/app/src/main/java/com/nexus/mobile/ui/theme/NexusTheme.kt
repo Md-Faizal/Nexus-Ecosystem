@@ -213,7 +213,7 @@ fun Modifier.nexusEdgeGradientScrim(
 )
 
 /**
- * Selective frosted glass effect strictly for floating pill/orb chrome.
+ * Lightweight Apple Music-style frosted glass mask strictly for floating pill/orb chrome.
  */
 fun Modifier.nexusFloatingGlass(
     hazeState: HazeState,
@@ -221,9 +221,9 @@ fun Modifier.nexusFloatingGlass(
 ): Modifier = this.hazeEffect(
     state = hazeState,
     style = HazeStyle(
-        backgroundColor = containerColor.copy(alpha = 0.68f),
-        tint = HazeTint(containerColor.copy(alpha = 0.18f)),
-        blurRadius = 26.dp,
+        backgroundColor = containerColor.copy(alpha = 0.40f),
+        tint = HazeTint(containerColor.copy(alpha = 0.08f)),
+        blurRadius = 10.dp,
     ),
 )
 
