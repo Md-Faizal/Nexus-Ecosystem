@@ -148,9 +148,13 @@ private fun NexusRootApp(
     val bioAvailable = remember { BiometricHelper.canAuthenticate(activity) }
     val bioHardwarePresent = remember { BiometricHelper.isBiometricHardwarePresent(activity) }
 
-    LaunchedEffect(isAuthenticated) {
+    LaunchedEffect(isAuthenticated, isUnlocked) {
         if (!isAuthenticated) {
             showBiometricOptIn = false
+            biometricPromptedThisSession = false
+        } else if (!isUnlocked) {
+            // Reset per-unlock guard so "Ask me next time" or manual biometric disable
+            // re-prompts cleanly on the next PIN entry.
             biometricPromptedThisSession = false
         }
     }

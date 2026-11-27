@@ -211,7 +211,15 @@ class AppViewModel @Inject constructor(
 
     fun setBiometricEnabled(enabled: Boolean) {
         storage.isBiometricEnabled = enabled
-        _settings.update { it.copy(isBiometricEnabled = enabled) }
+        val nextMode = when {
+            enabled -> "enabled"
+            storage.biometricPromptMode == "dont_ask_again" -> "dont_ask_again"
+            else -> "ask_next_time"
+        }
+        storage.biometricPromptMode = nextMode
+        _settings.update {
+            it.copy(isBiometricEnabled = enabled, biometricPromptMode = nextMode)
+        }
     }
 
     fun setPageAuthEnabled(enabled: Boolean) {
