@@ -146,12 +146,21 @@ private fun NexusRootApp(
     var showBiometricOptIn by rememberSaveable { mutableStateOf(false) }
     var biometricPromptedThisSession by rememberSaveable { mutableStateOf(false) }
     val bioAvailable = remember { BiometricHelper.canAuthenticate(activity) }
+    val bioHardwarePresent = remember { BiometricHelper.isBiometricHardwarePresent(activity) }
 
-    LaunchedEffect(isAuthenticated, settings.hasPin, settings.biometricPromptMode, bioAvailable) {
+    LaunchedEffect(isAuthenticated) {
+        if (!isAuthenticated) {
+            showBiometricOptIn = false
+            biometricPromptedThisSession = false
+        }
+    }
+
+    LaunchedEffect(isAuthenticated, settings.hasPin, isUnlocked, settings.biometricPromptMode, bioAvailable, bioHardwarePresent) {
         if (isAuthenticated &&
             settings.hasPin &&
+            isUnlocked &&
             !settings.isBiometricEnabled &&
-            bioAvailable &&
+            (bioAvailable || bioHardwarePresent) &&
             settings.biometricPromptMode == "ask_next_time" &&
             !biometricPromptedThisSession
         ) {
@@ -211,6 +220,13 @@ private fun NexusRootApp(
                         onPinSubmitted = { entered ->
                             appViewModel.verifyCentralPinAndCache(entered) { ok, err ->
                                 centralErr = if (ok) null else err
+                                if (ok && (bioAvailable || bioHardwarePresent) &&
+                                    !settings.isBiometricEnabled &&
+                                    settings.biometricPromptMode == "ask_next_time"
+                                ) {
+                                    showBiometricOptIn = true
+                                    biometricPromptedThisSession = true
+                                }
                             }
                         },
                         onSignOutClick = {
@@ -239,7 +255,9 @@ private fun NexusRootApp(
                                 mismatchError = null
                             } else if (entered == initial) {
                                 appViewModel.saveNewPin(entered)
-                                if (bioAvailable && settings.biometricPromptMode == "ask_next_time") {
+                                if ((bioAvailable || bioHardwarePresent) &&
+                                    settings.biometricPromptMode == "ask_next_time"
+                                ) {
                                     showBiometricOptIn = true
                                     biometricPromptedThisSession = true
                                 }
@@ -253,22 +271,6 @@ private fun NexusRootApp(
                             authViewModel.logout { appViewModel.reloadFromStorage() }
                         },
                         userBadgeName = settings.displayName,
-                    )
-                } else if (showBiometricOptIn) {
-                    BiometricOptInScreen(
-                        displayName = settings.displayName,
-                        onEnableBiometric = {
-                            appViewModel.setBiometricPromptMode("enabled")
-                            showBiometricOptIn = false
-                        },
-                        onAskNextTime = {
-                            appViewModel.setBiometricPromptMode("ask_next_time")
-                            showBiometricOptIn = false
-                        },
-                        onDontAskAgain = {
-                            appViewModel.setBiometricPromptMode("dont_ask_again")
-                            showBiometricOptIn = false
-                        },
                     )
                 } else if (!isUnlocked) {
                     LaunchedEffect(isUnlocked, settings.isBiometricEnabled, showSplash) {
@@ -300,6 +302,22 @@ private fun NexusRootApp(
                             authViewModel.logout { appViewModel.reloadFromStorage() }
                         },
                         userBadgeName = settings.displayName,
+                    )
+                } else if (showBiometricOptIn) {
+                    BiometricOptInScreen(
+                        displayName = settings.displayName,
+                        onEnableBiometric = {
+                            appViewModel.setBiometricPromptMode("enabled")
+                            showBiometricOptIn = false
+                        },
+                        onAskNextTime = {
+                            appViewModel.setBiometricPromptMode("ask_next_time")
+                            showBiometricOptIn = false
+                        },
+                        onDontAskAgain = {
+                            appViewModel.setBiometricPromptMode("dont_ask_again")
+                            showBiometricOptIn = false
+                        },
                     )
                 } else {
                     MainShell(

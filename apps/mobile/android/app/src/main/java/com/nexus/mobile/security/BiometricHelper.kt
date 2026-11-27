@@ -11,9 +11,20 @@ object BiometricHelper {
         val manager = BiometricManager.from(activity)
         val result = manager.canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK or
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL,
         )
         return result == BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    fun isBiometricHardwarePresent(activity: FragmentActivity): Boolean {
+        val manager = BiometricManager.from(activity)
+        val result = manager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK,
+        )
+        return result != BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE &&
+            result != BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE
     }
 
     fun prompt(
@@ -41,6 +52,7 @@ object BiometricHelper {
             .setSubtitle(subtitle)
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL,
             )
             .build()
