@@ -155,12 +155,11 @@ private fun NexusRootApp(
         }
     }
 
-    LaunchedEffect(isAuthenticated, settings.hasPin, isUnlocked, settings.biometricPromptMode, bioAvailable, bioHardwarePresent) {
+    LaunchedEffect(isAuthenticated, settings.hasPin, isUnlocked, settings.biometricPromptMode) {
         if (isAuthenticated &&
             settings.hasPin &&
             isUnlocked &&
             !settings.isBiometricEnabled &&
-            (bioAvailable || bioHardwarePresent) &&
             settings.biometricPromptMode == "ask_next_time" &&
             !biometricPromptedThisSession
         ) {
@@ -220,7 +219,7 @@ private fun NexusRootApp(
                         onPinSubmitted = { entered ->
                             appViewModel.verifyCentralPinAndCache(entered) { ok, err ->
                                 centralErr = if (ok) null else err
-                                if (ok && (bioAvailable || bioHardwarePresent) &&
+                                if (ok &&
                                     !settings.isBiometricEnabled &&
                                     settings.biometricPromptMode == "ask_next_time"
                                 ) {
@@ -255,7 +254,7 @@ private fun NexusRootApp(
                                 mismatchError = null
                             } else if (entered == initial) {
                                 appViewModel.saveNewPin(entered)
-                                if ((bioAvailable || bioHardwarePresent) &&
+                                if (!settings.isBiometricEnabled &&
                                     settings.biometricPromptMode == "ask_next_time"
                                 ) {
                                     showBiometricOptIn = true
