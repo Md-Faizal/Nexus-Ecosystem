@@ -90,6 +90,11 @@ pub async fn require_admin_middleware(
         })
         .unwrap_or_default();
 
+    // 0. Check for Legacy/CLI Admin PIN (x-admin-pin, ?pin=, or raw Authorization)
+    if !raw_token.is_empty() && raw_token == state.config.admin_pin {
+        return next.run(req).await;
+    }
+
     // 1. Check for Machine Personal Access Token (PAT)
     if raw_token.starts_with("nex_live_") {
         let token_hash = crate::auth::crypto::sha256_hash(&raw_token);
