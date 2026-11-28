@@ -1475,6 +1475,20 @@ async fn handle_run_command(config: config::AgentConfig, foreground: bool, silen
     // Launch non-blocking Windows Taskbar Notification Area (System Tray) icon
     modules::tray::start_system_tray(config.node_id.clone());
 
+    // Activate mDNS LAN broadcast & discovery for Nexus Mobile / LAN peers
+    let _mdns_guard = match modules::mdns_discovery::MdnsDiscoveryManager::new() {
+        Ok(mdns) => {
+            let role = if config.node_id.contains("mac") { "desktop" } else { "agent" };
+            let _ = mdns.register_self(&config.node_id, role, 9090, env!("CARGO_PKG_VERSION"));
+            let _ = mdns.start_discovery();
+            Some(mdns)
+        }
+        Err(e) => {
+            tracing::warn!("mDNS daemon unavailable: {}", e);
+            None
+        }
+    };
+
     let mut client = MeshClient::new(config);
     client.run().await;
 

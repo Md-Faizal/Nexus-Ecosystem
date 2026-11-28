@@ -37,13 +37,19 @@ import com.nexus.mobile.ui.auth.BiometricOptInScreen
 import com.nexus.mobile.ui.auth.LockScreen
 import com.nexus.mobile.ui.auth.PageAuthGate
 import com.nexus.mobile.ui.auth.ReAuthScreen
+import com.nexus.mobile.ui.automate.AutomateScreen
+import com.nexus.mobile.ui.automate.AutomateViewModel
+import com.nexus.mobile.ui.camera.MultipurposeCameraScreen
+import com.nexus.mobile.ui.chat.AiChatScreen
+import com.nexus.mobile.ui.chat.NexusChatScreen
 import com.nexus.mobile.ui.components.DockStatusBanner
 import com.nexus.mobile.ui.components.FzPortalSplash
 import com.nexus.mobile.ui.components.NexusFloatingDock
 import com.nexus.mobile.ui.components.NexusTab
-import com.nexus.mobile.ui.placeholders.AssistantPlaceholderScreen
-import com.nexus.mobile.ui.placeholders.HomePlaceholderScreen
-import com.nexus.mobile.ui.placeholders.ServerPlaceholderScreen
+import com.nexus.mobile.ui.home.HomeScreen
+import com.nexus.mobile.ui.network.ServerAppsScreen
+import com.nexus.mobile.ui.network.ServerAppsViewModel
+import com.nexus.mobile.ui.pa.PaScreen
 import com.nexus.mobile.ui.profile.ProfileScreen
 import com.nexus.mobile.ui.settings.SettingsScreen
 import com.nexus.mobile.ui.state.AppViewModel
@@ -64,6 +70,10 @@ private enum class ModalOverlay {
     REAUTH_REMOVE_PIN,
     AUTH,
     PROFILE,
+    AI_CHAT,
+    NEXUS_CHAT,
+    AUTOMATE,
+    CAMERA,
 }
 
 @AndroidEntryPoint
@@ -592,7 +602,44 @@ private fun MainShell(
             )
         }
 
+        ModalOverlay.AI_CHAT -> {
+            AiChatScreen(
+                onBack = { activeModal = ModalOverlay.NONE },
+                onOpenCamera = { activeModal = ModalOverlay.CAMERA },
+            )
+        }
+
+        ModalOverlay.NEXUS_CHAT -> {
+            NexusChatScreen(
+                onBack = { activeModal = ModalOverlay.NONE },
+            )
+        }
+
+        ModalOverlay.AUTOMATE -> {
+            AutomateScreen(
+                onBack = { activeModal = ModalOverlay.NONE },
+            )
+        }
+
+        ModalOverlay.CAMERA -> {
+            MultipurposeCameraScreen(
+                onClose = { activeModal = ModalOverlay.NONE },
+                onOpenAiChat = { activeModal = ModalOverlay.AI_CHAT },
+            )
+        }
+
         ModalOverlay.NONE -> {
+            val serverViewModel: ServerAppsViewModel = hiltViewModel()
+            val automateViewModel: AutomateViewModel = hiltViewModel()
+            val serverState by serverViewModel.uiState.collectAsState()
+
+            DisposableEffect(Unit) {
+                automateViewModel.mdnsManager.startDiscovery()
+                onDispose {
+                    automateViewModel.mdnsManager.stopDiscovery()
+                }
+            }
+
             val dynamicBanner = if (hasUpdateAvailable) {
                 DockStatusBanner(
                     title = "New Nexus Mobile update ready",
@@ -615,21 +662,28 @@ private fun MainShell(
                         .hazeSource(hazeState),
                 ) {
                     when (currentTab) {
-                        NexusTab.HOME -> HomePlaceholderScreen(
+                        NexusTab.HOME -> HomeScreen(
                             displayName = settings.displayName,
-                            onLockClick = {
-                                if (settings.hasPin) {
-                                    appViewModel.lockManager.lockNow()
-                                } else {
-                                    activeModal = ModalOverlay.SET_PIN
-                                }
-                            },
-                            onOpenUpdates = { activeModal = ModalOverlay.UPDATES },
+                            onlineNodeCount = serverState.onlineCloudCount,
+                            totalNodeCount = serverState.cloudNodes.size,
+                            isLanMode = serverState.mdnsPeers.isNotEmpty(),
+                            onRefreshFleet = serverViewModel::refresh,
+                            onOpenCamera = { activeModal = ModalOverlay.CAMERA },
                         )
 
-                        NexusTab.SERVER -> ServerPlaceholderScreen(hazeState = hazeState)
+                        NexusTab.SERVER -> ServerAppsScreen(
+                            onOpenAiChat = { activeModal = ModalOverlay.AI_CHAT },
+                            onOpenNexusChat = { activeModal = ModalOverlay.NEXUS_CHAT },
+                            onOpenAutomations = { activeModal = ModalOverlay.AUTOMATE },
+                            viewModel = serverViewModel,
+                        )
 
-                        NexusTab.ASSISTANT -> AssistantPlaceholderScreen()
+                        NexusTab.ASSISTANT -> PaScreen(
+                            onOpenAiChat = { activeModal = ModalOverlay.AI_CHAT },
+                            onOpenNexusChat = { activeModal = ModalOverlay.NEXUS_CHAT },
+                            onOpenAutomations = { activeModal = ModalOverlay.AUTOMATE },
+                            onOpenCamera = { activeModal = ModalOverlay.CAMERA },
+                        )
 
                         NexusTab.SETTINGS -> SettingsScreen(
                             deviceId = settings.deviceId,

@@ -114,21 +114,24 @@ pub async fn require_admin_middleware(
                 "UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = ?1",
                 rusqlite::params![token_hash],
             );
+            drop(conn);
             return next.run(req).await;
         }
+        drop(conn);
     }
 
     // 2. Check for Modern Signed JWT Session Token
     let jwt_secret = state.config.admin_pin.as_bytes();
     if let Ok(claims) = crate::auth::crypto::verify_jwt(&raw_token, jwt_secret) {
-        let conn = state.db.lock().await;
-        let is_admin: bool = conn
-            .query_row(
+        let is_admin: bool = {
+            let conn = state.db.lock().await;
+            conn.query_row(
                 "SELECT 1 FROM users WHERE id = ?1 AND status = 'active' AND token_version = ?2 AND (role = 'owner' OR role = 'admin')",
                 rusqlite::params![claims.sub, claims.token_version],
                 |_| Ok(true),
             )
-            .unwrap_or(false);
+            .unwrap_or(false)
+        };
 
         if is_admin {
             return next.run(req).await;

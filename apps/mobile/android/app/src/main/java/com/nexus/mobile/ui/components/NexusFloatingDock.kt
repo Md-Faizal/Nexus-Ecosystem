@@ -93,7 +93,7 @@ import kotlin.math.roundToInt
 
 enum class NexusTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
-    SERVER("Server", Icons.Rounded.Dns),
+    SERVER("Server & Apps", Icons.Rounded.Dns),
     ASSISTANT("PA", Icons.Rounded.AutoAwesome),
     SETTINGS("Settings", Icons.Rounded.Settings),
 }
@@ -473,10 +473,12 @@ fun NexusFloatingDock(
                                                 Spacer(Modifier.height(2.dp))
                                                 Text(
                                                     text = tab.label,
-                                                    fontSize = 10.sp,
+                                                    fontSize = if (tab.label.length > 8) 8.5.sp else 10.sp,
+                                                    letterSpacing = (-0.25).sp,
                                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                                     color = tint,
                                                     maxLines = 1,
+                                                    softWrap = false,
                                                 )
                                             }
                                         }
